@@ -1,0 +1,194 @@
+/**
+ * RestLab pages
+ *
+ * Home_Web is the launcher: one card per demo lane, each button firing a call
+ * and writing a CallLog row. The call log below it is the shared result view --
+ * every lane reports there, with the raw response one click away.
+ */
+
+create or replace page RestLab."CallLog_Detail"
+(
+  params: { $CallLog: RestLab."CallLog" },
+  title: 'Call detail',
+  layout: Atlas_Core.PopupLayout,
+  PopupWidth: 900,
+  PopupHeight: 640,
+  PopupResizable: true,
+  folder: 'CallLog'
+)
+{
+  layoutgrid lgDetail {
+    row rowDetail {
+      column colDetail (desktopwidth: autofill) {
+  dataview dvLog (datasource: $CallLog) {
+    textbox tbUrl (label: 'URL', attribute: Url, editable: false)
+    textbox tbMethod (label: 'Method', attribute: Method, editable: false)
+    textbox tbStatus (label: 'HTTP status', attribute: StatusCode, editable: false)
+    textbox tbDuration (label: 'Duration (ms)', attribute: DurationMs, editable: false)
+    checkbox cbSuccess (label: 'Succeeded', attribute: Success, editable: false)
+    textbox tbError (label: 'Error', attribute: ErrorMessage, editable: false)
+    textarea taBody (label: 'Raw response', attribute: ResponseBody, editable: false)
+    actionbutton btnClose (caption: 'Close', action: close_page)
+  }
+      }
+    }
+  }
+}
+
+create or replace page RestLab."Home_Web"
+(
+  title: 'RestLab',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  container cIntro (class: 'mx-spacing-bottom-large') {
+    header hdr (caption: 'RestLab') {
+      dynamictext dtIntro (
+        Content: 'Each button fires one live REST call and writes a row to the call log below. Open a row to see the raw response beside the mapped result.'
+      )
+    }
+  }
+
+  layoutgrid lgLanes {
+    row rowA {
+      column colCrud (desktopwidth: 4) {
+        container cCrud (class: 'card') {
+          dynamictext dtCrudTitle (Content: 'CRUD - api.restful-api.dev')
+          dynamictext dtCrudBody (
+            Content: 'The one public demo API whose writes really persist. List maps a nested data object onto a child entity.'
+          )
+          actionbutton btnCrudList (
+            caption: 'List objects',
+            action: microflow RestLab."ACT_Demo_CrudList",
+            buttonstyle: primary
+          )
+          actionbutton btnCrudGet (
+            caption: 'Get object 7',
+            action: microflow RestLab."ACT_Demo_CrudGet"
+          )
+          actionbutton btnCrudCreate (
+            caption: 'Create object',
+            action: microflow RestLab."ACT_Demo_CrudCreate",
+            buttonstyle: success
+          )
+        }
+      }
+      column colCatalog (desktopwidth: 4) {
+        container cCatalog (class: 'card') {
+          dynamictext dtCatTitle (Content: 'Auth + pagination - dummyjson.com')
+          dynamictext dtCatBody (
+            Content: 'A paged envelope mapped onto ProductList + Product, showing the nested LIST mapping and the String-to-Decimal conversion.'
+          )
+          actionbutton btnCatalog (
+            caption: 'Get 10 products',
+            action: microflow RestLab."ACT_Demo_Catalog",
+            buttonstyle: primary
+          )
+        }
+      }
+      column colBlog (desktopwidth: 4) {
+        container cBlog (class: 'card') {
+          dynamictext dtBlogTitle (Content: 'Response mapping - jsonplaceholder')
+          dynamictext dtBlogBody (
+            Content: 'Flat, predictable JSON. Read-only on purpose: writes here are faked and never persist.'
+          )
+          actionbutton btnBlog (
+            caption: 'Get posts',
+            action: microflow RestLab."ACT_Demo_Blog",
+            buttonstyle: primary
+          )
+        }
+      }
+    }
+    row rowB {
+      column colEdge (desktopwidth: 6) {
+        container cEdge (class: 'card') {
+          dynamictext dtEdgeTitle (Content: 'Errors + auth - httpbingo.org')
+          dynamictext dtEdgeBody (
+            Content: 'Called inline rather than through the REST client document, because SEND REST REQUEST aborts on a non-2xx response and cannot show a failure.'
+          )
+          actionbutton btnEdge404 (
+            caption: 'Force a 404',
+            action: microflow RestLab."ACT_Demo_EdgeCase404",
+            buttonstyle: warning
+          )
+          actionbutton btnEdge503 (
+            caption: 'Force a 503',
+            action: microflow RestLab."ACT_Demo_EdgeCase503",
+            buttonstyle: danger
+          )
+        }
+      }
+      column colWeather (desktopwidth: 6) {
+        container cWeather (class: 'card') {
+          dynamictext dtWxTitle (Content: 'Raw JSON - open-meteo')
+          dynamictext dtWxBody (
+            Content: 'No API key, and parallel-array JSON that an inline call plus raw response handles better than a field-by-field mapping.'
+          )
+          actionbutton btnWeather (
+            caption: 'Get forecast',
+            action: microflow RestLab."ACT_Demo_Weather",
+            buttonstyle: primary
+          )
+        }
+      }
+    }
+  }
+
+  container cLog (class: 'mx-spacing-top-large') {
+    dynamictext dtLogTitle (Content: 'Call log')
+    datagrid dgLog (
+      datasource: database from RestLab."CallLog" sort by Timestamp desc,
+      selection: Single
+    ) {
+      column colWhen (attribute: Timestamp, caption: 'When')
+      column colLane (attribute: Lane, caption: 'Lane')
+      column colMethod (attribute: Method, caption: 'Method')
+      column colUrl (attribute: Url, caption: 'URL', WrapText: true)
+      column colStatus (attribute: StatusCode, caption: 'Status', Alignment: right)
+      column colMs (attribute: DurationMs, caption: 'ms', Alignment: right)
+      column colOk (attribute: Success, caption: 'OK')
+      column colOpen (
+        Caption: '',
+        ShowContentAs: customContent
+      ) {
+        actionbutton btnOpen (
+          caption: 'Detail',
+          action: show_page RestLab."CallLog_Detail"(CallLog: $currentObject)
+        )
+      }
+    }
+  }
+}
+
+create or replace page RestLab."Mapped_Overview"
+(
+  title: 'Mapped data',
+  layout: Atlas_Core.Atlas_Default
+)
+{
+  container cObjects {
+    dynamictext dtObjects (Content: 'RestObject - from api.restful-api.dev')
+    datagrid dgObjects (datasource: database from RestLab."RestObject") {
+      column colExtId (attribute: ExternalId, caption: 'External id')
+      column colName (attribute: Name, caption: 'Name')
+    }
+  }
+  container cProducts (class: 'mx-spacing-top-large') {
+    dynamictext dtProducts (Content: 'Product - from dummyjson.com')
+    datagrid dgProducts (datasource: database from RestLab."Product") {
+      column colPExtId (attribute: ExternalId, caption: 'External id')
+      column colTitle (attribute: Title, caption: 'Title')
+      column colBrand (attribute: Brand, caption: 'Brand')
+      column colPriceRaw (attribute: Price, caption: 'Price (mapped String)')
+      column colPriceVal (attribute: PriceValue, caption: 'PriceValue (Decimal)', Alignment: right)
+    }
+  }
+  container cPosts (class: 'mx-spacing-top-large') {
+    dynamictext dtPosts (Content: 'Post - from jsonplaceholder')
+    datagrid dgPosts (datasource: database from RestLab."Post") {
+      column colPoExtId (attribute: ExternalId, caption: 'External id')
+      column colPoTitle (attribute: Title, caption: 'Title', WrapText: true)
+    }
+  }
+}
