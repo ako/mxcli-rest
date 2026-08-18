@@ -42,6 +42,11 @@ alter user role Administrator add module roles (RestLab."Administrator");
 -- build with CE0156 once security is above Off.
 create or modify user role Developer (RestLab."Developer", System.User);
 
+grant RestLab."Developer" on RestLab."RateSnapshot" (create, read *, write *);
+grant RestLab."Developer" on RestLab."ExchangeRate" (create, read *, write *);
+grant RestLab."Administrator" on RestLab."RateSnapshot" (create, delete, read *, write *);
+grant RestLab."Administrator" on RestLab."ExchangeRate" (create, delete, read *, write *);
+
 -- Security must be at least PROTOTYPE, or the runtime creates no accounts, the
 -- demo users below never appear, and every access rule above is inert.
 alter project security level prototype;

@@ -1,0 +1,133 @@
+/**
+ * The data-transformer lane: reshaping JSON that Mendix mappings cannot address
+ *
+ * frankfurter.dev returns
+ *   {"amount":1.0,"base":"EUR","date":"2026-08-18",
+ *    "rates":{"AUD":1.6278,"BRL":6.0281,"CAD":1.606, ...}}
+ *
+ * The currency codes are PROPERTY NAMES, but they are really data. A Mendix
+ * mapping addresses fields by name, so there is no way to write a rule for a
+ * key that is only known at runtime -- you would need one mapping line per
+ * currency, and a new one every time the API adds a currency.
+ *
+ * A JSLT data transformer rewrites that object into an ARRAY of {code, value}
+ * pairs, which is a shape a mapping can address. This is the general answer to
+ * "the payload has a shape mappings do not support": normalise it first.
+ *
+ * It also side-steps the two inline-REST-mapping limits recorded in
+ * FINDINGS.md, because an import mapping DOCUMENT is written by a different
+ * serializer than the inline REST mapping:
+ *   - repeating elements work (writer_import_mapping.go writes a real
+ *     MaxOccurs from the JSON structure; writer_rest.go hardcodes 1)
+ *   - attributes keep their natural types (no forced String / CE6099)
+ */
+
+-- ---------------------------------------------------------------- 1. transform
+
+/**
+ * Object-with-dynamic-keys -> array of pairs.
+ *
+ * `for (.rates)` iterates an OBJECT in JSLT, exposing each entry as .key and
+ * .value -- which is exactly what turns a property name into a data value.
+ */
+create or modify data transformer RestLab."DT_RatesToList"
+source json '{"amount":1.0,"base":"EUR","date":"2026-08-18","rates":{"AUD":1.6278,"BRL":6.0281}}'
+{
+  jslt $$
+{
+  "base": .base,
+  "date": .date,
+  "amount": .amount,
+  "rates": [for (.rates) {"code": .key, "value": .value}]
+}
+  $$;
+};
+
+-- ---------------------------------------------------------------- 2. structure
+
+/**
+ * Describes the transformer OUTPUT, not the API response. Two array entries in
+ * the snippet so the structure infers a repeating element rather than a single
+ * object.
+ */
+create or modify json structure RestLab."JSON_Rates"
+snippet '{"base":"EUR","date":"2026-08-18","amount":1.0,"rates":[{"code":"AUD","value":1.6278},{"code":"BRL","value":6.0281}]}';
+
+-- ---------------------------------------------------------------- 3. mapping
+
+create or modify import mapping RestLab."IMM_Rates"
+  with json structure RestLab."JSON_Rates"
+{
+  create RestLab."RateSnapshot" {
+    Base = base,
+    RateDate = date,
+    Amount = amount,
+    create RestLab."RateSnapshot_ExchangeRate"/RestLab."ExchangeRate" = rates {
+      Code = code,
+      Value = value
+    }
+  }
+};
+
+-- ---------------------------------------------------------------- 4. microflow
+
+/**
+ * REST CALL (raw string) -> TRANSFORM (JSLT) -> IMPORT FROM MAPPING.
+ *
+ * Deliberately NOT a consumed REST service operation: the whole point is that
+ * the response needs reshaping before any mapping can address it, and an
+ * inline call is what gives you the raw body to hand to the transformer.
+ */
+create or modify microflow RestLab."ACT_Rates_GetLatest" ()
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+  declare $Body String = '';
+  declare $Ok Boolean = false;
+
+  $Raw = rest call get 'https://api.frankfurter.dev/v1/latest?base=EUR'
+    header Accept = 'application/json'
+    timeout 30
+    returns string
+    on error continue;
+
+  IF $Raw != empty THEN
+    SET $Body = $Raw;
+    SET $Ok = true;
+  END IF;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'https://api.frankfurter.dev/v1/latest?base=EUR',
+    Method = 'GET',
+    StatusCode = 0,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = $Ok,
+    ErrorMessage = '',
+    ResponseBody = $Body,
+    Lane = RestLab.Lane.Rates
+  );
+
+  IF $Raw != empty THEN
+    -- The point of the lane. Currency codes stop being property names and
+    -- become data:
+    --   {"rates":{"AUD":1.63}}  ->  {"Rates":[{"Code":"AUD","Value":1.63}]}
+    $Shaped = transform $Raw with RestLab."DT_RatesToList";
+
+    -- Both payloads are stored so the detail page can show them side by side.
+    CHANGE $Log ("TransformedBody" = $Shaped);
+    COMMIT $Log;
+
+    -- NEXT STEP, CURRENTLY BLOCKED:
+    --   $Snapshot = import from mapping RestLab."IMM_Rates" ($Shaped);
+    -- IMM_Rates below is the correct target shape and passes mx check, but an
+    -- import mapping document written by mxcli throws at runtime:
+    --   key not found: Path(QName(None,),None,)
+    --     at ... (Import with mapping : 'Import from JSON')
+    -- It is not specific to this mapping -- a flat two-field mapping fails the
+    -- same way. See FINDINGS.md #23. Until that is fixed the reshaped JSON is
+    -- shown rather than mapped into RateSnapshot / ExchangeRate.
+  END IF;
+
+  RETURN $Log;
+end;
+/

@@ -37,9 +37,19 @@ rows are simply missing at runtime.
 | Lane | JSON shape | Mapping result |
 | --- | --- | --- |
 | **Weather** (open-meteo) | object root + nested object | ✅ fully populated — copy this shape |
+| Rates (frankfurter) | dynamic keys, reshaped by JSLT | ⚠️ transform works; import mapping cannot run |
 | Catalog (dummyjson) | object root + nested **array** | ⚠️ one child row, all attributes empty |
 | CRUD (restful-api.dev) | **array** root | ❌ null — 0 rows |
 | Blog (jsonplaceholder) | **array** root | ❌ null — 0 rows |
+
+**A JSLT data transformer fixes the *shape* problems but cannot finish the job.**
+The rates lane (frankfurter.dev) returns currency codes as property names —
+data masquerading as keys, which no mapping can address. A transformer rewrites
+that into an array of code/value pairs, and that step works: open the rates row
+in the call log to see the payload before and after. The import mapping that
+would turn it into entities is modelled (`IMM_Rates`) and passes `mx check`, but
+**no mxcli-written import mapping document executes** — even a flat two-field one
+throws `key not found: Path(QName(None,),None,)`. FINDINGS.md #23 has the repro.
 
 Two further constraints shape the code:
 
@@ -76,6 +86,7 @@ ones that were rejected and why.
 | `httpbingo.org` | Error handling: arbitrary status codes, basic/bearer auth, header echo, delays |
 | `jsonplaceholder.typicode.com` | Response mapping onto entities, nested objects |
 | `api.open-meteo.com` | The working response mapping: object root, nested object, query parameters |
+| `api.frankfurter.dev` | Dynamic property names (currency codes as keys), reshaped with a JSLT data transformer |
 
 ## MDL sources
 
@@ -93,6 +104,7 @@ model:
 | `06-demo-actions.mdl` | No-argument wrappers so every button is one click |
 | `07-pages.mdl` | Home_Web, Mapped_Overview, CallLog_Detail |
 | `08-navigation-and-access.mdl` | Navigation profile, page and microflow access |
+| `09-transformer-lane.mdl` | JSLT data transformer, JSON structure, import mapping |
 
 **Re-run `02-security.mdl` after any change to `01-domain-model.mdl`.** Entity
 access rules store an explicit member list, so adding an attribute or

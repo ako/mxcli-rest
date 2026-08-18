@@ -449,3 +449,128 @@ Not just "it compiles". The following were confirmed against the running app:
    clicked "Get forecast (mapped)" and "Force a 404" on Home_Web, saw new
    CallLog rows appear in the grid, and opened the detail popup showing the raw
    response. Driven with Playwright against the running runtime.
+
+---
+
+# Data transformers (the answer to "can JSLT fix the awkward shapes?")
+
+## 23. JSLT data transformers WORK; import mapping documents do NOT execute
+
+Two halves of the same pipeline, with opposite outcomes. This matters because
+the transformer is the natural answer to a payload Mendix mappings cannot
+address, and it gets you most of the way — but not to entities.
+
+### The transformer half: works, verified end to end
+
+frankfurter.dev returns currency codes as **property names**:
+
+```json
+{"amount":1.0,"base":"EUR","date":"2026-08-18",
+ "rates":{"AUD":1.6278,"BRL":6.0281,"CAD":1.606, ...}}
+```
+
+A mapping addresses fields by name, so a key only known at runtime cannot be
+mapped — you would need one rule per currency. JSLT's `for (.rates)` iterates an
+**object**, exposing `.key` and `.value`, which turns the property name into
+data:
+
+```
+{ "base": .base, "date": .date, "amount": .amount,
+  "rates": [for (.rates) {"code": .key, "value": .value}] }
+```
+
+**Verified at runtime** (`transform $Raw with RestLab.DT_RatesToList`, result
+written to `CallLog.TransformedBody` and read back with `psql`):
+
+```
+{"base":"EUR","date":"2026-08-18","amount":1.0,
+ "rates":[{"code":"AUD","value":1.6278},{"code":"BRL","value":6.0281},...]}
+```
+
+`create data transformer … source json … { jslt $$ … $$; }` writes correctly and
+`describe` round-trips it.
+
+### The import-mapping half: written fine, throws at runtime
+
+`create json structure … snippet '…'` and
+`create import mapping … with json structure …` both execute, round-trip
+through `describe`, and give **`mx check` 0 errors**. Notably the import mapping
+also accepts **Decimal** attributes with no CE6099, so it does not carry the
+inline REST mapping's String-only constraint (#9).
+
+But the mapping cannot be used:
+
+```
+com.mendix.modules.microflowengine.MicroflowException:
+  key not found: Path(QName(None,),None,)
+    at RestLab.ACT_Rates_GetLatest (Import with mapping : 'Import from JSON')
+```
+
+**Not specific to lists, nesting, or naming** — established by narrowing:
+
+| Attempt | Result |
+| --- | --- |
+| Nested array, lowercase keys (`base`, `rates`) | `key not found: Path(QName(None,),None,)` |
+| Same, with JSLT emitting PascalCase keys matching the generated `ExposedName`s (`Base`, `Rates`) | identical error |
+| **Flat, two String fields, no array, no nesting** — `{"base":"EUR","date":"2026-08-18"}` into a two-attribute entity | **identical error** |
+
+So every import mapping document mxcli writes fails the same way. The element
+paths do not resolve against the JSON structure at runtime: mxcli builds
+structure paths from the raw JSON key (`(Object)|base`,
+`mdl/types/json_utils.go:225`) while capitalising `ExposedName`, and
+`sdk/mpr/writer_import_mapping.go:104-109` falls back to
+`parentPath + "|" + ExposedName` when the executor supplies no `JsonPath` —
+but aligning the two by hand did not help, so the defect is deeper than the
+capitalisation.
+
+### What this means
+
+- **Yes, a data transformer is the right tool** for dynamic property names,
+  internal references, and any shape a mapping cannot address — and the JSLT
+  step works today.
+- **No, it does not currently rescue the mapping problem**, because the step
+  that turns reshaped JSON into entities is itself broken. It is a *different*
+  defect from #19 (inline REST mappings, `MaxOccurs` hardcoded to 1) and would
+  have fixed #19 and #9 had it worked, since import mappings use a different
+  serializer that propagates real `MaxOccurs` and real types.
+- Until it is fixed, reshaped JSON can be transformed and displayed but not
+  imported. RestLab's rates lane does exactly that, and keeps `IMM_Rates` and
+  `JSON_Rates` in the model as the documented target shape.
+
+**Minimal repro** for an upstream report — flat, two fields, no arrays:
+
+```sql
+create persistent entity M."E" ("Base": String(10), "RateDate": String(20));
+create json structure M."S" snippet '{"base":"EUR","date":"2026-08-18"}';
+create import mapping M."IMM" with json structure M."S"
+{ create M."E" { Base = base, RateDate = date } };
+-- then, in a microflow:
+--   $O = import from mapping M."IMM" ('{"base":"EUR","date":"2026-08-18"}');
+-- mx check: 0 errors. Runtime: key not found: Path(QName(None,),None,)
+```
+
+## 24. restcountries.com is no longer usable as a keyless demo endpoint
+
+Worth recording because it is a stock recommendation in REST tutorials.
+
+- `v3.1` (any path, with or without `?fields=`) returns HTTP 200 carrying
+  `{"success":false,"data":null,"errors":[{"message":"This API version has been
+  deprecated. Please visit …/legacy-api-deprecation to migrate to our new
+  version (v5)."}]}`.
+- **`v5` returns the same deprecation body** — `/v5/name/…`, `/v5/alpha/…`,
+  `/v5/all`, `/v5/countries/…` all do. The docs page it points at shows
+  "Log in" and "Get an API key", so v5 is authenticated.
+- Note the failure is a **200 with an error envelope**, not a 4xx — anything
+  checking only the status code will treat it as success.
+
+It was a good suggestion on the merits: restcountries has exactly the awkward
+shapes (`name.nativeName.nld.official`, `currencies.EUR.name`, `languages.nld`
+— all dynamic keys). **frankfurter.dev** was substituted because it has the same
+dynamic-key problem in a smaller payload and needs no key. If you have a
+restcountries key, the lane transfers unchanged: only the URL and the JSLT body
+differ.
+
+For **internal references** specifically, `pokeapi.co` is live and keyless and
+has the other shape worth demonstrating — arrays of objects each holding a URL
+pointer (`types[].type.url`, `abilities[].ability.url`) that must be resolved or
+reduced to an id. A JSLT step can pull the trailing id out of such a URL.

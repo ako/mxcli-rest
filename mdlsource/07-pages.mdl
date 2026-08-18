@@ -28,6 +28,7 @@ create or replace page RestLab."CallLog_Detail"
     checkbox cbSuccess (label: 'Succeeded', attribute: Success, editable: false)
     textbox tbError (label: 'Error', attribute: ErrorMessage, editable: false)
     textarea taBody (label: 'Raw response', attribute: ResponseBody, editable: false)
+    textarea taShaped (label: 'After data transformer', attribute: TransformedBody, editable: false)
     actionbutton btnClose (caption: 'Close', action: close_page)
   }
       }
@@ -123,6 +124,19 @@ create or replace page RestLab."Home_Web"
           actionbutton btnWeather (
             caption: 'Get forecast (raw JSON)',
             action: microflow RestLab."ACT_Demo_Weather"
+          )
+        }
+      }
+    }
+    row rowC {
+      column colRates (desktopwidth: 12) {
+        container cRates (class: 'card') {
+          container cdtRatesTitle { dynamictext dtRatesTitle (Content: 'Data transformer - frankfurter.dev', class: 'h4') }
+          container cdtRatesBody (class: 'mx-spacing-bottom-medium') { dynamictext dtRatesBody (Content: 'The rates arrive keyed BY CURRENCY CODE, so the property names are really data and no mapping can address them. A JSLT transformer rewrites the object into an array of code/value pairs, which IS a shape a mapping can address. Open the call log row to see the payload before and after. The import mapping that would turn it into rows is modelled but cannot run yet - see FINDINGS.md #23.') }
+          actionbutton btnRates (
+            caption: 'Get EUR rates (transformed)',
+            action: microflow RestLab."ACT_Demo_Rates",
+            buttonstyle: primary
           )
         }
       }

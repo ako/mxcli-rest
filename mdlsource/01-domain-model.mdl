@@ -16,7 +16,8 @@ create or modify enumeration RestLab."Lane" (
   "Mapping" 'Response mapping (jsonplaceholder)',
   "OpenApi" 'OpenAPI import (petstore)',
   "EdgeCase" 'Errors + auth (httpbingo)',
-  "Weather" 'Weather (open-meteo)'
+  "Weather" 'Weather (open-meteo)',
+  "Rates" 'Rates (frankfurter, transformed)'
 );
 
 /*
@@ -52,6 +53,8 @@ create or modify persistent entity RestLab."CallLog" (
   "ErrorMessage": String(1000),
   /** Raw response body, kept so the demo page can show it beside the mapping */
   "ResponseBody": String,
+  /** Payload after a data transformer reshaped it, when a lane uses one. */
+  "TransformedBody": String,
   "Lane": RestLab."Lane",
   /**
    * Plain DateTime set by SUB_LogCall, NOT autocreateddate.
@@ -166,6 +169,32 @@ create or modify persistent entity RestLab."WeatherCurrent" (
   "Temperature": String(30)
 );
 
+-- ---------------------------------------------------------------- rates lane
+
+/**
+ * frankfurter.dev exchange rates. The payload uses CURRENCY CODES AS PROPERTY
+ * NAMES ({"rates": {"AUD": 1.63, "BRL": 6.03, ...}}) -- property names that are
+ * really data values, which no Mendix mapping can address.
+ *
+ * A JSLT data transformer reshapes that object into an array of {code, value}
+ * pairs first, and an import mapping DOCUMENT (bound to a JSON structure) then
+ * maps it. Unlike the inline REST mapping, that route handles a repeating
+ * element, so every rate lands as its own row -- and the attributes keep their
+ * natural types instead of being forced to String.
+ */
+@position(2200, 100)
+create or modify persistent entity RestLab."RateSnapshot" (
+  "Base": String(10),
+  "RateDate": String(20),
+  "Amount": Decimal
+);
+
+@position(2200, 300)
+create or modify persistent entity RestLab."ExchangeRate" (
+  "Code": String(10),
+  "Value": Decimal
+);
+
 -- ---------------------------------------------------------------- associations
 
 create or modify association RestLab."RestObject_RestObjectData"
@@ -194,3 +223,9 @@ create or modify association RestLab."WeatherReading_WeatherCurrent"
 
 create or modify association RestLab."WeatherReading_CallLog"
   from RestLab."WeatherReading" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."RateSnapshot_ExchangeRate"
+  from RestLab."RateSnapshot" to RestLab."ExchangeRate" type referenceset;
+
+create or modify association RestLab."RateSnapshot_CallLog"
+  from RestLab."RateSnapshot" to RestLab."CallLog" type reference;
