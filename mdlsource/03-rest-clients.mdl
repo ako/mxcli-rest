@@ -1,0 +1,223 @@
+/**
+ * RestLab consumed REST services
+ *
+ * Four hand-written clients, one per demo lane. The PetStore client is
+ * generated from its OpenAPI spec in 04-openapi-import.mdl, and the open-meteo
+ * lane uses an inline REST CALL in a microflow, so all three of mxcli's REST
+ * mechanisms are represented.
+ *
+ * NOTE: operation blocks are NOT comma-separated, even though the property list
+ * above them and the clauses inside them are.
+ */
+
+-- ---------------------------------------------------------------- CRUD lane
+/**
+ * api.restful-api.dev — the one public demo API whose writes really persist,
+ * so this lane can show a full create/read/delete lifecycle.
+ */
+create or modify rest client RestLab."CrudApi" (
+  BaseUrl: 'https://api.restful-api.dev',
+  authentication: none
+)
+{
+  /** All objects. Demonstrates nested-object mapping onto a child entity. */
+  operation "ListObjects" {
+    method: get,
+    path: '/objects',
+    headers: ('Accept' = 'application/json'),
+    timeout: 30,
+    response: mapping RestLab."RestObject" {
+      "ExternalId" = "id",
+      "Name" = "name",
+      create RestLab."RestObject_RestObjectData"/RestLab."RestObjectData" = "data" {
+        "Year" = "year",
+        "Price" = "price",
+        "InStock" = "inStock"
+      }
+    }
+  }
+
+  operation "GetObject" {
+    method: get,
+    path: '/objects/{objectId}',
+    parameters: ($objectId: String),
+    headers: ('Accept' = 'application/json'),
+    timeout: 30,
+    response: mapping RestLab."RestObject" {
+      "ExternalId" = "id",
+      "Name" = "name",
+      create RestLab."RestObject_RestObjectData"/RestLab."RestObjectData" = "data" {
+        "Year" = "year",
+        "Price" = "price",
+        "InStock" = "inStock"
+      }
+    }
+  }
+
+  /** Export mapping the other way: entity -> JSON request body. */
+  operation "CreateObject" {
+    method: post,
+    path: '/objects',
+    headers: ('Content-Type' = 'application/json'),
+    body: mapping RestLab."RestObject" {
+      "name" = "Name"
+    },
+    timeout: 30,
+    response: json as $Created
+  }
+
+  operation "DeleteObject" {
+    method: delete,
+    path: '/objects/{objectId}',
+    parameters: ($objectId: String),
+    timeout: 30,
+    response: status as $StatusCode
+  }
+};
+
+-- ---------------------------------------------------------------- catalog lane
+/**
+ * dummyjson.com — JWT auth and a paged list envelope. The list mapping is the
+ * showcase here: {"products": [...], "total":…} onto ProductList + Product.
+ */
+create or modify rest client RestLab."CatalogApi" (
+  BaseUrl: 'https://dummyjson.com',
+  authentication: none
+)
+{
+  /** Returns accessToken + refreshToken; kept raw so the page can show the JWT. */
+  operation "Login" {
+    method: post,
+    path: '/auth/login',
+    parameters: ($username: String, $password: String),
+    headers: ('Content-Type' = 'application/json'),
+    body: template '{"username": "{username}", "password": "{password}"}',
+    timeout: 30,
+    response: json as $Token
+  }
+
+  /** Paged product list. limit/skip/total drive the pager on the demo page. */
+  operation "GetProducts" {
+    method: get,
+    path: '/products',
+    query: ($limit: String, $skip: String),
+    headers: ('Accept' = 'application/json'),
+    timeout: 30,
+    response: mapping RestLab."ProductList" {
+      "Total" = "total",
+      "Skip" = "skip",
+      "Limit" = "limit",
+      create RestLab."ProductList_Product"/RestLab."Product" = "products" {
+        "ExternalId" = "id",
+        "Title" = "title",
+        "Price" = "price",
+        "Brand" = "brand",
+        "Category" = "category",
+        "Rating" = "rating"
+      }
+    }
+  }
+
+  /**
+   * Mendix consumed REST services cannot store a dynamic header VALUE — only the
+   * static prefix is kept ('Bearer '), and the token itself must be supplied by
+   * the calling microflow. Written as $bearer alone, this silently stores ''.
+   */
+  operation "GetCurrentUser" {
+    method: get,
+    path: '/auth/me',
+    parameters: ($bearer: String),
+    headers: ('Authorization' = 'Bearer ' + $bearer, 'Accept' = 'application/json'),
+    timeout: 30,
+    response: json as $Me
+  }
+};
+
+-- ---------------------------------------------------------------- mapping lane
+/**
+ * jsonplaceholder — flat, predictable JSON. Best lane for showing plain
+ * attribute mapping without nesting getting in the way.
+ *
+ * Writes here are FAKED: POST returns 201 with your body echoed and nothing
+ * persists, so this lane is read-only on purpose.
+ */
+create or modify rest client RestLab."BlogApi" (
+  BaseUrl: 'https://jsonplaceholder.typicode.com',
+  authentication: none
+)
+{
+  operation "GetPosts" {
+    method: get,
+    path: '/posts',
+    headers: ('Accept' = 'application/json'),
+    timeout: 30,
+    response: mapping RestLab."Post" {
+      "ExternalId" = "id",
+      "Title" = "title",
+      "Body" = "body"
+    }
+  }
+
+  operation "GetAuthors" {
+    method: get,
+    path: '/users',
+    headers: ('Accept' = 'application/json'),
+    timeout: 30,
+    response: mapping RestLab."Author" {
+      "ExternalId" = "id",
+      "Name" = "name",
+      "Username" = "username",
+      "Email" = "email"
+    }
+  }
+};
+
+-- ---------------------------------------------------------------- edge-case lane
+/**
+ * httpbingo.org — the maintained Go port of httpbin. Everything here is about
+ * what happens when a call does NOT go well: chosen status codes, auth
+ * challenges, and a delay that outlives the timeout.
+ */
+create or modify rest client RestLab."EdgeCaseApi" (
+  BaseUrl: 'https://httpbingo.org',
+  authentication: none
+)
+{
+  /** Ask for any status code and see how the runtime reports it. */
+  operation "GetStatus" {
+    method: get,
+    path: '/status/{code}',
+    parameters: ($code: String),
+    timeout: 30,
+    response: status as $StatusCode
+  }
+
+  /** Deliberately exceeds its own timeout, to exercise the error handler. */
+  operation "GetDelayed" {
+    method: get,
+    path: '/delay/{seconds}',
+    parameters: ($seconds: String),
+    headers: ('Accept' = 'application/json'),
+    timeout: 5,
+    response: json as $Data
+  }
+
+  /** Bearer auth echoed back, so the page can prove the header arrived. */
+  operation "GetBearer" {
+    method: get,
+    path: '/bearer',
+    parameters: ($bearer: String),
+    headers: ('Authorization' = 'Bearer ' + $bearer),
+    timeout: 30,
+    response: json as $Data
+  }
+
+  /** Header echo — useful for showing exactly what Mendix sent. */
+  operation "GetHeaders" {
+    method: get,
+    path: '/headers',
+    headers: ('Accept' = 'application/json', 'X-RestLab-Demo' = 'true'),
+    timeout: 30,
+    response: json as $Data
+  }
+};
