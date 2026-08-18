@@ -53,8 +53,15 @@ Two further constraints shape the code:
 
 ## Who logs in
 
-- **Developer** — runs any demo, sees all call logs.
-- **Administrator** — the above, plus managing stored demo data and credentials.
+Security level is **prototype**, so the access rules are live and demo users exist.
+
+| User | Password | Role |
+| --- | --- | --- |
+| `demo_developer` | `RestLabDemo123` | Developer — runs any demo, sees all call logs |
+| `demo_administrator` | *(generated)* | Administrator — the above, plus deleting stored demo data |
+
+A blank Mendix app ships with security **off**; leaving it there would make
+every access rule inert and create no accounts at all.
 
 ## Endpoints used
 
