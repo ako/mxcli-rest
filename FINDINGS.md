@@ -124,3 +124,130 @@ It parses and reports statement count; it does not resolve names, so a script
 that references a non-existent entity or an unimplemented mapping shape still
 passes. Treat a green `check` as "the grammar accepts this", not "this will
 execute" — and confirm with a real `mx check` after `exec`.
+
+---
+
+# Findings from building the model
+
+## 9. Inline REST response mappings can only target String attributes (CE6099)
+
+**Impact: high.** This is the one that cost the most time, and it is invisible
+until a real `mx check`.
+
+An inline `Response: mapping <Entity> { Attr = jsonField }` writes every JSON
+element with schema type **String** — `sdk/mpr/writer_rest.go` hardcodes
+`{"$Type": "DataTypes$StringType"}` (and `XmlPrimitiveType: "String"`) in the
+value mapping element, and the MDL grammar for a mapping entry is just
+`identifierOrKeyword EQUALS identifierOrKeyword`, so there is **no syntax to
+declare the element's type**.
+
+Mapping such an element onto an Integer, Decimal or Boolean attribute therefore
+produces, per attribute:
+
+```
+[error] [CE6099] "Schema data type 'String' is not compatible with attribute
+'RestLab.Product.Price' of type 'Decimal'." at Value mapping element 'price'
+```
+
+- **Seen:** a domain model with natural types (Integer ids, Decimal prices,
+  Boolean flags) plus mappings for 4 lanes → **16 errors** from `mx check`.
+  `mxcli check` passed (`✓ Syntax OK`) and `mxcli exec` reported success with no
+  warning at all.
+- **Workaround:** every attribute populated *directly* by a REST response
+  mapping must be `String`. Keep a separately-named typed attribute alongside it
+  and parse in the microflow when a real type is needed (`Product.Price` String
+  → `Product.PriceValue` Decimal).
+- **Verified:** after converting the mapped attributes to String, the same
+  mappings give 0 CE6099. See the note at the top of `mdlsource/01-domain-model.mdl`.
+
+## 10. `autoowner` / `autocreateddate` + `read *` ⇒ CE0066, with no way out
+
+**Impact: high**, because every part of it looks correct in isolation.
+
+An entity with audit members (`Owner: autoowner`, `CreatedDate: autocreateddate`)
+granted with `read *, write *` fails the build with:
+
+```
+[error] [CE0066] "Entity access is out of date. Please update security by
+clicking the 'Update security' button in the domain model editor."
+```
+
+`grant … (read *, write *)` does not store a `*`; it stores an **explicit
+per-member list** (visible via `show access on <Entity>`) which **omits the audit
+members**, so Mendix considers the rule stale.
+
+Each escape route is closed:
+
+- Listing the members explicitly — `read (…, "Owner", "CreatedDate")` — is
+  rejected by mxcli's own lint rule **MDL-SEC01**: *"gives the audit member Owner
+  per-member rights — Mendix stores no member access for audit members, and a
+  rule that carries one fails the build with CE0066"*, advising `read *`, which
+  is what fails.
+- `UPDATE SECURITY IN RestLab` prints **"All entity access rules are up to
+  date"** while `mx check` reports CE0066 on the very same model.
+- Re-running the grants does not help *while the audit members exist*.
+
+- **Workaround:** do not use audit members on an entity you grant with `read *`.
+  RestLab.CallLog uses a plain `Timestamp: DateTime` set by the microflow.
+- **Verified:** dropping `Owner`/`CreatedDate` and re-running the same grants
+  took the model to **0 errors**. Re-running the grants *before* dropping them
+  did not.
+
+## 11. Entity access goes stale whenever members change
+
+Related but distinct from #10, and worth knowing on its own: adding an attribute
+or association after a `grant` leaves the stored member list incomplete, and
+`mx check` reports CE0066. **Re-run the grant script after any domain-model
+change.** In this project that means `mxcli exec mdlsource/02-security.mdl`
+after every `01-domain-model.mdl` run — which is why both scripts are written to
+be idempotent (`create or modify …`, `create or modify user role`).
+
+## 12. `millisecondsBetween()` returns **Decimal**
+
+Assigning it to a `Long` (or `Integer`) variable fails with
+`[CE0117] "Error(s) in expression."`, which does not say which side is wrong.
+
+- **Verified** by exec'ing two otherwise-identical microflows with differently
+  named result variables — `PROBE_Decimal` passed, `PROBE_Long` failed. (Naming
+  both result variables `Ms` first made the error ambiguous, since `mx check`
+  identifies the activity by variable name: "Change variable Ms".)
+- `CallLog.DurationMs` is therefore `Decimal`.
+
+## 13. `SHOW ACCESS ON ENTITY <Mod.Entity>` does not parse
+
+The grammar (`MDLCatalog.g4`) defines `SHOW ACCESS ON qualifiedName` plus
+MICROFLOW / PAGE / WORKFLOW / NANOFLOW variants — but **no ENTITY variant**. So
+`ENTITY` is consumed as the qualified name and the statement dies on the dot:
+
+```
+Parse error: line 1:29 extraneous input '.' expecting the start of a statement
+```
+
+The correct form is the bare `show access on RestLab.Product;`. Note the
+project's own generated `CLAUDE.md` documents the unsupported form
+(`SHOW ACCESS ON MICROFLOW|PAGE|ENTITY Mod.Name`).
+
+## 14. Dynamic header values are prefix-only (by design, but silent)
+
+`headers: ('Authorization' = $bearer)` silently stores `''`. This is
+**intentional** — `cmd_rest_clients.go` comments that Mendix consumed REST
+services cannot hold a dynamic header value, so only the static prefix is
+stored and the value must come from the calling microflow. Written as
+`'Authorization' = 'Bearer ' + $bearer` the prefix `'Bearer '` is stored, which
+is the form to use. Nothing warns when the prefix is empty.
+
+## 15. OpenAPI import needs an explicit BaseUrl when `servers[0].url` is relative
+
+The Swagger Petstore spec declares `servers: [{url: "/api/v3"}]`. mxcli warns
+clearly and continues:
+
+```
+Warning: server URL "/api/v3" is relative and cannot be used as BaseUrl;
+set BaseUrl explicitly in CREATE REST CLIENT
+```
+
+...but the resulting client has no BaseUrl and is unusable, so treat this
+warning as an error. Passing `BaseUrl:` alongside `OpenAPI:` resolves it.
+19 operations imported cleanly after that. (A second warning, `operation
+uploadFile: non-JSON request body; set body type manually`, is expected —
+multipart bodies are not derived.)

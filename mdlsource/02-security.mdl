@@ -33,4 +33,4 @@ grant RestLab."Administrator" on RestLab."Pet" (create, delete, read *, write *)
 -- Wire the module roles onto user roles. The blank app ships Administrator and
 -- User; Developer is new, so it gets a user role and a demo user of its own.
 alter user role Administrator add module roles (RestLab."Administrator");
-create user role Developer (RestLab."Developer");
+create or modify user role Developer (RestLab."Developer");
