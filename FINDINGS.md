@@ -251,3 +251,87 @@ warning as an error. Passing `BaseUrl:` alongside `OpenAPI:` resolves it.
 19 operations imported cleanly after that. (A second warning, `operation
 uploadFile: non-JSON request body; set body type manually`, is expected —
 multipart bodies are not derived.)
+
+## 16. PATH parameters on `SEND REST REQUEST` write an invalid BSON type and make the .mpr UNLOADABLE
+
+**Impact: critical.** This does not produce an error — it produces a project
+that Studio Pro and mxbuild cannot open at all.
+
+```sql
+$Obj = send rest request RestLab.CrudApi.GetObject with ($objectId = '7');
+```
+
+`mxcli check` passes, `mxcli exec` reports "Created microflow", and then:
+
+```
+ERROR: System.AggregateException: One or more errors occurred.
+(The type cache does not contain a type with qualified name Microflows$ParameterMapping.)
+ ---> Mendix.Modeler.Storage.Caches.TypeCacheUnknownTypeException
+```
+
+`mx check` never reaches the checking stage — it dies in `StreamingBsonUnitReader`
+while *loading* the model. There is no error list, just a stack trace.
+
+**Root cause.** Both writers emit the BSON `$Type` `Microflows$ParameterMapping`
+for a REST operation's path-parameter mappings:
+
+- `mdl/backend/modelsdk/microflow_rest_write.go:44` (and its
+  `RegisterListMarker` at line 15)
+- `sdk/mpr/writer_microflow_actions.go:882`
+
+That type **does not exist in the Mendix metamodel**. mxcli's own generated
+`generated/metamodel/types.go` lists the real ones — including
+`Microflows$RestOperationParameterMapping` and `Microflows$RestParameterMapping`
+— and `Microflows$ParameterMapping` is not among them. The adjacent query-
+parameter code in the same functions correctly emits
+`Microflows$QueryParameterMapping`, which is why query parameters are fine.
+
+**Scope, established by bisection** on an otherwise clean model (0 errors),
+one microflow at a time:
+
+| Microflow | `with (...)` | `mx check` |
+| --- | --- | --- |
+| `T_QueryOnly` — `CatalogApi.GetProducts with ($limit, $skip)` | query params | **0 errors** |
+| `T_PathOnly` — `CrudApi.GetObject with ($objectId)` | path param | **unloadable** |
+
+**Workaround:** never pass a path parameter to `SEND REST REQUEST`. Call such
+operations with an inline `REST CALL '…/{1}' with ({1} = $Value)` instead. The
+cost is that the REST client document's response mapping is bypassed, so you get
+raw JSON and must map it yourself. `RestLab.ACT_Crud_GetObject` is written this
+way and says so.
+
+**Recovery:** `git checkout -- <App>.mpr mprcontents/ && git clean -fd mprcontents/`.
+Committing a known-good model before each risky exec is what made this
+recoverable — `mxcli exec` applies statements one at a time and cannot roll back.
+
+## 17. A mapped array response yields ONE object, not a list
+
+`send rest request` against an operation whose response mapping has an entity
+root returns a **single object even when the JSON root is an array**:
+
+```
+[error] [CE0100] "'Objects' is of type RestLab.RestObject, but should be of
+type List." at Loop
+```
+
+So `LOOP $O IN $Objects` is invalid for `GET /objects` and `GET /posts`. To
+iterate the children of a mapped envelope, go through the association instead —
+`RETRIEVE $Products FROM $ProductList/RestLab.ProductList_Product` — which is
+what the catalog lane does.
+
+## 18. Do NOT quote identifiers inside microflow EXPRESSIONS
+
+The project's `CLAUDE.md` says to always quote identifiers. That is right for
+*declarations*, but microflow expressions and member references are free text
+handed to Mendix, and the quotes are passed through literally and rejected:
+
+- `Lane = RestLab."Lane"."Crud"` → `[CE0117] "Error(s) in expression."`
+- `CHANGE $O ("RestLab.RestObject_CallLog" = $Log)` →
+  `[CE1060] "Association 'RestLab.RestObject_CallLog' cannot be changed,
+  because the entity is not found."`
+- `$Product/"Price"`, `$PL/RestLab."ProductList_Product"` — same class of problem
+
+Unquoted (`RestLab.Lane.Crud`, `RestLab.RestObject_CallLog`, `$Product/Price`)
+all pass. Note CE0117 does not say *which* sub-expression is wrong, and it is
+reported per activity, so a shared helper called from 8 places produces 8
+identical messages.

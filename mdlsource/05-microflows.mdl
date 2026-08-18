@@ -1,0 +1,337 @@
+/**
+ * RestLab microflows
+ *
+ * Every lane follows the same shape: time the call, then hand the outcome to
+ * SUB_LogCall so the CallLog overview shows one row per outbound request.
+ *
+ * Two call styles are used deliberately:
+ *   - SEND REST REQUEST for the consumed REST service documents. It cannot
+ *     catch errors (on error ... is CE6035), so it is used only where a
+ *     non-2xx response is not part of the demo.
+ *   - REST CALL (inline) for the edge-case and weather lanes, because it
+ *     supports ON ERROR CONTINUE and so can show what a failure looks like.
+ *
+ * After SEND REST REQUEST the response is in $latestHttpResponse:
+ *   $latestHttpResponse/Content     -- capital C, inherited from HttpMessage
+ *   $latestHttpResponse/StatusCode
+ *
+ * DO NOT pass PATH parameters to SEND REST REQUEST (`with ($pathParam = ...)`).
+ * mxcli writes those as BSON type Microflows$ParameterMapping, which does not
+ * exist in the Mendix metamodel, and the .mpr then fails to LOAD at all:
+ *   "The type cache does not contain a type with qualified name
+ *    Microflows$ParameterMapping."
+ * QUERY parameters are unaffected -- they are written as the valid
+ * Microflows$QueryParameterMapping. Operations with a path parameter are
+ * therefore called with an inline REST CALL here instead.
+ */
+
+-- ---------------------------------------------------------------- helper
+
+/**
+ * Writes one CallLog row. Called by every lane.
+ */
+create or modify microflow RestLab."SUB_LogCall" (
+  $Url: String,
+  $Method: String,
+  $StatusCode: Integer,
+  $DurationMs: Decimal,
+  $Success: Boolean,
+  $ErrorMessage: String,
+  $ResponseBody: String,
+  $Lane: RestLab."Lane"
+)
+returns RestLab."CallLog" as $CallLog
+begin
+  $CallLog = CREATE RestLab."CallLog" (
+    "Url" = $Url,
+    "Method" = $Method,
+    "StatusCode" = $StatusCode,
+    "DurationMs" = $DurationMs,
+    "Success" = $Success,
+    "ErrorMessage" = $ErrorMessage,
+    "ResponseBody" = $ResponseBody,
+    "Lane" = $Lane,
+    "Timestamp" = [%CurrentDateTime%]
+  );
+  COMMIT $CallLog;
+  RETURN $CallLog;
+end;
+/
+
+-- ---------------------------------------------------------------- CRUD lane
+
+/**
+ * Fetch one object by its server-assigned id.
+ *
+ * Uses an inline REST CALL, NOT CrudApi.GetObject: that operation takes a PATH
+ * parameter, and passing one to SEND REST REQUEST corrupts the .mpr (see the
+ * note at the top of this file). The trade-off is that the document's response
+ * mapping is bypassed, so the raw JSON is logged instead of being mapped.
+ */
+create or modify microflow RestLab."ACT_Crud_GetObject" (
+  $ObjectId: String
+)
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+  declare $Body String = '';
+  declare $Ok Boolean = false;
+
+  $Raw = rest call get 'https://api.restful-api.dev/objects/{1}' with (
+    {1} = $ObjectId
+  )
+    header Accept = 'application/json'
+    timeout 30
+    returns string
+    on error continue;
+
+  IF $Raw != empty THEN
+    SET $Body = $Raw;
+    SET $Ok = true;
+  END IF;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'https://api.restful-api.dev/objects/' + $ObjectId,
+    Method = 'GET',
+    StatusCode = 0,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = $Ok,
+    ErrorMessage = '',
+    ResponseBody = $Body,
+    Lane = RestLab.Lane.Crud
+  );
+
+  RETURN $Log;
+end;
+/
+
+/**
+ * Create an object on the remote API. Body is produced by the operation's
+ * export mapping, so the request body comes from the entity itself.
+ */
+create or modify microflow RestLab."ACT_Crud_CreateObject" (
+  $Name: String
+)
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+
+  $NewObject = CREATE RestLab."RestObject" ("Name" = $Name);
+
+  send rest request RestLab."CrudApi"."CreateObject" body $NewObject;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'https://api.restful-api.dev/objects',
+    Method = 'POST',
+    StatusCode = $latestHttpResponse/StatusCode,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = true,
+    ErrorMessage = '',
+    ResponseBody = $latestHttpResponse/Content,
+    Lane = RestLab.Lane.Crud
+  );
+
+  CHANGE $NewObject (RestLab.RestObject_CallLog = $Log);
+  COMMIT $NewObject;
+
+  RETURN $Log;
+end;
+/
+
+-- ---------------------------------------------------------------- catalog lane
+
+/**
+ * Paged product fetch. Demonstrates the nested LIST mapping: the dummyjson
+ * envelope {"products": [...], "total":…} maps onto ProductList + Product.
+ *
+ * Also demonstrates the workaround for the String-only mapping constraint:
+ * Price arrives as a String and is parsed into the typed PriceValue here.
+ */
+create or modify microflow RestLab."ACT_Catalog_GetProducts" (
+  $Limit: String,
+  $Skip: String
+)
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+
+  $ProductList = send rest request RestLab."CatalogApi"."GetProducts"
+    with ($limit = $Limit, $skip = $Skip);
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'https://dummyjson.com/products?limit=' + $Limit + '&skip=' + $Skip,
+    Method = 'GET',
+    StatusCode = $latestHttpResponse/StatusCode,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = true,
+    ErrorMessage = '',
+    ResponseBody = $latestHttpResponse/Content,
+    Lane = RestLab.Lane.Catalog
+  );
+
+  RETRIEVE $Products FROM $ProductList/RestLab.ProductList_Product;
+
+  LOOP $Product IN $Products
+  BEGIN
+    CHANGE $Product (
+      "PriceValue" = parseDecimal($Product/Price),
+      RestLab.Product_CallLog = $Log
+    );
+    COMMIT $Product;
+  END LOOP;
+
+  RETURN $Log;
+end;
+/
+
+-- ---------------------------------------------------------------- edge cases
+
+/**
+ * Ask httpbingo for a specific status code.
+ *
+ * Uses the inline REST CALL rather than the EdgeCaseApi document on purpose:
+ * SEND REST REQUEST aborts the microflow on a non-2xx response, so it cannot
+ * show what a 404 or a 503 looks like. ON ERROR CONTINUE can.
+ */
+create or modify microflow RestLab."ACT_EdgeCase_Status" (
+  $Code: String
+)
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+  declare $Status Integer = 0;
+  declare $Body String = '';
+  declare $Ok Boolean = false;
+  declare $Err String = 'Request failed before a response was received';
+
+  $Response = rest call get 'https://httpbingo.org/status/{1}' with (
+    {1} = $Code
+  )
+    header Accept = 'application/json'
+    timeout 30
+    returns response
+    on error continue;
+
+  IF $Response != empty THEN
+    SET $Status = $Response/StatusCode;
+    SET $Body = $Response/Content;
+    SET $Ok = $Status >= 200 and $Status < 300;
+    SET $Err = '';
+  END IF;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'https://httpbingo.org/status/' + $Code,
+    Method = 'GET',
+    StatusCode = $Status,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = $Ok,
+    ErrorMessage = $Err,
+    ResponseBody = $Body,
+    Lane = RestLab.Lane.EdgeCase
+  );
+
+  RETURN $Log;
+end;
+/
+
+-- ---------------------------------------------------------------- weather lane
+
+/**
+ * open-meteo, called inline. No API key, and the response is parallel arrays,
+ * which is exactly the shape an inline call plus raw JSON handles better than
+ * a field-by-field mapping.
+ */
+create or modify microflow RestLab."ACT_Weather_GetForecast" ()
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+  declare $Body String = '';
+  declare $Ok Boolean = false;
+
+  $Raw = rest call get 'https://api.open-meteo.com/v1/forecast?latitude=52.37&longitude=4.89&current=temperature_2m'
+    header Accept = 'application/json'
+    timeout 30
+    returns string
+    on error continue;
+
+  IF $Raw != empty THEN
+    SET $Body = $Raw;
+    SET $Ok = true;
+  END IF;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'https://api.open-meteo.com/v1/forecast?latitude=52.37&longitude=4.89&current=temperature_2m',
+    Method = 'GET',
+    StatusCode = 0,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = $Ok,
+    ErrorMessage = '',
+    ResponseBody = $Body,
+    Lane = RestLab.Lane.Weather
+  );
+
+  RETURN $Log;
+end;
+/
+
+-- ---------------------------------------------------------------- list mappings
+
+/**
+ * Fetch every object and map the array onto RestObject, each with its nested
+ * "data" child. No parameters, so SEND REST REQUEST is safe here and the
+ * document's response mapping does the work.
+ */
+create or modify microflow RestLab."ACT_Crud_ListObjects" ()
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+
+  $Objects = send rest request RestLab."CrudApi"."ListObjects";
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'https://api.restful-api.dev/objects',
+    Method = 'GET',
+    StatusCode = $latestHttpResponse/StatusCode,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = true,
+    ErrorMessage = '',
+    ResponseBody = $latestHttpResponse/Content,
+    Lane = RestLab.Lane.Crud
+  );
+
+  -- NOTE: even though /objects returns a JSON ARRAY, the mapped result is a
+  -- single object, not a list -- looping over it fails with CE0100.
+  CHANGE $Objects (RestLab.RestObject_CallLog = $Log);
+  COMMIT $Objects;
+
+  RETURN $Log;
+end;
+/
+
+/**
+ * jsonplaceholder posts -- flat attribute mapping, no nesting.
+ */
+create or modify microflow RestLab."ACT_Blog_GetPosts" ()
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+
+  $Posts = send rest request RestLab."BlogApi"."GetPosts";
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'https://jsonplaceholder.typicode.com/posts',
+    Method = 'GET',
+    StatusCode = $latestHttpResponse/StatusCode,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = true,
+    ErrorMessage = '',
+    ResponseBody = $latestHttpResponse/Content,
+    Lane = RestLab.Lane.Mapping
+  );
+
+  CHANGE $Posts (RestLab.Post_CallLog = $Log);
+  COMMIT $Posts;
+
+  RETURN $Log;
+end;
+/
