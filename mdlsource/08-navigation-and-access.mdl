@@ -30,3 +30,4 @@ grant execute on microflow RestLab."ACT_Demo_Blog" to RestLab."Developer", RestL
 grant execute on microflow RestLab."ACT_Demo_EdgeCase404" to RestLab."Developer", RestLab."Administrator";
 grant execute on microflow RestLab."ACT_Demo_EdgeCase503" to RestLab."Developer", RestLab."Administrator";
 grant execute on microflow RestLab."ACT_Demo_Weather" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_WeatherMapped" to RestLab."Developer", RestLab."Administrator";

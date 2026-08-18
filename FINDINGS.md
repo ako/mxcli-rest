@@ -335,3 +335,69 @@ Unquoted (`RestLab.Lane.Crud`, `RestLab.RestObject_CallLog`, `$Product/Price`)
 all pass. Note CE0117 does not say *which* sub-expression is wrong, and it is
 reported per activity, so a shared helper called from 8 places produces 8
 identical messages.
+
+## 19. Inline REST response mappings cannot express a REPEATING element
+
+**Impact: high — this is the central limitation for anyone using mxcli to
+consume a REST API,** because most list endpoints are unusable through the
+document mapping, and nothing reports it: `mxcli check` passes, `mxcli exec`
+passes, `describe` round-trips the mapping verbatim, and `mx check` reports 0
+errors. The failure only appears as missing rows at runtime.
+
+**Root cause.** `sdk/mpr/writer_rest.go` serializes every `ObjectMappingElement`
+with `{Key: "MaxOccurs", Value: int32(1)}` — hardcoded, with no MDL syntax to
+say otherwise. An array can therefore never be matched.
+
+**Measured end to end** by calling each lane from an after-startup microflow
+against the live APIs and reading the tables with `psql`:
+
+| JSON shape | Endpoint | Result in the database |
+| --- | --- | --- |
+| **object root + nested object** | open-meteo `/v1/forecast` | ✅ **fully populated** — `WeatherReading` (52.366 / 4.901 / GMT / 11.0) **and** the nested `WeatherCurrent` (2026-08-18T15:30, 900, 20.0) |
+| object root + nested **array** | dummyjson `/products` | ⚠️ exactly **1** child row, and **every attribute empty** — 10 products requested, 1 blank `Product` written |
+| **array root** | restful-api.dev `/objects` | ❌ result is **NULL** — 0 rows. An unguarded `CHANGE` on it aborts the microflow: `Change object 'Some(Objects)' should not be null` |
+| **array root** | jsonplaceholder `/posts` | ❌ same — 0 rows |
+
+Note the array-root result is neither a list (`LOOP` fails with CE0100, finding
+#17) nor an object — it is null.
+
+**Workaround:** only use a document response mapping when the JSON root is an
+object and every mapped child is an object. For arrays, call the endpoint with
+an inline `REST CALL … returns string` and parse the JSON yourself (a Data
+Transformer / JSLT step, or an import mapping document created in Studio Pro).
+
+RestLab is built around this: the **weather lane is the one that works**, and
+the CRUD, catalog and blog lanes are deliberately left showing the broken
+shapes, each with a comment saying which one it is.
+
+## 20. Smaller things worth knowing
+
+- **`mxcli oql` renders only some columns.** `SELECT * FROM RestLab.Product`
+  returned just `PriceValue` and the ID, which reads as "the other columns do
+  not exist". They do: `psql \d "restlab$product"` shows all nine, all present
+  and simply NULL. Verify data with `psql` before concluding anything from an
+  `oql` result. `SELECT ExternalId, Title, … ` also silently returned only
+  `PriceValue`.
+- **OQL keywords / non-persistent entities.** `SELECT … Limit …` fails with
+  `extraneous input 'Limit' expecting 'FROM'`, and querying a non-persistent
+  entity gives `Could not find column map for entity 'RestLab.ProductList'`
+  (correct — it has no table, but the message does not say so).
+- **An after-startup microflow must return Boolean** or deployment fails with
+  `[CE0142] After startup microflow should return a boolean`. `mx check`
+  reports **0 errors** on the same model — this one surfaces only at
+  `mxcli run`, which exits 1 with the build JSON.
+- **`parseDecimal()` throws on an empty value** at runtime rather than
+  returning empty; guard with
+  `if $X != empty then parseDecimal($X) else 0`.
+- **Build warnings for unused request parameters.** Declaring
+  `parameters: ($username: String, …)` alongside `body: template '…{username}…'`
+  yields `REST request has an unused request parameter 'username'` — template
+  placeholders do not bind to declared operation parameters. The same warning
+  appears for the prefix-only `$bearer` header parameter of finding #14. These
+  are warnings, not errors, and do not block deployment.
+- **`mxcli lint` is clean of real problems** here: 0 errors, and the 81 warnings
+  are convention rules (CONV006 create/delete rights, CONV007 unconstrained
+  XPath, CONV010) that a demo app is expected to trip. Two are worth a look in
+  real projects: `CONV011` flagged the deliberate commit-inside-loop in
+  `ACT_Catalog_GetProducts`, and `SEC008` flagged `Author.Email` as
+  unconstrained PII (public sample data here).

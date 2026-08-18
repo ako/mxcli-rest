@@ -221,3 +221,38 @@ create or modify rest client RestLab."EdgeCaseApi" (
     response: json as $Data
   }
 };
+
+-- ---------------------------------------------------------------- weather lane
+/**
+ * api.open-meteo.com -- the lane where the document response mapping actually
+ * populates data.
+ *
+ * It is the only demo endpoint that combines all three things mxcli's inline
+ * mappings need: an OBJECT at the JSON root, a nested OBJECT (not an array)
+ * below it, and QUERY parameters rather than path parameters. Arrays map to
+ * nothing and path parameters corrupt the .mpr, so this is the shape to copy.
+ */
+create or modify rest client RestLab."WeatherApi" (
+  BaseUrl: 'https://api.open-meteo.com/v1',
+  authentication: none
+)
+{
+  operation "GetForecast" {
+    method: get,
+    path: '/forecast',
+    query: ($latitude: String, $longitude: String, $current: String),
+    headers: ('Accept' = 'application/json'),
+    timeout: 30,
+    response: mapping RestLab."WeatherReading" {
+      "Latitude" = "latitude",
+      "Longitude" = "longitude",
+      "Timezone" = "timezone",
+      "Elevation" = "elevation",
+      create RestLab."WeatherReading_WeatherCurrent"/RestLab."WeatherCurrent" = "current" {
+        "Time" = "time",
+        "Interval" = "interval",
+        "Temperature" = "temperature_2m"
+      }
+    }
+  }
+};

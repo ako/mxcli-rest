@@ -123,12 +123,16 @@ create or replace page RestLab."Home_Web"
         container cWeather (class: 'card') {
           dynamictext dtWxTitle (Content: 'Raw JSON - open-meteo')
           dynamictext dtWxBody (
-            Content: 'No API key, and parallel-array JSON that an inline call plus raw response handles better than a field-by-field mapping.'
+            Content: 'The only lane whose document response mapping really populates entities: object root, nested object, query parameters. Compare it with the raw-JSON call beside it.'
+          )
+          actionbutton btnWeatherMapped (
+            caption: 'Get forecast (mapped)',
+            action: microflow RestLab."ACT_Demo_WeatherMapped",
+            buttonstyle: primary
           )
           actionbutton btnWeather (
-            caption: 'Get forecast',
-            action: microflow RestLab."ACT_Demo_Weather",
-            buttonstyle: primary
+            caption: 'Get forecast (raw JSON)',
+            action: microflow RestLab."ACT_Demo_Weather"
           )
         }
       }
@@ -182,6 +186,20 @@ create or replace page RestLab."Mapped_Overview"
       column colBrand (attribute: Brand, caption: 'Brand')
       column colPriceRaw (attribute: Price, caption: 'Price (mapped String)')
       column colPriceVal (attribute: PriceValue, caption: 'PriceValue (Decimal)', Alignment: right)
+    }
+  }
+  container cWeather (class: 'mx-spacing-top-large') {
+    dynamictext dtWeather (Content: 'WeatherReading + WeatherCurrent - the mapping that works end to end')
+    datagrid dgWeather (datasource: database from RestLab."WeatherReading") {
+      column colLat (attribute: Latitude, caption: 'Latitude')
+      column colLon (attribute: Longitude, caption: 'Longitude')
+      column colTz (attribute: Timezone, caption: 'Timezone')
+      column colElev (attribute: Elevation, caption: 'Elevation')
+    }
+    datagrid dgCurrent (datasource: database from RestLab."WeatherCurrent") {
+      column colTime (attribute: "Time", caption: 'Time')
+      column colInterval (attribute: "Interval", caption: 'Interval (s)')
+      column colTemp (attribute: Temperature, caption: 'Temperature')
     }
   }
   container cPosts (class: 'mx-spacing-top-large') {

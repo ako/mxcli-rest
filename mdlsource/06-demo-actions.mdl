@@ -55,3 +55,9 @@ begin
   CALL MICROFLOW RestLab."ACT_Weather_GetForecast" ();
 end;
 /
+
+create or modify microflow RestLab."ACT_Demo_WeatherMapped" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Weather_GetMapped" ();
+end;
+/

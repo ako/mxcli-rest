@@ -174,7 +174,8 @@ begin
   LOOP $Product IN $Products
   BEGIN
     CHANGE $Product (
-      "PriceValue" = parseDecimal($Product/Price),
+      -- parseDecimal throws on an empty value, so guard it.
+      "PriceValue" = if $Product/Price != empty then parseDecimal($Product/Price) else 0,
       RestLab.Product_CallLog = $Log
     );
     COMMIT $Product;
@@ -299,10 +300,15 @@ begin
     Lane = RestLab.Lane.Crud
   );
 
-  -- NOTE: even though /objects returns a JSON ARRAY, the mapped result is a
-  -- single object, not a list -- looping over it fails with CE0100.
-  CHANGE $Objects (RestLab.RestObject_CallLog = $Log);
-  COMMIT $Objects;
+  -- An ARRAY at the JSON root does not map: the result is neither a list
+  -- (looping fails with CE0100) nor an object -- it comes back NULL, and an
+  -- unguarded CHANGE aborts the microflow at runtime with
+  -- "Change object 'Some(Objects)' should not be null".
+  -- Only an OBJECT root maps; see ACT_Catalog_GetProducts for one that works.
+  IF $Objects != empty THEN
+    CHANGE $Objects (RestLab.RestObject_CallLog = $Log);
+    COMMIT $Objects;
+  END IF;
 
   RETURN $Log;
 end;
@@ -329,8 +335,43 @@ begin
     Lane = RestLab.Lane.Mapping
   );
 
-  CHANGE $Posts (RestLab.Post_CallLog = $Log);
-  COMMIT $Posts;
+  -- /posts is an array root too, so the same guard is needed here.
+  IF $Posts != empty THEN
+    CHANGE $Posts (RestLab.Post_CallLog = $Log);
+    COMMIT $Posts;
+  END IF;
+
+  RETURN $Log;
+end;
+/
+
+/**
+ * The working mapping lane: object root + nested object + query parameters.
+ * Unlike the CRUD and blog lanes, this one really does populate entities.
+ */
+create or modify microflow RestLab."ACT_Weather_GetMapped" ()
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+
+  $Reading = send rest request RestLab."WeatherApi"."GetForecast"
+    with ($latitude = '52.37', $longitude = '4.89', $current = 'temperature_2m');
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'https://api.open-meteo.com/v1/forecast?latitude=52.37&longitude=4.89&current=temperature_2m',
+    Method = 'GET',
+    StatusCode = $latestHttpResponse/StatusCode,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = true,
+    ErrorMessage = '',
+    ResponseBody = $latestHttpResponse/Content,
+    Lane = RestLab.Lane.Weather
+  );
+
+  IF $Reading != empty THEN
+    CHANGE $Reading (RestLab.WeatherReading_CallLog = $Log);
+    COMMIT $Reading;
+  END IF;
 
   RETURN $Log;
 end;

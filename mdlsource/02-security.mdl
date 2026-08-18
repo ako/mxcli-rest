@@ -30,6 +30,11 @@ grant RestLab."Administrator" on RestLab."Author" (create, delete, read *, write
 grant RestLab."Administrator" on RestLab."Post" (create, delete, read *, write *);
 grant RestLab."Administrator" on RestLab."Pet" (create, delete, read *, write *);
 
+grant RestLab."Developer" on RestLab."WeatherReading" (create, read *, write *);
+grant RestLab."Developer" on RestLab."WeatherCurrent" (create, read *, write *);
+grant RestLab."Administrator" on RestLab."WeatherReading" (create, delete, read *, write *);
+grant RestLab."Administrator" on RestLab."WeatherCurrent" (create, delete, read *, write *);
+
 -- Wire the module roles onto user roles. The blank app ships Administrator and
 -- User; Developer is new, so it gets a user role and a demo user of its own.
 alter user role Administrator add module roles (RestLab."Administrator");

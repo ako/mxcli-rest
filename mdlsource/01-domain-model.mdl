@@ -142,6 +142,30 @@ create or modify persistent entity RestLab."Pet" (
   "Status": String(50)
 );
 
+-- ---------------------------------------------------------------- weather lane
+
+/**
+ * open-meteo forecast. This is the lane where the document response mapping
+ * ACTUALLY populates data end to end: the JSON root is an OBJECT and the
+ * nested "current" is an OBJECT too, which is the only shape mxcli's inline
+ * mappings can express (every ObjectMappingElement is written with
+ * MaxOccurs = 1, so repeating elements do not work -- see FINDINGS.md #19).
+ */
+@position(1850, 100)
+create or modify persistent entity RestLab."WeatherReading" (
+  "Latitude": String(30),
+  "Longitude": String(30),
+  "Timezone": String(60),
+  "Elevation": String(30)
+);
+
+@position(1850, 300)
+create or modify persistent entity RestLab."WeatherCurrent" (
+  "Time": String(40),
+  "Interval": String(20),
+  "Temperature": String(30)
+);
+
 -- ---------------------------------------------------------------- associations
 
 create or modify association RestLab."RestObject_RestObjectData"
@@ -164,3 +188,9 @@ create or modify association RestLab."Post_CallLog"
 
 create or modify association RestLab."Pet_CallLog"
   from RestLab."Pet" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."WeatherReading_WeatherCurrent"
+  from RestLab."WeatherReading" to RestLab."WeatherCurrent" type reference;
+
+create or modify association RestLab."WeatherReading_CallLog"
+  from RestLab."WeatherReading" to RestLab."CallLog" type reference;
