@@ -97,3 +97,30 @@ Response kinds: `json as $x`, `string as $x`, `file as $x`, `status as $x`,
 `none`, and `mapping <Entity> { … }`. Upstream regression examples note issue
 #843 (response mappings silently dropped) as fixed and verified on 11.13.0 —
 worth re-confirming here, since this app leans on that path heavily.
+
+## 7. `operation` blocks inside `create rest client` are NOT comma-separated
+
+Easy to get wrong, because the property list just above them (`BaseUrl:`,
+`authentication:`) *is* comma-separated, and so are the clauses **inside** an
+operation (`method:`, `path:`, `response:`).
+
+```sql
+-- wrong
+operation A { ... },
+operation B { ... }
+-- right
+operation A { ... }
+operation B { ... }
+```
+
+- **Seen:** `mxcli check` on a 6-client draft →
+  `extraneous input ',' expecting {DOC_COMMENT, OPERATION, '}'}` at each
+  separator. The message names the expected tokens, so it is quick to diagnose.
+- **Verified:** removing the separating commas → `✓ Syntax OK (30 statements)`.
+
+## 8. `mxcli check <script>` is syntax-only
+
+It parses and reports statement count; it does not resolve names, so a script
+that references a non-existent entity or an unimplemented mapping shape still
+passes. Treat a green `check` as "the grammar accepts this", not "this will
+execute" — and confirm with a real `mx check` after `exec`.
