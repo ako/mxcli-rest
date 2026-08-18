@@ -1,0 +1,196 @@
+/**
+ * RestLab domain model
+ *
+ * CallLog is the spine: every demo lane writes one per call. Each lane's
+ * entities hang off the CallLog that produced them, so the overview page can
+ * show "this call produced these objects".
+ */
+
+create module RestLab;
+
+-- ---------------------------------------------------------------- enumerations
+
+create or modify enumeration RestLab."Lane" (
+  "Crud" 'CRUD (restful-api.dev)',
+  "Catalog" 'Auth + pagination (dummyjson)',
+  "Mapping" 'Response mapping (jsonplaceholder)',
+  "OpenApi" 'OpenAPI import (petstore)',
+  "EdgeCase" 'Errors + auth (httpbingo)',
+  "Weather" 'Weather (open-meteo)'
+);
+
+/*
+ * WHY THE MAPPED ATTRIBUTES BELOW ARE String
+ *
+ * An inline REST response mapping writes every JSON element with schema type
+ * String -- mxcli hardcodes DataTypes$StringType in the value mapping element,
+ * and the MDL mapping grammar (Attr = jsonField) has no way to declare a type.
+ * Mapping such an element onto an Integer/Decimal/Boolean attribute therefore
+ * fails mx check with CE6099 ("Schema data type 'String' is not compatible
+ * with attribute ... of type 'Integer'"), even though mxcli check and exec both
+ * pass silently.
+ *
+ * So: every attribute populated DIRECTLY by a REST response mapping is String.
+ * Attributes written by a microflow (all of CallLog, and Product.PriceValue)
+ * keep their natural type. ACT_Catalog_GetProducts demonstrates the conversion.
+ */
+
+-- ---------------------------------------------------------------- call log
+
+/**
+ * One row per outbound REST call, written by SUB_LogCall.
+ */
+@position(100, 100)
+create or modify persistent entity RestLab."CallLog" (
+  /** Full request URL, including query string */
+  "Url": String(500),
+  "Method": String(10),
+  "StatusCode": Integer,
+  /** Wall-clock duration in ms. Decimal because millisecondsBetween() returns Decimal. */
+  "DurationMs": Decimal,
+  "Success": Boolean,
+  "ErrorMessage": String(1000),
+  /** Raw response body, kept so the demo page can show it beside the mapping */
+  "ResponseBody": String,
+  "Lane": RestLab."Lane",
+  /**
+   * Plain DateTime set by SUB_LogCall, NOT autocreateddate.
+   *
+   * An entity with autoowner/autocreateddate members cannot be granted with
+   * `read * / write *`: mxcli stores `*` as an explicit per-member list that
+   * omits the audit members, and Mendix then fails the build with CE0066
+   * ("Entity access is out of date"). Listing them explicitly instead is
+   * refused by mxcli's own MDL-SEC01 rule, and UPDATE SECURITY reports
+   * "all up to date" either way -- so the only way out is not to use them.
+   */
+  "Timestamp": DateTime
+);
+
+-- ---------------------------------------------------------------- CRUD lane
+
+/**
+ * api.restful-api.dev object. Writes to this API really persist, so this lane
+ * demonstrates a full create/read/update/delete lifecycle.
+ */
+@position(450, 100)
+create or modify persistent entity RestLab."RestObject" (
+  /** Server-assigned id, e.g. "ff8081819ff5b110..." */
+  "ExternalId": String(100),
+  "Name": String(200)
+);
+
+/**
+ * The nested "data" object of a RestObject. Split out because the REST response
+ * mapping maps nested JSON onto a child entity via an association.
+ */
+@position(450, 300)
+create or modify persistent entity RestLab."RestObjectData" (
+  "Year": String(10),
+  "Price": String(30),
+  "InStock": String(10)
+);
+
+-- ---------------------------------------------------------------- catalog lane
+
+/**
+ * The dummyjson list envelope: {"products": [...], "total":…, "skip":…, "limit":…}.
+ * Non-persistent — it only exists to carry paging counters into the page.
+ */
+@position(800, 100)
+create or modify non-persistent entity RestLab."ProductList" (
+  "Total": String(10),
+  "Skip": String(10),
+  "Limit": String(10)
+);
+
+@position(800, 300)
+create or modify persistent entity RestLab."Product" (
+  "ExternalId": String(20),
+  "Title": String(200),
+  /** Mapped straight from JSON, hence String -- see the note above. */
+  "Price": String(30),
+  "Brand": String(100),
+  "Category": String(100),
+  "Rating": String(30),
+  /** Typed copy of Price, parsed by ACT_Catalog_GetProducts. */
+  "PriceValue": Decimal
+);
+
+-- ---------------------------------------------------------------- mapping lane
+
+@position(1150, 100)
+create or modify persistent entity RestLab."Author" (
+  "ExternalId": String(20),
+  "Name": String(200),
+  "Username": String(100),
+  "Email": String(200)
+);
+
+@position(1150, 300)
+create or modify persistent entity RestLab."Post" (
+  "ExternalId": String(20),
+  "Title": String(300),
+  "Body": String
+);
+
+-- ---------------------------------------------------------------- openapi lane
+
+@position(1500, 100)
+create or modify persistent entity RestLab."Pet" (
+  "ExternalId": Long,
+  "Name": String(200),
+  "Status": String(50)
+);
+
+-- ---------------------------------------------------------------- weather lane
+
+/**
+ * open-meteo forecast. This is the lane where the document response mapping
+ * ACTUALLY populates data end to end: the JSON root is an OBJECT and the
+ * nested "current" is an OBJECT too, which is the only shape mxcli's inline
+ * mappings can express (every ObjectMappingElement is written with
+ * MaxOccurs = 1, so repeating elements do not work -- see FINDINGS.md #19).
+ */
+@position(1850, 100)
+create or modify persistent entity RestLab."WeatherReading" (
+  "Latitude": String(30),
+  "Longitude": String(30),
+  "Timezone": String(60),
+  "Elevation": String(30)
+);
+
+@position(1850, 300)
+create or modify persistent entity RestLab."WeatherCurrent" (
+  "Time": String(40),
+  "Interval": String(20),
+  "Temperature": String(30)
+);
+
+-- ---------------------------------------------------------------- associations
+
+create or modify association RestLab."RestObject_RestObjectData"
+  from RestLab."RestObject" to RestLab."RestObjectData" type reference;
+
+create or modify association RestLab."ProductList_Product"
+  from RestLab."ProductList" to RestLab."Product" type referenceset;
+
+create or modify association RestLab."Post_Author"
+  from RestLab."Post" to RestLab."Author" type reference;
+
+create or modify association RestLab."RestObject_CallLog"
+  from RestLab."RestObject" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."Product_CallLog"
+  from RestLab."Product" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."Post_CallLog"
+  from RestLab."Post" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."Pet_CallLog"
+  from RestLab."Pet" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."WeatherReading_WeatherCurrent"
+  from RestLab."WeatherReading" to RestLab."WeatherCurrent" type reference;
+
+create or modify association RestLab."WeatherReading_CallLog"
+  from RestLab."WeatherReading" to RestLab."CallLog" type reference;

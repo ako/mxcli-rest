@@ -1,0 +1,52 @@
+/**
+ * RestLab security
+ *
+ * Two module roles. Developer runs demos and reads every call log;
+ * Administrator adds delete, so stored demo data can be cleared.
+ */
+
+create or modify module role RestLab."Developer"
+  description 'Runs any demo, sees all call logs';
+create or modify module role RestLab."Administrator"
+  description 'Developer, plus manages stored demo data';
+
+-- Developer: create + read/write, no delete.
+grant RestLab."Developer" on RestLab."CallLog" (create, read *, write *);
+grant RestLab."Developer" on RestLab."RestObject" (create, read *, write *);
+grant RestLab."Developer" on RestLab."RestObjectData" (create, read *, write *);
+grant RestLab."Developer" on RestLab."ProductList" (create, read *, write *);
+grant RestLab."Developer" on RestLab."Product" (create, read *, write *);
+grant RestLab."Developer" on RestLab."Author" (create, read *, write *);
+grant RestLab."Developer" on RestLab."Post" (create, read *, write *);
+grant RestLab."Developer" on RestLab."Pet" (create, read *, write *);
+
+-- Administrator: the same plus delete, for clearing demo data.
+grant RestLab."Administrator" on RestLab."CallLog" (create, delete, read *, write *);
+grant RestLab."Administrator" on RestLab."RestObject" (create, delete, read *, write *);
+grant RestLab."Administrator" on RestLab."RestObjectData" (create, delete, read *, write *);
+grant RestLab."Administrator" on RestLab."ProductList" (create, delete, read *, write *);
+grant RestLab."Administrator" on RestLab."Product" (create, delete, read *, write *);
+grant RestLab."Administrator" on RestLab."Author" (create, delete, read *, write *);
+grant RestLab."Administrator" on RestLab."Post" (create, delete, read *, write *);
+grant RestLab."Administrator" on RestLab."Pet" (create, delete, read *, write *);
+
+grant RestLab."Developer" on RestLab."WeatherReading" (create, read *, write *);
+grant RestLab."Developer" on RestLab."WeatherCurrent" (create, read *, write *);
+grant RestLab."Administrator" on RestLab."WeatherReading" (create, delete, read *, write *);
+grant RestLab."Administrator" on RestLab."WeatherCurrent" (create, delete, read *, write *);
+
+-- Wire the module roles onto user roles. The blank app ships Administrator and
+-- User; Developer is new, so it gets a user role and a demo user of its own.
+alter user role Administrator add module roles (RestLab."Administrator");
+-- System.User is required: a user role without a System module role fails the
+-- build with CE0156 once security is above Off.
+create or modify user role Developer (RestLab."Developer", System.User);
+
+-- Security must be at least PROTOTYPE, or the runtime creates no accounts, the
+-- demo users below never appear, and every access rule above is inert.
+alter project security level prototype;
+
+-- A demo user for the Developer role. The blank app ships demo users for
+-- Administrator and User only, and the stock "User" role carries no RestLab
+-- module role, so without this there is no way to log in and see the demos.
+create or modify demo user 'demo_developer' password 'RestLabDemo123' (Developer);

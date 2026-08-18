@@ -1,0 +1,33 @@
+/**
+ * Navigation and access
+ *
+ * Point the app at RestLab's own home page (the blank template ships
+ * MyFirstModule.Home_Web) and grant both module roles what they need to reach
+ * the demos.
+ */
+
+create or replace navigation Responsive
+  home page RestLab."Home_Web"
+  menu (
+    menu item 'RestLab' page RestLab."Home_Web";
+    menu item 'Mapped data' page RestLab."Mapped_Overview";
+  )
+;
+
+-- Page access
+grant view on page RestLab."Home_Web" to RestLab."Developer", RestLab."Administrator";
+grant view on page RestLab."Mapped_Overview" to RestLab."Developer", RestLab."Administrator";
+grant view on page RestLab."CallLog_Detail" to RestLab."Developer", RestLab."Administrator";
+
+-- Microflow access. The one-click wrappers are what the buttons call, so they
+-- are the ones that need granting; the lane microflows they call inherit the
+-- caller's context.
+grant execute on microflow RestLab."ACT_Demo_CrudList" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_CrudGet" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_CrudCreate" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_Catalog" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_Blog" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_EdgeCase404" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_EdgeCase503" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_Weather" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_WeatherMapped" to RestLab."Developer", RestLab."Administrator";

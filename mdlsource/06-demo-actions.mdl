@@ -1,0 +1,63 @@
+/**
+ * One-click wrappers
+ *
+ * The lane microflows take parameters (an object id, a page size, a status
+ * code). These no-argument wrappers supply demo defaults so every button on
+ * Home_Web is a single click with no data-view context to set up.
+ */
+
+create or modify microflow RestLab."ACT_Demo_CrudList" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Crud_ListObjects" ();
+end;
+/
+
+/** restful-api.dev ships fixed sample objects with ids 1..13. */
+create or modify microflow RestLab."ACT_Demo_CrudGet" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Crud_GetObject" (ObjectId = '7');
+end;
+/
+
+create or modify microflow RestLab."ACT_Demo_CrudCreate" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Crud_CreateObject" (Name = 'RestLab demo object');
+end;
+/
+
+create or modify microflow RestLab."ACT_Demo_Catalog" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Catalog_GetProducts" (Limit = '10', Skip = '0');
+end;
+/
+
+create or modify microflow RestLab."ACT_Demo_Blog" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Blog_GetPosts" ();
+end;
+/
+
+/** A 404 the runtime must report rather than crash on. */
+create or modify microflow RestLab."ACT_Demo_EdgeCase404" ()
+begin
+  CALL MICROFLOW RestLab."ACT_EdgeCase_Status" (Code = '404');
+end;
+/
+
+create or modify microflow RestLab."ACT_Demo_EdgeCase503" ()
+begin
+  CALL MICROFLOW RestLab."ACT_EdgeCase_Status" (Code = '503');
+end;
+/
+
+create or modify microflow RestLab."ACT_Demo_Weather" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Weather_GetForecast" ();
+end;
+/
+
+create or modify microflow RestLab."ACT_Demo_WeatherMapped" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Weather_GetMapped" ();
+end;
+/
