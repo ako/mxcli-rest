@@ -574,3 +574,55 @@ For **internal references** specifically, `pokeapi.co` is live and keyless and
 has the other shape worth demonstrating — arrays of objects each holding a URL
 pointer (`types[].type.url`, `abilities[].ability.url`) that must be resolved or
 reduced to an id. A JSLT step can pull the trailing id out of such a URL.
+
+---
+
+# Mock servers
+
+## 25. Prism serves an OpenAPI contract as a mock, and the whole loop works here
+
+Verified end to end in this container, since a mock is only useful if both mxcli
+and the Mendix runtime can actually reach it.
+
+- **Install:** `npm install -g @stoplight/prism-cli` — 15 s, no Docker.
+  (Docker is present but its daemon is **not usable** here, which rules out
+  Microcks and the WireMock/MockServer container images; WireMock's standalone
+  jar would still work, since Java 21 is available.)
+- **Run:** `prism mock -p 4010 -h 127.0.0.1 specs/mocklab.json`.
+- **Serves the contract's `example` values** verbatim, so payload shapes are
+  deterministic — which is what makes it useful for the mapping work: the shapes
+  in findings #9, #16, #19 and #23 can each be reproduced offline instead of
+  depending on a public API that may deprecate itself (#24).
+- **`Prefer: code=404`** forces any documented status code without editing the
+  spec — a much better error-path lever than depending on httpbingo.
+- **`prism mock -d`** generates randomised data from the schema instead of the
+  examples, which catches mappings that quietly depend on one fixed payload.
+- Unknown routes return a structured `NO_PATH_MATCHED_ERROR`, so the mock also
+  validates that the client is calling what the contract says.
+
+**mxcli import works from a local spec file** — no network:
+`create or modify rest client RestLab."MockLabApi" (OpenAPI: 'specs/mocklab.json');`
+→ *"Created rest client: RestLab.MockLabApi (4 operations from OpenAPI spec)"*,
+with `BaseUrl` taken from the spec's absolute `servers[0].url` (contrast #15,
+where Petstore's relative `/api/v3` produced no BaseUrl at all).
+
+**The runtime reaches it**: a microflow calling `http://127.0.0.1:4010/rates`
+returned the contract example in 267 ms. `127.0.0.1` is in the container's
+`http.nonProxyHosts` (#4), so runtime→mock traffic bypasses the agent proxy.
+
+The contract lives at `specs/mocklab.json`; `specs/README.md` documents it.
+
+### Other options, and when they would beat Prism
+
+| Tool | Use it when |
+| --- | --- |
+| **Prism** | You have an OpenAPI contract and want a mock in one command. Also does `proxy` mode: forward to the real API and **fail the request when the response violates the contract** — contract testing without a test suite |
+| **WireMock** (standalone jar, Java 21 is here) | You need stateful scenarios, request-matching rules, latency injection, or record-and-replay against a real API. Richer than Prism, but stubs are hand-written rather than derived from the contract |
+| **Microcks** | You want one place serving mocks for many contracts, plus contract testing in CI. Needs Docker — **not usable in this container** |
+| **Mockoon CLI** | You want a GUI to design responses and a CLI to run them; imports OpenAPI |
+| **json-server** | Quick CRUD over a JSON file when there is no contract at all — note it gives you an **array root**, which is exactly the shape mxcli mappings cannot handle (#19) |
+| **Schemathesis / Dredd** | Not mocks: they test a real implementation against the contract |
+
+Worth noting for this project specifically: mxcli's own regression example
+`843-rest-response-mapping.mdl` points at `http://localhost:3001/...`, so
+developing against a local mock is already the established pattern upstream.
