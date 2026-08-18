@@ -38,4 +38,15 @@ grant RestLab."Administrator" on RestLab."WeatherCurrent" (create, delete, read 
 -- Wire the module roles onto user roles. The blank app ships Administrator and
 -- User; Developer is new, so it gets a user role and a demo user of its own.
 alter user role Administrator add module roles (RestLab."Administrator");
-create or modify user role Developer (RestLab."Developer");
+-- System.User is required: a user role without a System module role fails the
+-- build with CE0156 once security is above Off.
+create or modify user role Developer (RestLab."Developer", System.User);
+
+-- Security must be at least PROTOTYPE, or the runtime creates no accounts, the
+-- demo users below never appear, and every access rule above is inert.
+alter project security level prototype;
+
+-- A demo user for the Developer role. The blank app ships demo users for
+-- Administrator and User only, and the stock "User" role carries no RestLab
+-- module role, so without this there is no way to log in and see the demos.
+create or modify demo user 'demo_developer' password 'RestLabDemo123' (Developer);

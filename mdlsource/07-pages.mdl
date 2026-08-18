@@ -53,10 +53,8 @@ create or replace page RestLab."Home_Web"
     row rowA {
       column colCrud (desktopwidth: 4) {
         container cCrud (class: 'card') {
-          dynamictext dtCrudTitle (Content: 'CRUD - api.restful-api.dev')
-          dynamictext dtCrudBody (
-            Content: 'The one public demo API whose writes really persist. List maps a nested data object onto a child entity.'
-          )
+          container cdtCrudTitle { dynamictext dtCrudTitle (Content: 'CRUD - api.restful-api.dev', class: 'h4') }
+          container cdtCrudBody (class: 'mx-spacing-bottom-medium') { dynamictext dtCrudBody (Content: 'The one public demo API whose writes really persist. List maps a nested data object onto a child entity.') }
           actionbutton btnCrudList (
             caption: 'List objects',
             action: microflow RestLab."ACT_Demo_CrudList",
@@ -75,10 +73,8 @@ create or replace page RestLab."Home_Web"
       }
       column colCatalog (desktopwidth: 4) {
         container cCatalog (class: 'card') {
-          dynamictext dtCatTitle (Content: 'Auth + pagination - dummyjson.com')
-          dynamictext dtCatBody (
-            Content: 'A paged envelope mapped onto ProductList + Product, showing the nested LIST mapping and the String-to-Decimal conversion.'
-          )
+          container cdtCatTitle { dynamictext dtCatTitle (Content: 'Auth + pagination - dummyjson.com', class: 'h4') }
+          container cdtCatBody (class: 'mx-spacing-bottom-medium') { dynamictext dtCatBody (Content: 'A paged envelope mapped onto ProductList + Product, showing the nested LIST mapping and the String-to-Decimal conversion.') }
           actionbutton btnCatalog (
             caption: 'Get 10 products',
             action: microflow RestLab."ACT_Demo_Catalog",
@@ -88,10 +84,8 @@ create or replace page RestLab."Home_Web"
       }
       column colBlog (desktopwidth: 4) {
         container cBlog (class: 'card') {
-          dynamictext dtBlogTitle (Content: 'Response mapping - jsonplaceholder')
-          dynamictext dtBlogBody (
-            Content: 'Flat, predictable JSON. Read-only on purpose: writes here are faked and never persist.'
-          )
+          container cdtBlogTitle { dynamictext dtBlogTitle (Content: 'Response mapping - jsonplaceholder', class: 'h4') }
+          container cdtBlogBody (class: 'mx-spacing-bottom-medium') { dynamictext dtBlogBody (Content: 'Flat, predictable JSON. Read-only on purpose: writes here are faked and never persist.') }
           actionbutton btnBlog (
             caption: 'Get posts',
             action: microflow RestLab."ACT_Demo_Blog",
@@ -103,10 +97,8 @@ create or replace page RestLab."Home_Web"
     row rowB {
       column colEdge (desktopwidth: 6) {
         container cEdge (class: 'card') {
-          dynamictext dtEdgeTitle (Content: 'Errors + auth - httpbingo.org')
-          dynamictext dtEdgeBody (
-            Content: 'Called inline rather than through the REST client document, because SEND REST REQUEST aborts on a non-2xx response and cannot show a failure.'
-          )
+          container cdtEdgeTitle { dynamictext dtEdgeTitle (Content: 'Errors + auth - httpbingo.org', class: 'h4') }
+          container cdtEdgeBody (class: 'mx-spacing-bottom-medium') { dynamictext dtEdgeBody (Content: 'Called inline rather than through the REST client document, because SEND REST REQUEST aborts on a non-2xx response and cannot show a failure.') }
           actionbutton btnEdge404 (
             caption: 'Force a 404',
             action: microflow RestLab."ACT_Demo_EdgeCase404",
@@ -121,10 +113,8 @@ create or replace page RestLab."Home_Web"
       }
       column colWeather (desktopwidth: 6) {
         container cWeather (class: 'card') {
-          dynamictext dtWxTitle (Content: 'Raw JSON - open-meteo')
-          dynamictext dtWxBody (
-            Content: 'The only lane whose document response mapping really populates entities: object root, nested object, query parameters. Compare it with the raw-JSON call beside it.'
-          )
+          container cdtWxTitle { dynamictext dtWxTitle (Content: 'Raw JSON - open-meteo', class: 'h4') }
+          container cdtWxBody (class: 'mx-spacing-bottom-medium') { dynamictext dtWxBody (Content: 'The only lane whose document response mapping really populates entities: object root, nested object, query parameters. Compare it with the raw-JSON call beside it.') }
           actionbutton btnWeatherMapped (
             caption: 'Get forecast (mapped)',
             action: microflow RestLab."ACT_Demo_WeatherMapped",
@@ -153,7 +143,7 @@ create or replace page RestLab."Home_Web"
       column colMs (attribute: DurationMs, caption: 'ms', Alignment: right)
       column colOk (attribute: Success, caption: 'OK')
       column colOpen (
-        Caption: '',
+        Caption: 'Open',
         ShowContentAs: customContent
       ) {
         actionbutton btnOpen (

@@ -401,3 +401,51 @@ shapes, each with a comment saying which one it is.
   real projects: `CONV011` flagged the deliberate commit-inside-loop in
   `ACT_Catalog_GetProducts`, and `SEC008` flagged `Author.Email` as
   unconstrained PII (public sample data here).
+
+## 21. Findings from making the app actually usable
+
+- **A blank app ships with security level OFF**, so every access rule written by
+  `02-security.mdl` is inert and no demo users exist. mxcli says so clearly when
+  you create one: *"project security level is Off, so the runtime creates no
+  accounts and this demo user will not appear in the app. Raise it first:
+  `alter project security level prototype;`"* — good message, easy to miss if
+  you only read the last line of output. RestLab sets `prototype`.
+- **A user role needs a System module role** once security is above Off:
+  `[CE0156] "User role should have at least one System module role."` The fix is
+  `create or modify user role Developer (RestLab."Developer", System.User)`.
+  Note the blank app's stock `User` role carries no RestLab module role, so
+  without a dedicated demo user there is no way to log in and see the app.
+- **`alter enumeration … modify value X caption '…'` rejects a quoted value
+  name**: `mismatched input '"Weather"' expecting IDENTIFIER`. Unquoted works.
+  Another case where the project's blanket "always quote identifiers" guidance
+  does not hold (see #18).
+- **The generated Playwright config points at a browser that does not exist
+  here.** `.playwright/cli.config.json` sets
+  `executablePath: /usr/local/bin/mx-headless-shell`, which is absent in this
+  container; Playwright fails with "executable doesn't exist". The working
+  binary is
+  `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`
+  (and the `playwright` module is global, at
+  `/opt/node22/lib/node_modules/playwright`, needing an absolute CommonJS
+  import from a scratch `.mjs`).
+- **An empty `Caption: ''` on a custom-content DataGrid column renders the
+  widget name** ("colOpen") as the header, because non-attribute columns key on
+  the caption. Give such columns a real caption.
+- **`dynamictext` is inline**, so a title and a body placed as siblings render
+  as one run-on paragraph. Wrap each in its own `container`.
+
+## 22. End-to-end verification performed
+
+Not just "it compiles". The following were confirmed against the running app:
+
+1. `mx check` → **0 errors**; `mxcli lint` → 0 errors (81 convention warnings).
+2. App boots, serves **HTTP 200** at `http://localhost:8080/`.
+3. All six lanes made **live outbound calls** — verified in `RestLab.CallLog`
+   with real status codes and durations (200s in 368–1661 ms).
+4. The weather lane's response mapping **populated entities**:
+   `WeatherReading` (52.366 / 4.901 / GMT / 11.0) and the nested
+   `WeatherCurrent` (2026-08-18T15:30 / 900 / 20.0), read back with `psql`.
+5. The **UI works**: logged in through the real login page as `demo_developer`,
+   clicked "Get forecast (mapped)" and "Force a 404" on Home_Web, saw new
+   CallLog rows appear in the grid, and opened the detail popup showing the raw
+   response. Driven with Playwright against the running runtime.
