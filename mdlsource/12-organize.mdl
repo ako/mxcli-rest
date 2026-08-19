@@ -1,0 +1,99 @@
+/**
+ * Folder layout for the RestLab module
+ *
+ * Functional grouping, per .ai-context/skills/organize-project.md: everything
+ * belonging to one demo lane lives together, rather than splitting documents by
+ * type. The naming prefixes (ACT_, SUB_, DT_) already say what a document is;
+ * the folder says what it is FOR.
+ *
+ *   RestLab/
+ *   ├── Home_Web                 the entry point, left at the module root
+ *   ├── Lanes/<Lane>/            one folder per demo lane, logic + wrapper
+ *   └── Shared/                  cross-lane: the log helper, the Lane enum,
+ *                                and the two pages that span every lane
+ *
+ * WHY THIS IS A SEPARATE SCRIPT, run last:
+ *
+ * A `folder` clause on `create or modify` only takes effect when the document
+ * is CREATED. Re-running a create against an existing document creates the
+ * folder but leaves the document where it was -- verified: after
+ * `create or modify microflow ... folder 'Lanes/Crud'`, `show folders` listed
+ * `Lanes/Crud [0]` with the microflow still at the root. MOVE is what actually
+ * relocates it, so the layout is expressed here in one reviewable place.
+ *
+ * NOT EVERYTHING CAN BE FOLDERED. MOVE accepts PAGE, MICROFLOW, SNIPPET,
+ * NANOFLOW, ENUMERATION, CONSTANT, DATABASE CONNECTION, JAVA ACTION and
+ * ODATA SERVICE. Consumed REST services, data transformers, JSON structures and
+ * import/export mappings have no MOVE form and no folder clause, so the 8 REST
+ * clients, 3 transformers, JSON_Rates and IMM_Rates necessarily stay at the
+ * module root. They are named by lane (CrudApi, GraphApi, DT_GraphUsers ...) so
+ * the grouping is at least legible.
+ */
+
+-- ---------------------------------------------------------------- CRUD lane
+move microflow RestLab."ACT_Crud_ListObjects"   to folder 'Lanes/Crud';
+move microflow RestLab."ACT_Crud_GetObject"     to folder 'Lanes/Crud';
+move microflow RestLab."ACT_Crud_CreateObject"  to folder 'Lanes/Crud';
+move microflow RestLab."ACT_Demo_CrudList"      to folder 'Lanes/Crud';
+move microflow RestLab."ACT_Demo_CrudGet"       to folder 'Lanes/Crud';
+move microflow RestLab."ACT_Demo_CrudCreate"    to folder 'Lanes/Crud';
+
+-- ---------------------------------------------------------------- catalog lane
+move microflow RestLab."ACT_Catalog_GetProducts" to folder 'Lanes/Catalog';
+move microflow RestLab."ACT_Demo_Catalog"        to folder 'Lanes/Catalog';
+
+-- ---------------------------------------------------------------- mapping lane
+move microflow RestLab."ACT_Blog_GetPosts" to folder 'Lanes/Mapping';
+move microflow RestLab."ACT_Demo_Blog"     to folder 'Lanes/Mapping';
+
+-- ---------------------------------------------------------------- edge cases
+move microflow RestLab."ACT_EdgeCase_Status"   to folder 'Lanes/EdgeCase';
+move microflow RestLab."ACT_Demo_EdgeCase404"  to folder 'Lanes/EdgeCase';
+move microflow RestLab."ACT_Demo_EdgeCase503"  to folder 'Lanes/EdgeCase';
+
+-- ---------------------------------------------------------------- weather lane
+move microflow RestLab."ACT_Weather_GetForecast" to folder 'Lanes/Weather';
+move microflow RestLab."ACT_Weather_GetMapped"   to folder 'Lanes/Weather';
+move microflow RestLab."ACT_Demo_Weather"        to folder 'Lanes/Weather';
+move microflow RestLab."ACT_Demo_WeatherMapped"  to folder 'Lanes/Weather';
+
+-- ---------------------------------------------------------------- rates lane
+move microflow RestLab."ACT_Rates_GetLatest" to folder 'Lanes/Rates';
+move microflow RestLab."ACT_Demo_Rates"      to folder 'Lanes/Rates';
+
+-- ---------------------------------------------------------------- graph lane
+move microflow RestLab."ACT_Graph_GetMe"      to folder 'Lanes/Graph';
+move microflow RestLab."ACT_Graph_ListUsers"  to folder 'Lanes/Graph';
+move microflow RestLab."ACT_Demo_GraphMe"     to folder 'Lanes/Graph';
+move microflow RestLab."ACT_Demo_GraphUsers"  to folder 'Lanes/Graph';
+
+-- ---------------------------------------------------------------- sharepoint lane
+move microflow RestLab."ACT_SP_GetTask"      to folder 'Lanes/SharePoint';
+move microflow RestLab."ACT_SP_ListTasks"    to folder 'Lanes/SharePoint';
+move microflow RestLab."ACT_SP_CreateTask"   to folder 'Lanes/SharePoint';
+move microflow RestLab."ACT_SP_UpdateStatus" to folder 'Lanes/SharePoint';
+move microflow RestLab."ACT_Demo_SPGet"      to folder 'Lanes/SharePoint';
+move microflow RestLab."ACT_Demo_SPList"     to folder 'Lanes/SharePoint';
+move microflow RestLab."ACT_Demo_SPCreate"   to folder 'Lanes/SharePoint';
+move microflow RestLab."ACT_Demo_SPUpdate"   to folder 'Lanes/SharePoint';
+
+-- ---------------------------------------------------------------- shared
+-- Written by every lane, so it belongs to none of them.
+move microflow RestLab."SUB_LogCall" to folder 'Shared';
+move enumeration RestLab."Lane"      to folder 'Shared';
+-- Both pages span every lane: the call log detail and the mapped-data overview.
+move page RestLab."CallLog_Detail"   to folder 'Shared';
+move page RestLab."Mapped_Overview"  to folder 'Shared';
+
+-- Home_Web deliberately stays at the module root: it is the entry point, and
+-- the navigation profile points at it.
+
+-- NOTE: an earlier layout created CallLog_Detail in a 'CallLog' folder, which
+-- moving the page out left behind empty. It was removed once, by hand:
+--
+--   drop folder 'CallLog' in RestLab;
+--
+-- That statement is deliberately NOT part of this script: `drop folder` fails
+-- with "folder not found" when the folder is absent, so keeping it here would
+-- make the script error on every re-run. 07-pages.mdl now creates the page in
+-- 'Shared' directly, so a fresh build never produces the stale folder.

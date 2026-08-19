@@ -895,3 +895,58 @@ keytool -importcert -alias mitm-ca -file ca.pem \
 | Check a real API still matches its contract | **Prism proxy** — fails the request on violation |
 | Intercept **everything** an existing app calls, by hostname | **WireMock** browser-proxying, **mitmproxy**, or **Hoverfly** |
 | Record real traffic once and replay it forever | **WireMock** `--proxy-all` + `--record-mappings`, or Hoverfly capture/simulate |
+
+---
+
+# Organizing a module into folders
+
+## 31. A `folder` clause only applies on CREATE; use MOVE to relocate
+
+`create or modify microflow … folder 'Lanes/Crud'` against an **existing**
+microflow creates the folder and leaves the document where it was:
+
+```
+Lanes/Crud  [0]          <- folder created, empty
+  ... Microflow ACT_Demo_CrudList still listed at the module root
+```
+
+`move microflow RestLab."ACT_Demo_CrudList" to folder 'Lanes/Crud';` is what
+actually relocates it. So the folder clause is fine for new documents, but a
+re-organisation of an existing module has to be expressed as MOVE statements —
+which is why the layout lives in its own `mdlsource/12-organize.mdl`, run last.
+
+MOVE **is** idempotent: re-running the 35 moves reports 35 moves and no errors.
+
+## 32. Most integration document types cannot be foldered at all
+
+`moveStatement` (MDLParser.g4:385) accepts only:
+
+> PAGE | MICROFLOW | SNIPPET | NANOFLOW | ENUMERATION | CONSTANT |
+> DATABASE CONNECTION | JAVA ACTION | ODATA SERVICE
+
+There is **no MOVE form, and no folder clause on create**, for:
+
+- consumed REST services (`create rest client`)
+- data transformers
+- JSON structures
+- import and export mappings
+
+In RestLab that pins 8 REST clients, 3 data transformers, `JSON_Rates` and
+`IMM_Rates` to the module root permanently. `show folders` does not even list
+the REST clients and transformers — the root shows only `IMM_Rates`,
+`JSON_Rates` and `Home_Web`, so the folder view silently under-reports what is
+actually sitting at the root. Naming is the only grouping available for them
+(`CrudApi`, `GraphApi`, `DT_GraphUsers`, …).
+
+Worth raising upstream alongside the other REST findings: an integration-heavy
+module is exactly the case where folders matter, and it is the one place they
+cannot be used.
+
+## 33. `drop folder` fails when the folder is absent
+
+`drop folder 'CallLog' in RestLab;` removes an empty folder, but re-running it
+gives `Error: folder not found: CallLog in RestLab`. It therefore cannot sit in
+a script that is meant to be re-runnable — `12-organize.mdl` records the
+statement in a comment instead of executing it, and `07-pages.mdl` was changed
+to create `CallLog_Detail` in `Shared` directly so the stale folder never
+appears on a fresh build.
