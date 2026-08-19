@@ -55,6 +55,13 @@ would turn it into entities is modelled (`IMM_Rates`) and passes `mx check`, but
 **no mxcli-written import mapping document executes** — even a flat two-field one
 throws `key not found: Path(QName(None,),None,)`. FINDINGS.md #23 has the repro.
 
+**Binary: download works, upload does not.** A file document downloaded with the
+inline `returns Mod.FileDoc` form arrives intact (8090-byte PNG, verified), but
+its variable cannot be `CHANGE`d — hand it to a typed microflow parameter
+instead. `body: file from $Doc` silently sends the four bytes `$Doc` rather than
+the file, because Mendix 11.13 has no file request-body type at all. FINDINGS
+#42–43.
+
 Two further constraints shape the code:
 
 - **A nested export-mapping body makes the `.mpr` unloadable** — `writer_rest.go`
@@ -115,6 +122,7 @@ model:
 | `09-transformer-lane.mdl` | JSLT data transformer, JSON structure, import mapping |
 | `10-graph-lane.mdl` | Microsoft Graph client, OData transformer, microflows |
 | `11-sharepoint-lane.mdl` | SharePoint list read + write (POST/PATCH), OData transformer |
+| `13-binary-lane.mdl` | Binary download/upload — **needs mxcli with #922**, see FINDINGS #44 |
 | `12-organize.mdl` | Folder layout — run last, after every document exists |
 
 **Re-run `02-security.mdl` after any change to `01-domain-model.mdl`.** Entity

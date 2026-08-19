@@ -1183,3 +1183,104 @@ Until then the rates lane stays as it is — transform and display, with the
 `import from mapping` call commented out — because enabling it would break the
 app for anyone running the committed toolchain. Once #192 is on main, that lane
 can be completed, and `SPTask`/`SPTaskFields` can be collapsed using #39.
+
+---
+
+# Binary download and upload over REST
+
+Added as `mdlsource/13-binary-lane.mdl`, against `httpbingo.org` (`/image/png`
+returns a real 8090-byte PNG; `/post` echoes what it received, which is how the
+upload is judged rather than "the call did not throw").
+
+**Download works. Upload does not, and cannot.**
+
+## 42. A downloaded file document cannot be CHANGEd — pass it to a typed parameter
+
+Three forms, three outcomes, all measured:
+
+| Form | Result |
+| --- | --- |
+| `response: file as $Doc` (REST client document) | variable is type **Nothing** — `[CE0041] "Variable 'D' is of type Nothing, but should be of type Object or List."` Unusable as an object. The form names no target entity, unlike `response: mapping <Entity>` |
+| the same, plus a `CHANGE` on it | **`.mpr` will not load**: `Change in  has an invalid value '' for property Attribute. The text 'SourceUrl' is not a valid AttributeIdentifier.` — the activity is written with no entity |
+| `rest call … returns Mod.FileDoc` (inline) | ✅ works — this form names the entity. **Only on PR #922/#188/#192**; merged main rejects it as a parse error |
+
+A `CHANGE` on the inline result also corrupts the model, so the download result
+is write-only in place: `COMMIT` it, and set attributes by handing it to a
+microflow whose **parameter** is typed — a parameter carries the entity type the
+REST result variable does not:
+
+```sql
+$Doc = rest call get '…/image/png' … returns RestLab.DownloadedFile;
+CALL MICROFLOW RestLab."SUB_TagDownload" (Doc = $Doc, …);   -- CHANGE lives here
+```
+
+Isolated by elimination: `CHANGE` on a **retrieved** `DownloadedFile` — same
+entity, same inherited `Name` — loads fine (0 errors). It is specific to the
+variable a REST download produces.
+
+**Verified working end to end.** After clicking *Download PNG*:
+
+```
+     name      | hascontents | size
+---------------+-------------+------
+ httpbingo.png | t           | 8090
+```
+
+8090 bytes, matching the real PNG, with the blob on disk under
+`deployment/data/files/`. Note the inherited members live in
+`system$filedocument`; the specialization table holds only its own attributes.
+
+## 43. `body: file from $Doc` sends the TEXT "$Doc", not the file
+
+**Impact: high, and silent.** `mxcli check` passes, `mx check` reports 0 errors,
+the request returns **200**, and the payload is wrong.
+
+httpbingo echoes what it received:
+
+```
+Content-Length: 4
+data: data:application/octet-stream;base64,JERvYw==   ->  b'$Doc'
+```
+
+Four bytes — the expression text — while the document held 8090.
+
+**Cause.** `sdk/mpr/writer_rest.go:254` handles `FILE` in the same branch as
+`TEMPLATE` and writes a `Rest$StringBody` whose value is the expression:
+
+```go
+case "FILE", "TEMPLATE":
+    return bson.D{ … {Key: "$Type", Value: "Rest$StringBody"},
+                   {Key: "ValueTemplate", Value: serializeValueTemplate(bodyExpr)} }
+```
+
+`describe` shows it straight back as `Body: template '$Doc'`.
+
+**And there is no better type to write.** The generated metamodel for 11.13 has
+exactly three request-body types:
+
+```
+Rest$JsonBody   Rest$StringBody   Rest$ImplicitMappingBody
+```
+
+No file body exists. So a consumed REST service **cannot carry a binary request
+body at all** — the MDL syntax has nowhere to map. Combined with the inline
+`REST CALL` body clause having no file form either (it takes a string template,
+an expression, or an export mapping), **binary upload is not expressible in MDL
+today**. A Java action is the remaining route.
+
+The fix is not to write a different type but to **refuse `body: file` at check
+time**, the way MDL-REST01 refuses a mapping document in an inline mapping.
+Silently degrading it to a string body is the worst option: it looks like it
+works, right down to the 200.
+
+The lane keeps the broken upload deliberately, as a regression test — when it is
+fixed, `Content-Length` becomes 8090 instead of 4. The button says so.
+
+## 44. This lane needs an mxcli newer than merged main
+
+`13-binary-lane.mdl` uses the inline `returns Mod.FileDoc` form (#922), which is
+a **parse error** on merged main — the committed `./mxcli` cannot replay it. The
+`.mpr` in this repo was built with the PR #192 build and is valid (`mx check`
+0 errors), so the app runs for everyone; only re-running that one script needs
+the newer binary. `.claude/bootstrap-mxcli.sh` builds from `ako/mxcli` main, so
+this resolves itself once #192 merges.
