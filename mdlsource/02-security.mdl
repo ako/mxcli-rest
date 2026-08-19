@@ -47,6 +47,9 @@ grant RestLab."Developer" on RestLab."ExchangeRate" (create, read *, write *);
 grant RestLab."Administrator" on RestLab."RateSnapshot" (create, delete, read *, write *);
 grant RestLab."Administrator" on RestLab."ExchangeRate" (create, delete, read *, write *);
 
+grant RestLab."Developer" on RestLab."GraphUser" (create, read *, write *);
+grant RestLab."Administrator" on RestLab."GraphUser" (create, delete, read *, write *);
+
 -- Security must be at least PROTOTYPE, or the runtime creates no accounts, the
 -- demo users below never appear, and every access rule above is inert.
 alter project security level prototype;

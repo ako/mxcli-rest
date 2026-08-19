@@ -67,3 +67,15 @@ begin
   CALL MICROFLOW RestLab."ACT_Rates_GetLatest" ();
 end;
 /
+
+create or modify microflow RestLab."ACT_Demo_GraphMe" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Graph_GetMe" ();
+end;
+/
+
+create or modify microflow RestLab."ACT_Demo_GraphUsers" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Graph_ListUsers" (Token = 'dev-token');
+end;
+/

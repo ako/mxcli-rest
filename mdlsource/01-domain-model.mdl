@@ -17,7 +17,8 @@ create or modify enumeration RestLab."Lane" (
   "OpenApi" 'OpenAPI import (petstore)',
   "EdgeCase" 'Errors + auth (httpbingo)',
   "Weather" 'Weather (open-meteo)',
-  "Rates" 'Rates (frankfurter, transformed)'
+  "Rates" 'Rates (frankfurter, transformed)',
+  "Graph" 'Microsoft Graph (mocked)'
 );
 
 /*
@@ -195,6 +196,31 @@ create or modify persistent entity RestLab."ExchangeRate" (
   "Value": Decimal
 );
 
+-- ---------------------------------------------------------------- graph lane
+
+/**
+ * Microsoft Graph user, from the local Prism mock (specs/msgraph.json).
+ *
+ * Graph is the enterprise case worth getting right, and GET /me is the shape
+ * that works: a single OBJECT at the root, so the document response mapping
+ * populates it. Graph COLLECTIONS ({"@odata.context":..., "value":[...]}) do
+ * not map -- "value" is a repeating element (FINDINGS #19).
+ *
+ * "ODataContext" maps the literal JSON field "@odata.context". Note the
+ * attribute cannot be called "Context": that is a reserved word (CE7247).
+ */
+@position(2550, 100)
+create or modify persistent entity RestLab."GraphUser" (
+  /** The @odata.context annotation Graph returns on every response. */
+  "ODataContext": String(200),
+  "GraphId": String(50),
+  "DisplayName": String(200),
+  "Mail": String(200),
+  "JobTitle": String(100),
+  "OfficeLocation": String(50),
+  "UserPrincipalName": String(200)
+);
+
 -- ---------------------------------------------------------------- associations
 
 create or modify association RestLab."RestObject_RestObjectData"
@@ -229,3 +255,6 @@ create or modify association RestLab."RateSnapshot_ExchangeRate"
 
 create or modify association RestLab."RateSnapshot_CallLog"
   from RestLab."RateSnapshot" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."GraphUser_CallLog"
+  from RestLab."GraphUser" to RestLab."CallLog" type reference;

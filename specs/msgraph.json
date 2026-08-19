@@ -1,0 +1,509 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Microsoft Graph (mock subset)",
+    "version": "v1.0",
+    "description": "A hand-cut subset of Microsoft Graph v1.0 for local development. The full official spec is ~43 MB of YAML, which is impractical to mock or import. These paths were chosen because they carry every Graph shape that matters to a Mendix mapping: the @odata.* envelope, the 'value' collection array, deeply nested objects (from.emailAddress.address), primitive arrays (businessPhones), a heterogeneous collection keyed by @odata.type, and $-prefixed OData query parameters."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:4020",
+      "description": "Prism mock. Prism mounts paths at the ROOT and ignores a base path in the server URL, so this must not carry /v1.0. The real service is https://graph.microsoft.com/v1.0 - point BaseUrl at a constant so it can be swapped per environment."
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "paths": {
+    "/me": {
+      "get": {
+        "operationId": "getMe",
+        "summary": "Signed-in user - a SINGLE object, the shape a Mendix mapping can handle",
+        "parameters": [
+          {
+            "name": "$select",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "OData $select - note the $ in the parameter name"
+          },
+          {
+            "name": "$filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$top",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users/$entity",
+                  "id": "87d349ed-44d7-43e1-9a83-5f2406dee5bd",
+                  "displayName": "Adele Vance",
+                  "givenName": "Adele",
+                  "surname": "Vance",
+                  "mail": "AdeleV@contoso.onmicrosoft.com",
+                  "userPrincipalName": "AdeleV@contoso.onmicrosoft.com",
+                  "jobTitle": "Retail Manager",
+                  "officeLocation": "18/2111",
+                  "mobilePhone": "+1 425 555 0109",
+                  "businessPhones": [
+                    "+1 425 555 0109"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users": {
+      "get": {
+        "operationId": "listUsers",
+        "summary": "Collection - @odata envelope wrapping a 'value' array",
+        "parameters": [
+          {
+            "name": "$select",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "OData $select - note the $ in the parameter name"
+          },
+          {
+            "name": "$filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$top",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users",
+                  "@odata.count": 3,
+                  "@odata.nextLink": "https://graph.microsoft.com/v1.0/users?$skiptoken=RFNwdAoAAQAAAAAAAAAAFAAAA",
+                  "value": [
+                    {
+                      "id": "87d349ed-44d7-43e1-9a83-5f2406dee5bd",
+                      "displayName": "Adele Vance",
+                      "givenName": "Adele",
+                      "surname": "Vance",
+                      "mail": "AdeleV@contoso.onmicrosoft.com",
+                      "userPrincipalName": "AdeleV@contoso.onmicrosoft.com",
+                      "jobTitle": "Retail Manager",
+                      "officeLocation": "18/2111",
+                      "mobilePhone": "+1 425 555 0109",
+                      "businessPhones": [
+                        "+1 425 555 0109"
+                      ]
+                    },
+                    {
+                      "id": "4782e723-f4f4-4af3-a76e-25e3bab0d896",
+                      "displayName": "Alex Wilber",
+                      "givenName": "Alex",
+                      "surname": "Wilber",
+                      "mail": "AlexW@contoso.onmicrosoft.com",
+                      "userPrincipalName": "AlexW@contoso.onmicrosoft.com",
+                      "jobTitle": "Marketing Assistant",
+                      "officeLocation": "131/1104",
+                      "mobilePhone": null,
+                      "businessPhones": [
+                        "+1 858 555 0110"
+                      ]
+                    },
+                    {
+                      "id": "c03e6eaa-b6ab-46d7-905b-73ec7ea1f755",
+                      "displayName": "Diego Siciliani",
+                      "givenName": "Diego",
+                      "surname": "Siciliani",
+                      "mail": "DiegoS@contoso.onmicrosoft.com",
+                      "userPrincipalName": "DiegoS@contoso.onmicrosoft.com",
+                      "jobTitle": "CVP Finance",
+                      "officeLocation": "14/1108",
+                      "mobilePhone": null,
+                      "businessPhones": [
+                        "+1 205 555 0108"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/{userId}": {
+      "get": {
+        "operationId": "getUser",
+        "summary": "Single user by id (path parameter)",
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$select",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "OData $select - note the $ in the parameter name"
+          },
+          {
+            "name": "$filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$top",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users/$entity",
+                  "id": "87d349ed-44d7-43e1-9a83-5f2406dee5bd",
+                  "displayName": "Adele Vance",
+                  "givenName": "Adele",
+                  "surname": "Vance",
+                  "mail": "AdeleV@contoso.onmicrosoft.com",
+                  "userPrincipalName": "AdeleV@contoso.onmicrosoft.com",
+                  "jobTitle": "Retail Manager",
+                  "officeLocation": "18/2111",
+                  "mobilePhone": "+1 425 555 0109",
+                  "businessPhones": [
+                    "+1 425 555 0109"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found"
+          }
+        }
+      }
+    },
+    "/me/messages": {
+      "get": {
+        "operationId": "listMyMessages",
+        "summary": "Messages - nested from.emailAddress.address",
+        "parameters": [
+          {
+            "name": "$select",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "OData $select - note the $ in the parameter name"
+          },
+          {
+            "name": "$filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$top",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('adelev')/messages",
+                  "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/messages?$skip=10",
+                  "value": [
+                    {
+                      "id": "AAMkAGI2THVSAAA=",
+                      "createdDateTime": "2026-08-17T09:12:03Z",
+                      "receivedDateTime": "2026-08-17T09:12:05Z",
+                      "subject": "Q3 planning",
+                      "bodyPreview": "Here are the numbers we discussed",
+                      "importance": "normal",
+                      "isRead": false,
+                      "hasAttachments": true,
+                      "from": {
+                        "emailAddress": {
+                          "name": "Alex Wilber",
+                          "address": "AlexW@contoso.onmicrosoft.com"
+                        }
+                      },
+                      "toRecipients": [
+                        {
+                          "emailAddress": {
+                            "name": "Adele Vance",
+                            "address": "AdeleV@contoso.onmicrosoft.com"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "id": "AAMkAGI2THVTAAA=",
+                      "createdDateTime": "2026-08-18T07:41:00Z",
+                      "receivedDateTime": "2026-08-18T07:41:02Z",
+                      "subject": "Lunch?",
+                      "bodyPreview": "Cafeteria at noon",
+                      "importance": "low",
+                      "isRead": true,
+                      "hasAttachments": false,
+                      "from": {
+                        "emailAddress": {
+                          "name": "Diego Siciliani",
+                          "address": "DiegoS@contoso.onmicrosoft.com"
+                        }
+                      },
+                      "toRecipients": [
+                        {
+                          "emailAddress": {
+                            "name": "Adele Vance",
+                            "address": "AdeleV@contoso.onmicrosoft.com"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/events": {
+      "get": {
+        "operationId": "listMyEvents",
+        "summary": "Calendar events - start/end are {dateTime,timeZone} objects",
+        "parameters": [
+          {
+            "name": "$select",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "OData $select - note the $ in the parameter name"
+          },
+          {
+            "name": "$filter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$top",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('adelev')/events",
+                  "value": [
+                    {
+                      "id": "AAMkAGViNDU7zAAAAAENAAA=",
+                      "subject": "Sprint review",
+                      "isAllDay": false,
+                      "start": {
+                        "dateTime": "2026-08-19T13:00:00.0000000",
+                        "timeZone": "UTC"
+                      },
+                      "end": {
+                        "dateTime": "2026-08-19T14:00:00.0000000",
+                        "timeZone": "UTC"
+                      },
+                      "location": {
+                        "displayName": "Teams",
+                        "locationType": "default"
+                      },
+                      "organizer": {
+                        "emailAddress": {
+                          "name": "Adele Vance",
+                          "address": "AdeleV@contoso.onmicrosoft.com"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/groups/{groupId}/members": {
+      "get": {
+        "operationId": "listGroupMembers",
+        "summary": "Heterogeneous collection discriminated by @odata.type",
+        "parameters": [
+          {
+            "name": "groupId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#directoryObjects",
+                  "value": [
+                    {
+                      "@odata.type": "#microsoft.graph.user",
+                      "id": "87d349ed-44d7-43e1-9a83-5f2406dee5bd",
+                      "displayName": "Adele Vance",
+                      "mail": "AdeleV@contoso.onmicrosoft.com"
+                    },
+                    {
+                      "@odata.type": "#microsoft.graph.group",
+                      "id": "02bd9fd6-8f93-4758-87c3-1fb73740a315",
+                      "displayName": "Retail Managers",
+                      "mail": "retail@contoso.onmicrosoft.com"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/me/sendMail": {
+      "post": {
+        "operationId": "sendMail",
+        "summary": "Action returning 202 with no body",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              },
+              "example": {
+                "message": {
+                  "subject": "Hello",
+                  "body": {
+                    "contentType": "Text",
+                    "content": "Hi"
+                  },
+                  "toRecipients": [
+                    {
+                      "emailAddress": {
+                        "address": "AlexW@contoso.onmicrosoft.com"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        }
+      }
+    }
+  }
+}

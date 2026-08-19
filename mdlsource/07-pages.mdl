@@ -128,6 +128,23 @@ create or replace page RestLab."Home_Web"
         }
       }
     }
+    row rowGraph {
+      column colGraph (desktopwidth: 12) {
+        container cGraph (class: 'card') {
+          container cdtGraphTitle { dynamictext dtGraphTitle (Content: 'Microsoft Graph - local Prism mock', class: 'h4') }
+          container cdtGraphBody (class: 'mx-spacing-bottom-medium') { dynamictext dtGraphBody (Content: 'Needs the mock running: prism mock -p 4020 -h 127.0.0.1 specs/msgraph.json. GET /me is a single object, so the response mapping populates GraphUser - including the @odata.context annotation. GET /users is an OData collection whose value array cannot be mapped, so it is called inline with a bearer token and reshaped by a JSLT transformer instead.') }
+          actionbutton btnGraphMe (
+            caption: 'GET /me (mapped)',
+            action: microflow RestLab."ACT_Demo_GraphMe",
+            buttonstyle: primary
+          )
+          actionbutton btnGraphUsers (
+            caption: 'GET /users (transformed)',
+            action: microflow RestLab."ACT_Demo_GraphUsers"
+          )
+        }
+      }
+    }
     row rowC {
       column colRates (desktopwidth: 12) {
         container cRates (class: 'card') {
@@ -204,6 +221,15 @@ create or replace page RestLab."Mapped_Overview"
       column colTime (attribute: "Time", caption: 'Time')
       column colInterval (attribute: "Interval", caption: 'Interval (s)')
       column colTemp (attribute: Temperature, caption: 'Temperature')
+    }
+  }
+  container cGraphGrid (class: 'mx-spacing-top-large') {
+    dynamictext dtGraphGrid (Content: 'GraphUser - mapped from GET /me, @odata.context included')
+    datagrid dgGraph (datasource: database from RestLab."GraphUser") {
+      column colGName (attribute: DisplayName, caption: 'Display name')
+      column colGMail (attribute: Mail, caption: 'Mail')
+      column colGJob (attribute: JobTitle, caption: 'Job title')
+      column colGCtx (attribute: ODataContext, caption: '@odata.context', WrapText: true)
     }
   }
   container cPosts (class: 'mx-spacing-top-large') {

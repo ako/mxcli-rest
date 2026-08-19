@@ -626,3 +626,58 @@ The contract lives at `specs/mocklab.json`; `specs/README.md` documents it.
 Worth noting for this project specifically: mxcli's own regression example
 `843-rest-response-mapping.mdl` points at `http://localhost:3001/...`, so
 developing against a local mock is already the established pattern upstream.
+
+## 26. Mocking Microsoft Graph: what maps, and what the annotations do
+
+Graph is the integration most Mendix projects actually need, so it is worth
+recording exactly where it lands against the constraints above. All verified
+against a local Prism mock (`specs/msgraph.json`) driven from the running app.
+
+**The official spec is not mockable as-is.** `openapi/v1.0/openapi.yaml` from
+`microsoftgraph/msgraph-metadata` is **41 MB**; it downloads in 1.6 s but Prism
+was still initialising after **300 s** and had to be killed. A 7-path hand-cut
+subset loads instantly. Cut the paths you need.
+
+**`@odata.*` annotation property names MAP FINE.** This was the open question,
+and the answer is good news: `"ODataContext" = "@odata.context"` is accepted,
+stored as JSON path `(Object)|@odata.context`, and **populated at runtime** —
+`GET /me` produced a `GraphUser` row with
+`odatacontext = https://graph.microsoft.com/v1.0/$metadata#users/$entity`
+alongside `displayname`, `mail` and `jobtitle`. The constraint is on the Mendix
+side, not the JSON side: the *attribute* cannot be named `Context`, which mxcli
+rejects up front with `attribute 'Context' is a reserved word (CE7247)
+[MDL021]` and a suggested rename.
+
+**Graph collections still cannot be mapped.** Every list endpoint returns
+`{"@odata.context":…, "@odata.count":…, "@odata.nextLink":…, "value":[…]}`, and
+`value` is a repeating element — finding #19. So single-entity endpoints
+(`/me`, `/users/{id}`) map through the REST client document, and collections
+need the transform route.
+
+**JSLT: use `get-key()` for annotation keys, not brackets.** Reshaping the
+collection with
+
+```
+{ "count": .["@odata.count"], "nextLink": .["@odata.nextLink"],
+  "users": [for (.value) {...}] }
+```
+
+produced `{"count":null,"nextLink":null,"users":[…3 real users…]}` — the array
+lifted correctly while both annotations came back **null**. JSLT accepts the
+bracket form and silently yields null. `get-key(., "@odata.count")` works:
+`{"count":3,"nextLink":"https://graph.microsoft.com/v1.0/users?$skiptoken=RFNwdAoAAQ…"}`.
+Worth knowing because the silent null looks like a mock/data problem rather
+than a syntax one.
+
+**Bearer auth is not importable.** `create rest client (OpenAPI: …)` warns
+`unsupported HTTP auth scheme 'bearer' (only basic is supported; set manually)`
+and imports the operations without it. Combined with #14 (a document stores only
+a static header prefix, never a dynamic value), a Graph token cannot come from
+the document at all. Two workable routes: a **static** header for a mock or a
+constant-backed value, or an inline `REST CALL` with
+`header 'Authorization' = 'Bearer ' + $Token` — which is what
+`ACT_Graph_ListUsers` does, and it works.
+
+**OData `$` parameters double up.** `$select`, `$filter`, `$top` import as
+`$$select`, `$$filter`, `$$top` — MDL already uses `$` as its variable prefix.
+Cosmetic, but that is what `describe rest client` re-emits.
