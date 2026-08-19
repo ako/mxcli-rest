@@ -171,7 +171,7 @@ create or replace page RestLab."Home_Web"
       column colRates (desktopwidth: 12) {
         container cRates (class: 'card') {
           container cdtRatesTitle { dynamictext dtRatesTitle (Content: 'Data transformer - frankfurter.dev', class: 'h4') }
-          container cdtRatesBody (class: 'mx-spacing-bottom-medium') { dynamictext dtRatesBody (Content: 'The rates arrive keyed BY CURRENCY CODE, so the property names are really data and no mapping can address them. A JSLT transformer rewrites the object into an array of code/value pairs, which IS a shape a mapping can address. Open the call log row to see the payload before and after. The import mapping that would turn it into rows is modelled but cannot run yet - see FINDINGS.md #23.') }
+          container cdtRatesBody (class: 'mx-spacing-bottom-medium') { dynamictext dtRatesBody (Content: 'The rates arrive keyed BY CURRENCY CODE, so the property names are really data and no mapping can address them. A JSLT transformer rewrites the object into an array of code/value pairs, which IS a shape a mapping can address, and an import mapping document then turns it into one row per currency - with Decimal values, which the inline REST mapping cannot do. Open the call log row to see the payload before and after.') }
           actionbutton btnRates (
             caption: 'Get EUR rates (transformed)',
             action: microflow RestLab."ACT_Demo_Rates",
@@ -262,6 +262,13 @@ create or replace page RestLab."Mapped_Overview"
       column colSPWho (attribute: AssignedTo, caption: 'Assigned to')
       column colSPDue (attribute: DueDate, caption: 'Due (Due_x0020_Date)')
       column colSPPrio (attribute: PriorityLevel, caption: 'Priority (Priority_x0020_Level)')
+    }
+  }
+  container cRatesGrid (class: 'mx-spacing-top-large') {
+    dynamictext dtRatesGrid (Content: 'ExchangeRate - one row per currency, from a JSLT-reshaped payload via an import mapping')
+    datagrid dgRates (datasource: database from RestLab."ExchangeRate") {
+      column colCode (attribute: Code, caption: 'Currency')
+      column colValue (attribute: "Value", caption: 'Rate per EUR', Alignment: right)
     }
   }
   container cGraphGrid (class: 'mx-spacing-top-large') {

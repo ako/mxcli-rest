@@ -37,7 +37,7 @@ rows are simply missing at runtime.
 | Lane | JSON shape | Mapping result |
 | --- | --- | --- |
 | **Weather** (open-meteo) | object root + nested object | ✅ fully populated — copy this shape |
-| Rates (frankfurter) | dynamic keys, reshaped by JSLT | ⚠️ transform works; import mapping cannot run |
+| **Rates** (frankfurter) | dynamic keys, reshaped by JSLT | ✅ 29 typed rows via an import mapping document |
 | **Graph `/me`** (Prism mock) | single object + `@odata.context` | ✅ populated, annotation included |
 | Graph `/users` (Prism mock) | `@odata` envelope + `value` array | ⚠️ transform works; collection cannot be mapped |
 | **SharePoint item** (Prism mock) | object + nested `fields`, `_x0020_` columns | ✅ mapped onto a child entity |
@@ -46,14 +46,19 @@ rows are simply missing at runtime.
 | CRUD (restful-api.dev) | **array** root | ❌ null — 0 rows |
 | Blog (jsonplaceholder) | **array** root | ❌ null — 0 rows |
 
-**A JSLT data transformer fixes the *shape* problems but cannot finish the job.**
-The rates lane (frankfurter.dev) returns currency codes as property names —
-data masquerading as keys, which no mapping can address. A transformer rewrites
-that into an array of code/value pairs, and that step works: open the rates row
-in the call log to see the payload before and after. The import mapping that
-would turn it into entities is modelled (`IMM_Rates`) and passes `mx check`, but
-**no mxcli-written import mapping document executes** — even a flat two-field one
-throws `key not found: Path(QName(None,),None,)`. FINDINGS.md #23 has the repro.
+**For a collection, use the transform route, not the inline mapping.** The rates
+lane (frankfurter.dev) returns currency codes as property names — data
+masquerading as keys, which no mapping can address. A JSLT transformer rewrites
+that into an array of code/value pairs, and an import mapping document turns it
+into 29 rows with **Decimal** values. That route avoids both inline-mapping
+limits — repeating elements and forced String attributes — so the shape to copy
+for any collection is:
+
+> inline `REST CALL` → JSLT transformer (if the JSON needs reshaping) → import
+> mapping document
+
+This needs mxcli with `ako/mxcli#192`; before it, every import mapping document
+threw at runtime (FINDINGS #23, #45).
 
 **Binary: download works, upload does not.** A file document downloaded with the
 inline `returns Mod.FileDoc` form arrives intact (8090-byte PNG, verified), but
@@ -122,7 +127,7 @@ model:
 | `09-transformer-lane.mdl` | JSLT data transformer, JSON structure, import mapping |
 | `10-graph-lane.mdl` | Microsoft Graph client, OData transformer, microflows |
 | `11-sharepoint-lane.mdl` | SharePoint list read + write (POST/PATCH), OData transformer |
-| `13-binary-lane.mdl` | Binary download/upload — **needs mxcli with #922**, see FINDINGS #44 |
+| `13-binary-lane.mdl` | Binary download/upload (upload is a known-broken regression test) |
 | `12-organize.mdl` | Folder layout — run last, after every document exists |
 
 **Re-run `02-security.mdl` after any change to `01-domain-model.mdl`.** Entity

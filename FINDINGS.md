@@ -1284,3 +1284,67 @@ a **parse error** on merged main — the committed `./mxcli` cannot replay it. T
 0 errors), so the app runs for everyone; only re-running that one script needs
 the newer binary. `.claude/bootstrap-mxcli.sh` builds from `ako/mxcli` main, so
 this resolves itself once #192 merges.
+
+---
+
+# After ako/mxcli #192 merged
+
+`./mxcli` rebuilt from `ako/mxcli` main at `d4998ac` (`nightly-123-gd4998ac`),
+which contains #192, #191, #190, #189 and #188.
+
+## 45. The rates lane is now complete — the transform route writes rows
+
+`ACT_Rates_GetLatest` no longer stops at "transform and display". The
+`import from mapping` call that FINDINGS #23 recorded as blocked now runs, and a
+single click on *Get EUR rates (transformed)* produces:
+
+```
+ exchange_rates          base | ratedate   |  amount
+----------------         -----+------------+------------
+             29          EUR  | 2026-08-19 | 1.00000000
+
+ code |   value
+------+------------
+ AUD  | 1.64010000
+ BRL  | 6.03940000
+ CHF  | 0.94020000
+```
+
+29 rows from a repeating element, values as **Decimal**. Both inline-mapping
+constraints are avoided on this route — `MaxOccurs: 1` (#19) and String-only
+attributes (#9) — which makes it the recommended shape for any collection:
+
+> inline `REST CALL` for the raw body → JSLT transformer if the JSON needs
+> reshaping → import mapping document
+
+## 46. #44 resolved: the binary lane parses on merged main
+
+`13-binary-lane.mdl` used the inline `returns Mod.FileDoc` form (#922), which was
+a parse error on the old main. With `nightly-123-gd4998ac` it checks cleanly, so
+the repo no longer carries a toolchain dependency. `bootstrap-mxcli.sh` builds
+from `ako/mxcli` main, so a fresh session gets this automatically.
+
+Also visible: #189's honest reporting is now in main —
+`Unchanged json structure: RestLab.JSON_Rates` where the old build said
+"Modified".
+
+## 47. Correction: SPTask/SPTaskFields CANNOT be collapsed yet
+
+An earlier note suggested #188's multi-segment path would let the SharePoint
+lane drop its child entity. **It will not**, because that lane maps through an
+inline REST response mapping, where the multi-segment form is still stored
+literally (#36) — re-confirmed on merged main:
+
+```
+"Title" = "fields/Title",  -- (Object)|fields/Title
+```
+
+The path only works in an import mapping **document**. Collapsing the SharePoint
+entities would therefore mean converting that lane from the document response
+mapping to the `REST CALL` + transformer + import mapping route — a design
+change, not a simplification, and it would trade away the lane's demonstration
+of nested child-entity mapping. Left as it is, deliberately.
+
+So of the three things #192 was expected to unblock, two landed (the rates lane,
+the binary lane's toolchain dependency) and the third does not follow until #36
+is fixed.
