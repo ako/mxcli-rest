@@ -5,19 +5,20 @@
  * inline form:
  *
  *   DOWNLOAD  rest call ... returns Mod.FileDoc   (inline, names the entity)
- *   UPLOAD    body: file from $Doc                (REST client document ONLY)
+ *   UPLOAD    rest call ... body binary $Doc/Contents
  *
- * There is no file form in the inline REST CALL body clause -- it takes a
- * string template, an expression, or an export mapping -- so a binary upload
- * has to go through a consumed REST service document. And download has to be
- * inline, because that is the only form that says WHICH file-document entity
- * to store into.
+ * BOTH directions are inline REST CALL activities, and that is not incidental:
+ * a consumed REST service document can express neither. Its response side names
+ * no target entity, and its request side has no binary body at all -- Mendix
+ * models a binary request on the microflow ACTIVITY
+ * (Microflows$BinaryRequestHandling), not on the service document. `body: file
+ * from $Doc` in a document is refused outright as MDL-REST02, because it used
+ * to send the expression text.
  *
- * REQUIRES mxcli with #922 ("store a REST response in a file document"). On
- * merged main the inline `returns Mod.FileDoc` form is a parse error, and the
- * document alternative `response: file as $Doc` is unusable: it yields a
- * variable of type Nothing (CE0041), and a CHANGE on it makes the .mpr
- * unloadable outright. See FINDINGS.md #42.
+ * REQUIRES mxcli with #922 (download, now on main) and ako/mxcli#193 (the
+ * `body binary` upload). The document alternative `response: file as $Doc` is
+ * unusable: it yields a variable of type Nothing (CE0041), and a CHANGE on it
+ * makes the .mpr unloadable outright. See FINDINGS.md #42 and #48.
  *
  * AND: the variable a download produces cannot be CHANGEd -- the activity is
  * written with no entity, and the .mpr stops loading:
@@ -50,40 +51,8 @@ create or modify association RestLab."DownloadedFile_CallLog"
 
 -- ---------------------------------------------------------------- client
 
-create or modify rest client RestLab."BinaryApi" (
-  BaseUrl: 'https://httpbingo.org',
-  authentication: none
-)
-{
-  /**
-   * Echoes the request back, so Content-Length in the response proves how many
-   * bytes actually left Mendix -- and it proves this DOES NOT WORK.
-   *
-   * `body: file from $Doc` is accepted by check and by mx check, the call
-   * returns 200, and what is actually sent is the four bytes `$Doc`: the
-   * expression TEXT, not the file. Verified by decoding httpbingo's echo:
-   *   data:application/octet-stream;base64,JERvYw==  ->  b'$Doc'  (4 bytes)
-   * while the document itself holds 8090 bytes.
-   *
-   * Cause: writer_rest.go:254 handles FILE in the same branch as TEMPLATE and
-   * writes a Rest$StringBody with the expression as a literal value template --
-   * `describe` shows it back as `Body: template '$Doc'`. And there is no better
-   * type to write: the 11.13 metamodel has only Rest$JsonBody, Rest$StringBody
-   * and Rest$ImplicitMappingBody. A consumed REST service cannot carry a binary
-   * body at all, so this syntax should be refused rather than silently degraded.
-   *
-   * Kept as a regression test: when it is fixed, Content-Length becomes 8090.
-   * See FINDINGS.md #43.
-   */
-  operation "UploadFile" {
-    method: post,
-    path: '/post',
-    headers: ('Content-Type' = 'application/octet-stream'),
-    body: file from $Doc,
-    timeout: 60,
-    response: json as $Echo
-  }
-};
+-- No REST client document here at all: neither direction can be expressed by
+-- one. Both are inline REST CALL activities. See the note at the top.
 
 -- ---------------------------------------------------------------- microflows
 
@@ -151,9 +120,15 @@ end;
 /
 
 /**
- * UPLOAD. Takes a file document and posts its bytes. Round-tripping a file that
- * was just downloaded avoids needing a widget or Java action to get bytes into
- * the document in the first place.
+ * UPLOAD, for real: `body binary` sends the document's Contents.
+ *
+ * Verified against httpbingo, which echoes what it received:
+ *   Content-Length: 8090   -- the whole PNG, not the 4 bytes "$Doc"
+ *
+ * Mendix stores this as Microflows$BinaryRequestHandling on the activity, with
+ * the expression $Doc/Contents. It is a Microflows$ type, not a Rest$ one --
+ * which is why searching the metamodel for a Rest$*Body binary type suggests,
+ * wrongly, that binary upload is impossible.
  */
 create or modify microflow RestLab."ACT_Binary_Upload" (
   $Doc: RestLab."DownloadedFile"
@@ -162,17 +137,29 @@ returns RestLab."CallLog" as $Log
 folder 'Lanes/Binary'
 begin
   declare $Start DateTime = [%CurrentDateTime%];
+  declare $Body String = '';
+  declare $Ok Boolean = false;
 
-  send rest request RestLab."BinaryApi"."UploadFile" body $Doc;
+  $Echo = rest call post 'https://httpbingo.org/post'
+    header 'Content-Type' = 'application/octet-stream'
+    body binary $Doc/Contents
+    timeout 60
+    returns string
+    on error continue;
+
+  IF $Echo != empty THEN
+    SET $Body = $Echo;
+    SET $Ok = true;
+  END IF;
 
   $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
-    Url = 'POST https://httpbingo.org/post',
+    Url = 'POST https://httpbingo.org/post (body binary)',
     Method = 'POST',
-    StatusCode = $latestHttpResponse/StatusCode,
+    StatusCode = 0,
     DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
-    Success = true,
+    Success = $Ok,
     ErrorMessage = '',
-    ResponseBody = $latestHttpResponse/Content,
+    ResponseBody = $Body,
     Lane = RestLab.Lane.Files
   );
 

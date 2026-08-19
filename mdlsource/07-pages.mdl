@@ -132,9 +132,9 @@ create or replace page RestLab."Home_Web"
       column colBin (desktopwidth: 12) {
         container cBin (class: 'card') {
           container cdtBinTitle { dynamictext dtBinTitle (Content: 'Binary download / upload - httpbingo.org', class: 'h4') }
-          container cdtBinBody (class: 'mx-spacing-bottom-medium') { dynamictext dtBinBody (Content: 'Download stores a real 8 KB PNG in a file document and works. The round trip then posts it back - and demonstrably does not work: what leaves Mendix is the four bytes of the text $Doc, not the file. Open the POST row in the call log and read Content-Length.') }
+          container cdtBinBody (class: 'mx-spacing-bottom-medium') { dynamictext dtBinBody (Content: 'Both directions are inline REST CALL activities, because a consumed REST service document can express neither. Download stores a real 8 KB PNG in a file document; the round trip posts those same bytes back with body binary. Open the POST row in the call log and read Content-Length - it is 8090, the whole file.') }
           actionbutton btnBinDown (caption: 'Download PNG', action: microflow RestLab."ACT_Demo_BinaryDownload", buttonstyle: primary)
-          actionbutton btnBinRound (caption: 'Round trip (upload is broken)', action: microflow RestLab."ACT_Demo_BinaryRoundTrip", buttonstyle: warning)
+          actionbutton btnBinRound (caption: 'Round trip (download + upload)', action: microflow RestLab."ACT_Demo_BinaryRoundTrip", buttonstyle: warning)
         }
       }
     }

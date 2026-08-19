@@ -60,12 +60,14 @@ for any collection is:
 This needs mxcli with `ako/mxcli#192`; before it, every import mapping document
 threw at runtime (FINDINGS #23, #45).
 
-**Binary: download works, upload does not.** A file document downloaded with the
-inline `returns Mod.FileDoc` form arrives intact (8090-byte PNG, verified), but
-its variable cannot be `CHANGE`d — hand it to a typed microflow parameter
-instead. `body: file from $Doc` silently sends the four bytes `$Doc` rather than
-the file, because Mendix 11.13 has no file request-body type at all. FINDINGS
-#42–43.
+**Binary works both ways, but only as inline `REST CALL` activities** — a
+consumed REST service document can express neither direction. Download uses
+`returns Mod.FileDoc` (the only form that names a target entity); upload uses
+`body binary $Doc/Contents`. Verified end to end: 8090 bytes down and 8090 back
+up. Two traps: the downloaded variable cannot be `CHANGE`d (hand it to a typed
+microflow parameter), and `body: file from $Doc` in a service document is
+refused as MDL-REST02 because it used to send the expression text. FINDINGS
+#42–43, #48–49.
 
 Two further constraints shape the code:
 

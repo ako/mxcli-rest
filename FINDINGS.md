@@ -1348,3 +1348,107 @@ of nested child-entity mapping. Left as it is, deliberately.
 So of the three things #192 was expected to unblock, two landed (the rates lane,
 the binary lane's toolchain dependency) and the third does not follow until #36
 is fixed.
+
+---
+
+# Testing ako/mxcli PR #193
+
+Built as `nightly-126-g733d6db`. Three commits, all aimed at REST request
+handling, and two of them at findings from this project.
+
+| Finding | Under #193 |
+| --- | --- |
+| #43 `body: file` silently sends the expression text | ✅ **refused** — MDL-REST02 |
+| #43's conclusion "binary upload is impossible in MDL" | ❌ **my error — corrected below** |
+| #37 nested inline `body: mapping` → unloadable `.mpr` | ❌ still present |
+| #36 inline REST multi-segment path | ❌ still present |
+
+## 48. CORRECTION: binary upload IS possible — I checked the wrong metamodel prefix
+
+FINDINGS #43 concluded that "binary upload is not expressible in MDL today"
+because the 11.13 metamodel has only `Rest$JsonBody`, `Rest$StringBody` and
+`Rest$ImplicitMappingBody`, none binary. **That reasoning was wrong**, and the
+#193 commit says exactly why:
+
+> It is a `Microflows$` type, which is why grepping the metamodel for
+> `Rest$*Body` finds only the three non-binary ones and appears to prove it
+> impossible.
+
+Mendix models a binary request body on the microflow **activity**, not on the
+service document:
+
+```
+"RequestHandling":     {"$Type": "Microflows$BinaryRequestHandling",
+                        "Expression": "$Doc/Contents"},
+"RequestHandlingType": "Binary"
+```
+
+The conclusion I could defend was the narrower one — *a consumed REST service
+document cannot carry a binary body* — and I generalised it to MDL as a whole on
+the strength of a grep over one prefix. Worth remembering: an absence proved by
+searching one namespace is only an absence in that namespace.
+
+#193 adds the MDL spelling, and **it works end to end**:
+
+```sql
+$Echo = rest call post 'https://httpbingo.org/post'
+  header 'Content-Type' = 'application/octet-stream'
+  body binary $Doc/Contents
+  timeout 60
+  returns string;
+```
+
+One click on *Round trip (download + upload)*:
+
+```
+download :  httpbingo.png | hascontents t | size 8090
+upload   :  Content-Length: 8090   Content-Type: application/octet-stream
+```
+
+8090 bytes both ways — the whole PNG, against the 4 bytes `$Doc` before. The
+lane's upload is no longer a known-broken regression test; it passes.
+
+The commit also notes the reverse direction of the same gap: mxcli could parse
+that shape but could not write, read or describe it, so **a Studio Pro binary
+POST described as a REST call with no body at all**, and re-executing that
+describe produced a request that sent nothing.
+
+## 49. #43 itself is fixed — `body: file` is now refused
+
+```
+✗ operation "UploadFile": Body: file from $Doc cannot be stored — Mendix has no
+  binary request body. (Microflows$BinaryRequestHandling — the shape Studio Pro
+  writes). [MDL-REST02]
+```
+
+Refused at check time, with the message naming the working alternative. That is
+the fix this project asked for, and it now points somewhere useful rather than
+at "use a Java action".
+
+## 50. #37 and #36 are unchanged by #193
+
+`733d6db` fixes four defects in the *flat* mapping request body — the export
+mapping wrote `ParameterVariable` where the type owns `mappingVariableName`,
+`ContentType` was written empty rather than `Json`, and `RequestHandlingType`
+was hardcoded `Custom` regardless of handler. Worth having, and none of them is
+the nested case.
+
+Re-tested on `nightly-126-g733d6db`:
+
+- **#37** — a nested inline `body: mapping` still passes check, still executes,
+  and still leaves a project mxbuild cannot load
+  (`Export Object Mappings cannot have ObjectHandling set to 'Create'`). The
+  hardcoded `"Create"` for nested children is untouched.
+- **#36** — an inline REST response mapping still stores `"fields/Title"` as one
+  literal member.
+
+Both PR #188 review comments therefore still stand, and #37's is now sharper:
+the *flat* mapping body has just been corrected in the same area of the code,
+which makes the nested one a narrow, adjacent fix.
+
+## 51. The lane now needs #193 as well as #922
+
+`13-binary-lane.mdl` uses `body binary`, which is in #193 and not yet in main.
+Same arrangement as before: the committed `.mpr` is valid (`mx check` 0 errors)
+so the app runs for everyone, and only re-running that one script needs the
+newer binary. It resolves itself when #193 merges.
