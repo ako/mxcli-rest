@@ -802,3 +802,96 @@ to `SEND REST REQUEST` corrupts the model (#16). Two ways through, both used
 here: bake the site and list into a literal operation path when they are fixed
 for the app, and use an inline `REST CALL` with `{1}` templating for
 item-scoped calls.
+
+---
+
+# Intercepting an existing app's outbound calls
+
+## 30. Prism cannot blanket-intercept; a forward proxy can, and Mendix honours it
+
+**Prism is per-API and requires the client to be re-pointed.** Its own CLI says
+so:
+
+- `prism mock <document>` — one document, singular positional. One spec per
+  instance, mounted at the root.
+- `prism proxy <document> <upstream>` — one spec, one upstream. It is a
+  **reverse** proxy that validates traffic for a single API, not a forward
+  proxy. `--upstream-proxy` is for *reaching* upstream through a corporate
+  proxy, not for intercepting.
+
+So mocking an existing app's calls with Prism means editing every base URL (one
+Prism per API, on its own port). Fine for a greenfield app built around
+constants; poor for an existing app with URLs spread through the model.
+
+**WireMock in browser-proxy mode intercepts by hostname.** Verified:
+
+```bash
+java -jar wiremock-standalone-3.13.2.jar --port 4040 \
+     --enable-browser-proxying --trust-all-proxy-targets
+# register a stub for host graph.microsoft.com, url /v1.0/me, then:
+curl -k -x http://127.0.0.1:4040 https://graph.microsoft.com/v1.0/me
+#   -> {"@odata.context":"stubbed-by-wiremock","displayName":"Adele Vance (STUB)",...}
+# same URL without the proxy reaches the real service:
+#   -> {"error":{"code":"InvalidAuthenticationToken",...}}
+```
+
+**The Mendix runtime honours the JVM proxy, with no model change at all.**
+This is the part that matters for an existing app. `mxcli`'s local boot
+*appends* to `JAVA_TOOL_OPTIONS` rather than replacing it
+(`cmd/mxcli/docker/localboot.go:226`), so:
+
+```bash
+export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=4040"
+./mxcli run --local -p RestLab.mpr
+```
+
+A microflow calling `http://api.frankfurter.dev/v1/latest` then received the
+stub, not the real API:
+
+```json
+{"base":"EUR","date":"1999-01-01","rates":{"XXX":42.0},"note":"INTERCEPTED BY WIREMOCK"}
+```
+
+No URL edits, no constants, no redeploy of the model — the running app simply
+had its egress redirected.
+
+### The HTTPS caveat, which is the real work
+
+The demo above is plain HTTP on purpose. For `https://` the proxy must present
+a certificate the JVM trusts, and **WireMock 3.13.2 on Java 21 cannot mint one**:
+
+```
+Unable to generate a certificate authority
+com.github.tomakehurst.wiremock.http.ssl.CertificateGenerationUnsupportedException:
+  Your runtime does not support generating certificates at runtime
+```
+
+`GET /__admin/certs/wiremock-ca.crt` consequently returns 500. curl worked only
+because `-k` skipped validation — a JVM will not. Options, in order of effort:
+
+1. **Point the app at the mock directly** (constants / `ApplicationRootUrl`
+   style config). No TLS problem at all, and the reason to keep base URLs in
+   constants in the first place.
+2. **mitmproxy** — purpose-built for this, generates a CA on first run; add
+   `~/.mitmproxy/mitmproxy-ca-cert.pem` to the JVM truststore.
+3. **WireMock with a supplied keystore** (`--https-port` + `--https-keystore`),
+   or a JDK/WireMock combination where runtime cert generation works.
+4. **`/etc/hosts` + a local TLS terminator** — same CA problem, more moving parts.
+
+Importing a CA into the JVM truststore is exactly what this container already
+does for its own agent proxy (`-Djavax.net.ssl.trustStore=/root/.ccr/java-truststore.p12`,
+finding #4), so the pattern is proven — it is just per-tool setup:
+
+```bash
+keytool -importcert -alias mitm-ca -file ca.pem \
+  -keystore $JAVA_HOME/lib/security/cacerts -storepass changeit
+```
+
+### Which tool for which job
+
+| Goal | Tool |
+| --- | --- |
+| Mock **one** API you have a contract for | **Prism** — `prism mock spec.json` |
+| Check a real API still matches its contract | **Prism proxy** — fails the request on violation |
+| Intercept **everything** an existing app calls, by hostname | **WireMock** browser-proxying, **mitmproxy**, or **Hoverfly** |
+| Record real traffic once and replay it forever | **WireMock** `--proxy-all` + `--record-mappings`, or Hoverfly capture/simulate |

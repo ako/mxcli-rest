@@ -89,3 +89,26 @@ would also generate thousands of operations. Cut the handful of paths you need.
   which is why `servers[0].url` here is `http://127.0.0.1:4020` and not
   `.../v1.0`. Against the real service the base is
   `https://graph.microsoft.com/v1.0`.
+
+---
+
+# Mocking an app you cannot edit
+
+Prism mocks **one contract per instance** and the client must point at it, so it
+does not "intercept" anything — see FINDINGS #30. To redirect an existing app's
+calls without touching its model, put a forward proxy in front of the runtime:
+
+```bash
+java -jar wiremock-standalone-3.13.2.jar --port 4040 \
+     --enable-browser-proxying --trust-all-proxy-targets
+
+export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=4040"
+./mxcli run --local -p RestLab.mpr
+```
+
+`mxcli` appends to `JAVA_TOOL_OPTIONS`, so the Mendix runtime picks this up.
+Verified: a microflow calling `http://api.frankfurter.dev/v1/latest` received a
+WireMock stub instead of the real API, with no model change.
+
+For `https://` the proxy needs a CA the JVM trusts, and WireMock 3.13.2 on
+Java 21 cannot generate one — use mitmproxy, or supply WireMock a keystore.
