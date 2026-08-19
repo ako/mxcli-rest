@@ -79,3 +79,31 @@ begin
   CALL MICROFLOW RestLab."ACT_Graph_ListUsers" (Token = 'dev-token');
 end;
 /
+
+create or modify microflow RestLab."ACT_Demo_SPGet" ()
+begin
+  CALL MICROFLOW RestLab."ACT_SP_GetTask" ();
+end;
+/
+
+create or modify microflow RestLab."ACT_Demo_SPList" ()
+begin
+  CALL MICROFLOW RestLab."ACT_SP_ListTasks" ();
+end;
+/
+
+create or modify microflow RestLab."ACT_Demo_SPCreate" ()
+begin
+  CALL MICROFLOW RestLab."ACT_SP_CreateTask" (Title = 'New task from Mendix', Status = 'Not started');
+end;
+/
+
+create or modify microflow RestLab."ACT_Demo_SPUpdate" ()
+begin
+  CALL MICROFLOW RestLab."ACT_SP_UpdateStatus" (
+    ItemId = '12',
+    Status = 'Completed',
+    Etag = '"c4f3b8a1-0000-0200-0000-66c1a2b30000,3"'
+  );
+end;
+/

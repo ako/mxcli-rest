@@ -681,3 +681,124 @@ constant-backed value, or an inline `REST CALL` with
 **OData `$` parameters double up.** `$select`, `$filter`, `$top` import as
 `$$select`, `$$filter`, `$$top` — MDL already uses `$` as its variable prefix.
 Cosmetic, but that is what `describe rest client` re-emits.
+
+---
+
+# SharePoint read/write (finding #27 is the important one)
+
+## 27. A NESTED export-mapping body makes the .mpr unloadable — one-line cause
+
+**Impact: critical**, same class as #16: not an error message, an unopenable
+project. And it bites immediately on SharePoint, because Graph requires a
+nested write body: `{"fields": {"Title": ...}}`.
+
+```sql
+body: mapping RestLab."SPTask" {
+  RestLab."SPTask_SPTaskFields"/RestLab."SPTaskFields" = "fields" {
+    "Title" = "Title", "Status" = "Status"
+  }
+}
+```
+
+`mxcli check` passes, `exec` reports "Created rest client", then:
+
+```
+ERROR: System.AggregateException: One or more errors occurred.
+(Export Object Mappings cannot have ObjectHandling set to 'Create')
+```
+
+**Root cause — `sdk/mpr/writer_rest.go:308`:**
+
+```go
+child := serializeInlineMappingElement(m.Entity, m.Association, m.ExposedName,
+    childJsonPath, m.Children, namespace, "Create")   // <-- hardcoded
+```
+
+The ROOT is correct: `serializeRestImplicitMappingBody` passes `"Parameter"` for
+an export mapping (line 272), while the response path passes `"Create"`
+(line 289). Only the recursion is wrong — it hardcodes `"Create"` for every
+nested child regardless of `namespace`, and Mendix rejects that on an
+`ExportMappings$ObjectMappingElement`.
+
+Omitting the optional `CREATE` keyword does **not** help — the writer never
+reads it; both spellings produce the same BSON. Verified by trying each.
+
+Suggested fix: derive the child's handling from the namespace, e.g.
+`childHandling := "Create"; if namespace == "ExportMappings" { childHandling = "Parameter" }`.
+
+- **Scope:** only NESTING breaks. A flat `body: mapping Entity { name = Name }`
+  works (the CRUD lane uses one).
+- **Workaround:** build the nested body with an inline `REST CALL` and a body
+  template, which is what `ACT_SP_CreateTask` does.
+- **Recovery:** `git checkout -- <App>.mpr mprcontents/ && git clean -fd mprcontents/`,
+  then re-run the domain and security scripts.
+
+## 28. URL and BODY placeholders are numbered independently
+
+In an inline `REST CALL`, the `{n}` placeholders in the URL and in the body are
+**separate** lists, each starting at 1. Continuing the URL's numbering into the
+body gives:
+
+```
+[error] [CE0720] "Place holder index 2 is greater than 1, the number of
+parameter(s)." at Call REST service activity 'Call REST (PATCH)'
+```
+
+Correct:
+
+```sql
+$r = rest call patch 'http://…/items/{1}/fields' with ( {1} = $ItemId )
+  body '{{"Status": "{1}"}' with ( {1} = $Status )   -- {1} again, not {2}
+```
+
+Note also that a literal `{` in a body template is escaped by **doubling** it
+(`{{` → `{`), while `}` is literal — so Graph's nested wrapper is written
+`'{{"fields": {{"Title": "{1}", "Status": "{2}"}}'`.
+
+## 29. SharePoint: what works, verified against the contract
+
+All confirmed by driving the running app and reading both the database and
+Prism's validator log.
+
+**Read, mapped.** `GET /sites/root/lists/Tasks/items/12?$expand=fields` is an
+object root with a nested `fields` object, so the document mapping populates it:
+
+| SPTask | SPTaskFields |
+| --- | --- |
+| `spitemid 12`, `etag "c4f3b8a1-…,3"`, `weburl https://contoso.sharepoint.com/…` | `Replace pump seal` / `In progress` / `Adele Vance` / `2026-08-24T00:00:00Z` / `High` |
+
+Two things this settles:
+
+- **SharePoint's `_x0020_` internal column names map fine.**
+  `"DueDate" = "Due_x0020_Date"` and `"PriorityLevel" = "Priority_x0020_Level"`
+  both populate. As with `@odata.*` (#26), the awkwardness is only in the JSON
+  key, which mappings address as a literal string.
+- **A nested object cannot be flattened onto its parent.** `fields` has to
+  become a child entity reached by an association — hence `SPTaskFields`.
+
+**Read, collection.** `GET …/items` is the usual `@odata` + `value` envelope, so
+it is transformed for display (#19), with the JSLT also renaming the `_x0020_`
+columns to readable names.
+
+**Write — and the mock proves the body was right.** The contract validates
+request bodies strictly, so a wrong shape is a 422 rather than a silent pass. A
+flat `{"Title":"oops"}` gets `422 Request body must NOT have additional
+properties; found 'Title'`. What Mendix actually sent:
+
+```
+[5:49:24] [VALIDATOR] ✔ success  The request passed the validation rules.
+[5:49:24] [NEGOTIATOR] ✔ success  Responding with the requested status code 201
+[5:49:29] [VALIDATOR] ✔ success  The request passed the validation rules.
+[5:49:29] [NEGOTIATOR] ✔ success  Responding with the requested status code 200
+```
+
+POST → **201**, PATCH → **200**, both after passing validation. That is a real
+verdict on the JSON Mendix produced, not just "the call did not throw" — which
+is the main reason to develop against a contract mock rather than a live tenant.
+
+**Every SharePoint path is parameterised in reality**
+(`/sites/{siteId}/lists/{listId}/items/{itemId}`), and a path parameter passed
+to `SEND REST REQUEST` corrupts the model (#16). Two ways through, both used
+here: bake the site and list into a literal operation path when they are fixed
+for the app, and use an inline `REST CALL` with `{1}` templating for
+item-scoped calls.

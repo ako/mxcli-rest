@@ -34,3 +34,7 @@ grant execute on microflow RestLab."ACT_Demo_WeatherMapped" to RestLab."Develope
 grant execute on microflow RestLab."ACT_Demo_Rates" to RestLab."Developer", RestLab."Administrator";
 grant execute on microflow RestLab."ACT_Demo_GraphMe" to RestLab."Developer", RestLab."Administrator";
 grant execute on microflow RestLab."ACT_Demo_GraphUsers" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_SPGet" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_SPList" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_SPCreate" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_SPUpdate" to RestLab."Developer", RestLab."Administrator";

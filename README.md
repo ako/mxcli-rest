@@ -40,6 +40,8 @@ rows are simply missing at runtime.
 | Rates (frankfurter) | dynamic keys, reshaped by JSLT | ⚠️ transform works; import mapping cannot run |
 | **Graph `/me`** (Prism mock) | single object + `@odata.context` | ✅ populated, annotation included |
 | Graph `/users` (Prism mock) | `@odata` envelope + `value` array | ⚠️ transform works; collection cannot be mapped |
+| **SharePoint item** (Prism mock) | object + nested `fields`, `_x0020_` columns | ✅ mapped onto a child entity |
+| SharePoint list (Prism mock) | `@odata` envelope + `value` array | ⚠️ transformed for display |
 | Catalog (dummyjson) | object root + nested **array** | ⚠️ one child row, all attributes empty |
 | CRUD (restful-api.dev) | **array** root | ❌ null — 0 rows |
 | Blog (jsonplaceholder) | **array** root | ❌ null — 0 rows |
@@ -55,6 +57,9 @@ throws `key not found: Path(QName(None,),None,)`. FINDINGS.md #23 has the repro.
 
 Two further constraints shape the code:
 
+- **A nested export-mapping body makes the `.mpr` unloadable** — `writer_rest.go`
+  hardcodes `ObjectHandling: Create` on nested children, which export mappings
+  forbid. Flat bodies are fine; build nested ones with an inline `REST CALL`.
 - **Never pass a PATH parameter to `SEND REST REQUEST`** — mxcli writes an
   invalid BSON type and the `.mpr` stops loading in Studio Pro and mxbuild
   entirely. Query parameters are fine. Operations with a path parameter are
@@ -109,6 +114,7 @@ model:
 | `08-navigation-and-access.mdl` | Navigation profile, page and microflow access |
 | `09-transformer-lane.mdl` | JSLT data transformer, JSON structure, import mapping |
 | `10-graph-lane.mdl` | Microsoft Graph client, OData transformer, microflows |
+| `11-sharepoint-lane.mdl` | SharePoint list read + write (POST/PATCH), OData transformer |
 
 **Re-run `02-security.mdl` after any change to `01-domain-model.mdl`.** Entity
 access rules store an explicit member list, so adding an attribute or
@@ -122,6 +128,7 @@ with deterministic payloads. Start the mock before using those buttons:
 ```bash
 npm install -g @stoplight/prism-cli
 prism mock -p 4020 -h 127.0.0.1 specs/msgraph.json    # Microsoft Graph lane
+prism mock -p 4025 -h 127.0.0.1 specs/sharepoint.json # SharePoint read/write lane
 prism mock -p 4010 -h 127.0.0.1 specs/mocklab.json    # shape playground
 ```
 

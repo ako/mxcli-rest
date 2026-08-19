@@ -18,7 +18,8 @@ create or modify enumeration RestLab."Lane" (
   "EdgeCase" 'Errors + auth (httpbingo)',
   "Weather" 'Weather (open-meteo)',
   "Rates" 'Rates (frankfurter, transformed)',
-  "Graph" 'Microsoft Graph (mocked)'
+  "Graph" 'Microsoft Graph (mocked)',
+  "SharePoint" 'SharePoint read/write (mocked)'
 );
 
 /*
@@ -221,6 +222,39 @@ create or modify persistent entity RestLab."GraphUser" (
   "UserPrincipalName": String(200)
 );
 
+-- ---------------------------------------------------------------- sharepoint lane
+
+/**
+ * A SharePoint list item, read through Graph.
+ *
+ * Split into two entities because Graph nests the user-defined columns under
+ * "fields", and a Mendix mapping cannot flatten a nested object onto its
+ * parent -- a nested object needs a child entity reached by an association.
+ */
+@position(2900, 100)
+create or modify persistent entity RestLab."SPTask" (
+  /** "@odata.etag" -- Graph wants it back in If-Match on a write. */
+  "Etag": String(100),
+  "SPItemId": String(20),
+  "WebUrl": String(400),
+  "LastModified": String(40)
+);
+
+/**
+ * The "fields" object. Column names are SharePoint INTERNAL names, so a space
+ * arrives percent-ish encoded as _x0020_ ("Due Date" -> "Due_x0020_Date").
+ */
+@position(2900, 320)
+create or modify persistent entity RestLab."SPTaskFields" (
+  "Title": String(200),
+  "Status": String(50),
+  "AssignedTo": String(100),
+  /** from "Due_x0020_Date" */
+  "DueDate": String(40),
+  /** from "Priority_x0020_Level" */
+  "PriorityLevel": String(40)
+);
+
 -- ---------------------------------------------------------------- associations
 
 create or modify association RestLab."RestObject_RestObjectData"
@@ -258,3 +292,9 @@ create or modify association RestLab."RateSnapshot_CallLog"
 
 create or modify association RestLab."GraphUser_CallLog"
   from RestLab."GraphUser" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."SPTask_SPTaskFields"
+  from RestLab."SPTask" to RestLab."SPTaskFields" type reference;
+
+create or modify association RestLab."SPTask_CallLog"
+  from RestLab."SPTask" to RestLab."CallLog" type reference;
