@@ -1,0 +1,358 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "SharePoint via Microsoft Graph (mock subset)",
+    "version": "v1.0",
+    "description": "SharePoint list read/write through Graph. Paths are LITERAL (site and list baked in) rather than parameterised, because passing a path parameter to SEND REST REQUEST corrupts the .mpr - see FINDINGS #16. Item-scoped operations keep {itemId} so the inline REST CALL route can be shown too. Request bodies are validated strictly, so Prism reports what Mendix actually sent."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:4025"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "paths": {
+    "/sites/root/lists/Tasks/items/12": {
+      "get": {
+        "operationId": "getTaskItem",
+        "summary": "Single list item - object root with a nested 'fields' object. Mappable.",
+        "parameters": [
+          {
+            "name": "$expand",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.etag": "\"c4f3b8a1-0000-0200-0000-66c1a2b30000,3\"",
+                  "id": "12",
+                  "createdDateTime": "2026-08-10T08:14:22Z",
+                  "lastModifiedDateTime": "2026-08-17T11:02:41Z",
+                  "webUrl": "https://contoso.sharepoint.com/sites/ops/Lists/Tasks/12_.000",
+                  "fields": {
+                    "@odata.etag": "\"c4f3b8a1-0000-0200-0000-66c1a2b30000,3\"",
+                    "id": "12",
+                    "Title": "Replace pump seal",
+                    "Status": "In progress",
+                    "AssignedTo": "Adele Vance",
+                    "Due_x0020_Date": "2026-08-24T00:00:00Z",
+                    "Priority_x0020_Level": "High"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sites/root/lists/Tasks/items": {
+      "get": {
+        "operationId": "listTaskItems",
+        "summary": "List items - @odata envelope + 'value' array. NOT mappable; transform it.",
+        "parameters": [
+          {
+            "name": "$expand",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$top",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#sites('contoso')/lists('Tasks')/items",
+                  "@odata.nextLink": "https://graph.microsoft.com/v1.0/sites/root/lists/Tasks/items?$skiptoken=Paged",
+                  "value": [
+                    {
+                      "@odata.etag": "\"c4f3b8a1-0000-0200-0000-66c1a2b30000,3\"",
+                      "id": "12",
+                      "createdDateTime": "2026-08-10T08:14:22Z",
+                      "lastModifiedDateTime": "2026-08-17T11:02:41Z",
+                      "webUrl": "https://contoso.sharepoint.com/sites/ops/Lists/Tasks/12_.000",
+                      "fields": {
+                        "@odata.etag": "\"c4f3b8a1-0000-0200-0000-66c1a2b30000,3\"",
+                        "id": "12",
+                        "Title": "Replace pump seal",
+                        "Status": "In progress",
+                        "AssignedTo": "Adele Vance",
+                        "Due_x0020_Date": "2026-08-24T00:00:00Z",
+                        "Priority_x0020_Level": "High"
+                      }
+                    },
+                    {
+                      "@odata.etag": "\"c4f3b8a1-0000-0200-0000-66c1a2b30000,3\"",
+                      "id": "13",
+                      "createdDateTime": "2026-08-10T08:14:22Z",
+                      "lastModifiedDateTime": "2026-08-17T11:02:41Z",
+                      "webUrl": "https://contoso.sharepoint.com/sites/ops/Lists/Tasks/12_.000",
+                      "fields": {
+                        "@odata.etag": "\"c4f3b8a1-0000-0200-0000-66c1a2b30000,3\"",
+                        "id": "13",
+                        "Title": "Calibrate flow meter",
+                        "Status": "Not started",
+                        "AssignedTo": "Alex Wilber",
+                        "Due_x0020_Date": "2026-09-01T00:00:00Z",
+                        "Priority_x0020_Level": "Normal"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createTaskItem",
+        "summary": "Create a list item. Body must be {\"fields\": {\"Title\": ...}}.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "fields"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "fields": {
+                    "type": "object",
+                    "required": [
+                      "Title"
+                    ],
+                    "properties": {
+                      "Title": {
+                        "type": "string"
+                      },
+                      "Status": {
+                        "type": "string"
+                      },
+                      "AssignedTo": {
+                        "type": "string"
+                      },
+                      "Due_x0020_Date": {
+                        "type": "string"
+                      },
+                      "Priority_x0020_Level": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "fields": {
+                  "Title": "New task from Mendix",
+                  "Status": "Not started"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.etag": "\"c4f3b8a1-0000-0200-0000-66c1a2b30000,3\"",
+                  "id": "14",
+                  "createdDateTime": "2026-08-10T08:14:22Z",
+                  "lastModifiedDateTime": "2026-08-17T11:02:41Z",
+                  "webUrl": "https://contoso.sharepoint.com/sites/ops/Lists/Tasks/12_.000",
+                  "fields": {
+                    "@odata.etag": "\"c4f3b8a1-0000-0200-0000-66c1a2b30000,3\"",
+                    "id": "14",
+                    "Title": "New task from Mendix",
+                    "Status": "Not started",
+                    "AssignedTo": "Adele Vance",
+                    "Due_x0020_Date": "2026-08-24T00:00:00Z",
+                    "Priority_x0020_Level": "High"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Body did not match the contract"
+          }
+        }
+      }
+    },
+    "/sites/root/lists/Tasks/items/{itemId}/fields": {
+      "patch": {
+        "operationId": "updateTaskFields",
+        "summary": "Update fields. Graph wants If-Match with the item etag.",
+        "parameters": [
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "properties": {
+                  "Status": {
+                    "type": "string"
+                  },
+                  "AssignedTo": {
+                    "type": "string"
+                  },
+                  "Priority_x0020_Level": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "Status": "Completed"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.etag": "\"c4f3b8a1-0000-0200-0000-66c1a2b30000,3\"",
+                  "id": "12",
+                  "Title": "Replace pump seal",
+                  "Status": "Completed",
+                  "AssignedTo": "Adele Vance",
+                  "Due_x0020_Date": "2026-08-24T00:00:00Z",
+                  "Priority_x0020_Level": "High"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition failed - etag mismatch"
+          }
+        }
+      }
+    },
+    "/sites/root/lists/Tasks/items/{itemId}": {
+      "delete": {
+        "operationId": "deleteTaskItem",
+        "summary": "Delete a list item - 204 with no body.",
+        "parameters": [
+          {
+            "name": "itemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/sites/root/drive/root/children": {
+      "get": {
+        "operationId": "listDriveChildren",
+        "summary": "Document library contents.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#driveItems",
+                  "value": [
+                    {
+                      "id": "01ABC",
+                      "name": "Handover.docx",
+                      "size": 24576,
+                      "lastModifiedDateTime": "2026-08-12T09:00:00Z",
+                      "file": {
+                        "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      }
+                    },
+                    {
+                      "id": "01DEF",
+                      "name": "Readings.xlsx",
+                      "size": 11264,
+                      "lastModifiedDateTime": "2026-08-15T16:30:00Z",
+                      "file": {
+                        "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

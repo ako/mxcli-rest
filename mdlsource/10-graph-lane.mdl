@@ -1,0 +1,168 @@
+/**
+ * Microsoft Graph, against a local Prism mock
+ *
+ * Run the mock first:
+ *   prism mock -p 4020 -h 127.0.0.1 specs/msgraph.json
+ *
+ * Graph is the integration most Mendix projects actually need, and it exercises
+ * every constraint this project has found:
+ *
+ *   - GET /me returns a single OBJECT -> the response mapping populates it.
+ *   - GET /users returns {"@odata.context":..., "value":[...]} -- the collection
+ *     is a REPEATING element, which an inline mapping cannot express
+ *     (FINDINGS #19), so that lane transforms and displays instead.
+ *   - Property names are annotations: "@odata.context", "@odata.nextLink",
+ *     "@odata.type". They map fine as JSON field names, but the target
+ *     attribute cannot be called "Context" (reserved, CE7247).
+ *   - Graph wants a BEARER token. mxcli's OpenAPI import refuses it
+ *     ("unsupported HTTP auth scheme 'bearer'; only basic is supported"), and a
+ *     REST client document cannot hold a dynamic header value (FINDINGS #14) --
+ *     only a static prefix. A literal token is fine against a mock; in
+ *     production put it in a constant, or acquire it in the microflow and use an
+ *     inline REST CALL, as ACT_Graph_ListUsers does below.
+ */
+
+-- ---------------------------------------------------------------- client
+
+create or modify rest client RestLab."GraphApi" (
+  -- Real service: https://graph.microsoft.com/v1.0 -- point this at a constant
+  -- so it can be swapped per environment. Prism mounts paths at the ROOT and
+  -- ignores a base path in the spec's server URL, so no /v1.0 here.
+  BaseUrl: 'http://127.0.0.1:4020',
+  authentication: none
+)
+{
+  /**
+   * The signed-in user. Single object at the root, so the mapping works --
+   * including the "@odata.context" annotation.
+   */
+  operation "GetMe" {
+    method: get,
+    path: '/me',
+    headers: (
+      'Accept' = 'application/json',
+      -- Static because the document cannot hold a dynamic value. The mock only
+      -- checks that a bearer token is present.
+      'Authorization' = 'Bearer dev-token'
+    ),
+    timeout: 30,
+    response: mapping RestLab."GraphUser" {
+      "ODataContext" = "@odata.context",
+      "GraphId" = "id",
+      "DisplayName" = "displayName",
+      "Mail" = "mail",
+      "JobTitle" = "jobTitle",
+      "OfficeLocation" = "officeLocation",
+      "UserPrincipalName" = "userPrincipalName"
+    }
+  }
+};
+
+-- ---------------------------------------------------------------- transformer
+
+/**
+ * Strips the OData envelope and lifts "value" to a plain array.
+ *
+ * An annotation key needs get-key(): @ and . are not legal in a bare path step,
+ * and the bracket form .["@odata.count"] does NOT work -- JSLT accepts it and
+ * silently yields null, which is how "count" and "nextLink" first came back
+ * empty here while the "users" array populated correctly.
+ */
+create or modify data transformer RestLab."DT_GraphUsers"
+source json '{"@odata.context":"https://graph.microsoft.com/v1.0/$metadata#users","@odata.count":2,"@odata.nextLink":"https://graph.microsoft.com/v1.0/users?$skip=10","value":[{"id":"1","displayName":"Adele Vance","mail":"a@contoso.com","jobTitle":"Retail Manager"}]}'
+{
+  jslt $$
+{
+  "count": get-key(., "@odata.count"),
+  "nextLink": get-key(., "@odata.nextLink"),
+  "users": [for (.value) {
+    "id": .id,
+    "displayName": .displayName,
+    "mail": .mail,
+    "jobTitle": .jobTitle
+  }]
+}
+  $$;
+};
+
+-- ---------------------------------------------------------------- microflows
+
+/**
+ * Single-object Graph endpoint, mapped by the REST client document.
+ */
+create or modify microflow RestLab."ACT_Graph_GetMe" ()
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+
+  $User = send rest request RestLab."GraphApi"."GetMe";
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'http://127.0.0.1:4020/me',
+    Method = 'GET',
+    StatusCode = $latestHttpResponse/StatusCode,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = true,
+    ErrorMessage = '',
+    ResponseBody = $latestHttpResponse/Content,
+    Lane = RestLab.Lane.Graph
+  );
+
+  IF $User != empty THEN
+    CHANGE $User (RestLab.GraphUser_CallLog = $Log);
+    COMMIT $User;
+  END IF;
+
+  RETURN $Log;
+end;
+/
+
+/**
+ * Graph COLLECTION. Called inline so the bearer token can be an expression,
+ * then reshaped: the @odata envelope is dropped and "value" lifted.
+ *
+ * The reshaped JSON is a shape a mapping could address, but it still cannot be
+ * imported -- mxcli's import mapping documents throw at runtime (FINDINGS #23) --
+ * so the payload is shown before and after rather than turned into rows.
+ */
+create or modify microflow RestLab."ACT_Graph_ListUsers" (
+  $Token: String
+)
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+  declare $Body String = '';
+  declare $Ok Boolean = false;
+
+  $Raw = rest call get 'http://127.0.0.1:4020/users?$top=3'
+    header Accept = 'application/json'
+    header 'Authorization' = 'Bearer ' + $Token
+    timeout 30
+    returns string
+    on error continue;
+
+  IF $Raw != empty THEN
+    SET $Body = $Raw;
+    SET $Ok = true;
+  END IF;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'http://127.0.0.1:4020/users?$top=3',
+    Method = 'GET',
+    StatusCode = 0,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = $Ok,
+    ErrorMessage = '',
+    ResponseBody = $Body,
+    Lane = RestLab.Lane.Graph
+  );
+
+  IF $Raw != empty THEN
+    $Shaped = transform $Raw with RestLab."DT_GraphUsers";
+    CHANGE $Log ("TransformedBody" = $Shaped);
+    COMMIT $Log;
+  END IF;
+
+  RETURN $Log;
+end;
+/

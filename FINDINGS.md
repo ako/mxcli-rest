@@ -449,3 +449,449 @@ Not just "it compiles". The following were confirmed against the running app:
    clicked "Get forecast (mapped)" and "Force a 404" on Home_Web, saw new
    CallLog rows appear in the grid, and opened the detail popup showing the raw
    response. Driven with Playwright against the running runtime.
+
+---
+
+# Data transformers (the answer to "can JSLT fix the awkward shapes?")
+
+## 23. JSLT data transformers WORK; import mapping documents do NOT execute
+
+Two halves of the same pipeline, with opposite outcomes. This matters because
+the transformer is the natural answer to a payload Mendix mappings cannot
+address, and it gets you most of the way — but not to entities.
+
+### The transformer half: works, verified end to end
+
+frankfurter.dev returns currency codes as **property names**:
+
+```json
+{"amount":1.0,"base":"EUR","date":"2026-08-18",
+ "rates":{"AUD":1.6278,"BRL":6.0281,"CAD":1.606, ...}}
+```
+
+A mapping addresses fields by name, so a key only known at runtime cannot be
+mapped — you would need one rule per currency. JSLT's `for (.rates)` iterates an
+**object**, exposing `.key` and `.value`, which turns the property name into
+data:
+
+```
+{ "base": .base, "date": .date, "amount": .amount,
+  "rates": [for (.rates) {"code": .key, "value": .value}] }
+```
+
+**Verified at runtime** (`transform $Raw with RestLab.DT_RatesToList`, result
+written to `CallLog.TransformedBody` and read back with `psql`):
+
+```
+{"base":"EUR","date":"2026-08-18","amount":1.0,
+ "rates":[{"code":"AUD","value":1.6278},{"code":"BRL","value":6.0281},...]}
+```
+
+`create data transformer … source json … { jslt $$ … $$; }` writes correctly and
+`describe` round-trips it.
+
+### The import-mapping half: written fine, throws at runtime
+
+`create json structure … snippet '…'` and
+`create import mapping … with json structure …` both execute, round-trip
+through `describe`, and give **`mx check` 0 errors**. Notably the import mapping
+also accepts **Decimal** attributes with no CE6099, so it does not carry the
+inline REST mapping's String-only constraint (#9).
+
+But the mapping cannot be used:
+
+```
+com.mendix.modules.microflowengine.MicroflowException:
+  key not found: Path(QName(None,),None,)
+    at RestLab.ACT_Rates_GetLatest (Import with mapping : 'Import from JSON')
+```
+
+**Not specific to lists, nesting, or naming** — established by narrowing:
+
+| Attempt | Result |
+| --- | --- |
+| Nested array, lowercase keys (`base`, `rates`) | `key not found: Path(QName(None,),None,)` |
+| Same, with JSLT emitting PascalCase keys matching the generated `ExposedName`s (`Base`, `Rates`) | identical error |
+| **Flat, two String fields, no array, no nesting** — `{"base":"EUR","date":"2026-08-18"}` into a two-attribute entity | **identical error** |
+
+So every import mapping document mxcli writes fails the same way. The element
+paths do not resolve against the JSON structure at runtime: mxcli builds
+structure paths from the raw JSON key (`(Object)|base`,
+`mdl/types/json_utils.go:225`) while capitalising `ExposedName`, and
+`sdk/mpr/writer_import_mapping.go:104-109` falls back to
+`parentPath + "|" + ExposedName` when the executor supplies no `JsonPath` —
+but aligning the two by hand did not help, so the defect is deeper than the
+capitalisation.
+
+### What this means
+
+- **Yes, a data transformer is the right tool** for dynamic property names,
+  internal references, and any shape a mapping cannot address — and the JSLT
+  step works today.
+- **No, it does not currently rescue the mapping problem**, because the step
+  that turns reshaped JSON into entities is itself broken. It is a *different*
+  defect from #19 (inline REST mappings, `MaxOccurs` hardcoded to 1) and would
+  have fixed #19 and #9 had it worked, since import mappings use a different
+  serializer that propagates real `MaxOccurs` and real types.
+- Until it is fixed, reshaped JSON can be transformed and displayed but not
+  imported. RestLab's rates lane does exactly that, and keeps `IMM_Rates` and
+  `JSON_Rates` in the model as the documented target shape.
+
+**Minimal repro** for an upstream report — flat, two fields, no arrays:
+
+```sql
+create persistent entity M."E" ("Base": String(10), "RateDate": String(20));
+create json structure M."S" snippet '{"base":"EUR","date":"2026-08-18"}';
+create import mapping M."IMM" with json structure M."S"
+{ create M."E" { Base = base, RateDate = date } };
+-- then, in a microflow:
+--   $O = import from mapping M."IMM" ('{"base":"EUR","date":"2026-08-18"}');
+-- mx check: 0 errors. Runtime: key not found: Path(QName(None,),None,)
+```
+
+## 24. restcountries.com is no longer usable as a keyless demo endpoint
+
+Worth recording because it is a stock recommendation in REST tutorials.
+
+- `v3.1` (any path, with or without `?fields=`) returns HTTP 200 carrying
+  `{"success":false,"data":null,"errors":[{"message":"This API version has been
+  deprecated. Please visit …/legacy-api-deprecation to migrate to our new
+  version (v5)."}]}`.
+- **`v5` returns the same deprecation body** — `/v5/name/…`, `/v5/alpha/…`,
+  `/v5/all`, `/v5/countries/…` all do. The docs page it points at shows
+  "Log in" and "Get an API key", so v5 is authenticated.
+- Note the failure is a **200 with an error envelope**, not a 4xx — anything
+  checking only the status code will treat it as success.
+
+It was a good suggestion on the merits: restcountries has exactly the awkward
+shapes (`name.nativeName.nld.official`, `currencies.EUR.name`, `languages.nld`
+— all dynamic keys). **frankfurter.dev** was substituted because it has the same
+dynamic-key problem in a smaller payload and needs no key. If you have a
+restcountries key, the lane transfers unchanged: only the URL and the JSLT body
+differ.
+
+For **internal references** specifically, `pokeapi.co` is live and keyless and
+has the other shape worth demonstrating — arrays of objects each holding a URL
+pointer (`types[].type.url`, `abilities[].ability.url`) that must be resolved or
+reduced to an id. A JSLT step can pull the trailing id out of such a URL.
+
+---
+
+# Mock servers
+
+## 25. Prism serves an OpenAPI contract as a mock, and the whole loop works here
+
+Verified end to end in this container, since a mock is only useful if both mxcli
+and the Mendix runtime can actually reach it.
+
+- **Install:** `npm install -g @stoplight/prism-cli` — 15 s, no Docker.
+  (Docker is present but its daemon is **not usable** here, which rules out
+  Microcks and the WireMock/MockServer container images; WireMock's standalone
+  jar would still work, since Java 21 is available.)
+- **Run:** `prism mock -p 4010 -h 127.0.0.1 specs/mocklab.json`.
+- **Serves the contract's `example` values** verbatim, so payload shapes are
+  deterministic — which is what makes it useful for the mapping work: the shapes
+  in findings #9, #16, #19 and #23 can each be reproduced offline instead of
+  depending on a public API that may deprecate itself (#24).
+- **`Prefer: code=404`** forces any documented status code without editing the
+  spec — a much better error-path lever than depending on httpbingo.
+- **`prism mock -d`** generates randomised data from the schema instead of the
+  examples, which catches mappings that quietly depend on one fixed payload.
+- Unknown routes return a structured `NO_PATH_MATCHED_ERROR`, so the mock also
+  validates that the client is calling what the contract says.
+
+**mxcli import works from a local spec file** — no network:
+`create or modify rest client RestLab."MockLabApi" (OpenAPI: 'specs/mocklab.json');`
+→ *"Created rest client: RestLab.MockLabApi (4 operations from OpenAPI spec)"*,
+with `BaseUrl` taken from the spec's absolute `servers[0].url` (contrast #15,
+where Petstore's relative `/api/v3` produced no BaseUrl at all).
+
+**The runtime reaches it**: a microflow calling `http://127.0.0.1:4010/rates`
+returned the contract example in 267 ms. `127.0.0.1` is in the container's
+`http.nonProxyHosts` (#4), so runtime→mock traffic bypasses the agent proxy.
+
+The contract lives at `specs/mocklab.json`; `specs/README.md` documents it.
+
+### Other options, and when they would beat Prism
+
+| Tool | Use it when |
+| --- | --- |
+| **Prism** | You have an OpenAPI contract and want a mock in one command. Also does `proxy` mode: forward to the real API and **fail the request when the response violates the contract** — contract testing without a test suite |
+| **WireMock** (standalone jar, Java 21 is here) | You need stateful scenarios, request-matching rules, latency injection, or record-and-replay against a real API. Richer than Prism, but stubs are hand-written rather than derived from the contract |
+| **Microcks** | You want one place serving mocks for many contracts, plus contract testing in CI. Needs Docker — **not usable in this container** |
+| **Mockoon CLI** | You want a GUI to design responses and a CLI to run them; imports OpenAPI |
+| **json-server** | Quick CRUD over a JSON file when there is no contract at all — note it gives you an **array root**, which is exactly the shape mxcli mappings cannot handle (#19) |
+| **Schemathesis / Dredd** | Not mocks: they test a real implementation against the contract |
+
+Worth noting for this project specifically: mxcli's own regression example
+`843-rest-response-mapping.mdl` points at `http://localhost:3001/...`, so
+developing against a local mock is already the established pattern upstream.
+
+## 26. Mocking Microsoft Graph: what maps, and what the annotations do
+
+Graph is the integration most Mendix projects actually need, so it is worth
+recording exactly where it lands against the constraints above. All verified
+against a local Prism mock (`specs/msgraph.json`) driven from the running app.
+
+**The official spec is not mockable as-is.** `openapi/v1.0/openapi.yaml` from
+`microsoftgraph/msgraph-metadata` is **41 MB**; it downloads in 1.6 s but Prism
+was still initialising after **300 s** and had to be killed. A 7-path hand-cut
+subset loads instantly. Cut the paths you need.
+
+**`@odata.*` annotation property names MAP FINE.** This was the open question,
+and the answer is good news: `"ODataContext" = "@odata.context"` is accepted,
+stored as JSON path `(Object)|@odata.context`, and **populated at runtime** —
+`GET /me` produced a `GraphUser` row with
+`odatacontext = https://graph.microsoft.com/v1.0/$metadata#users/$entity`
+alongside `displayname`, `mail` and `jobtitle`. The constraint is on the Mendix
+side, not the JSON side: the *attribute* cannot be named `Context`, which mxcli
+rejects up front with `attribute 'Context' is a reserved word (CE7247)
+[MDL021]` and a suggested rename.
+
+**Graph collections still cannot be mapped.** Every list endpoint returns
+`{"@odata.context":…, "@odata.count":…, "@odata.nextLink":…, "value":[…]}`, and
+`value` is a repeating element — finding #19. So single-entity endpoints
+(`/me`, `/users/{id}`) map through the REST client document, and collections
+need the transform route.
+
+**JSLT: use `get-key()` for annotation keys, not brackets.** Reshaping the
+collection with
+
+```
+{ "count": .["@odata.count"], "nextLink": .["@odata.nextLink"],
+  "users": [for (.value) {...}] }
+```
+
+produced `{"count":null,"nextLink":null,"users":[…3 real users…]}` — the array
+lifted correctly while both annotations came back **null**. JSLT accepts the
+bracket form and silently yields null. `get-key(., "@odata.count")` works:
+`{"count":3,"nextLink":"https://graph.microsoft.com/v1.0/users?$skiptoken=RFNwdAoAAQ…"}`.
+Worth knowing because the silent null looks like a mock/data problem rather
+than a syntax one.
+
+**Bearer auth is not importable.** `create rest client (OpenAPI: …)` warns
+`unsupported HTTP auth scheme 'bearer' (only basic is supported; set manually)`
+and imports the operations without it. Combined with #14 (a document stores only
+a static header prefix, never a dynamic value), a Graph token cannot come from
+the document at all. Two workable routes: a **static** header for a mock or a
+constant-backed value, or an inline `REST CALL` with
+`header 'Authorization' = 'Bearer ' + $Token` — which is what
+`ACT_Graph_ListUsers` does, and it works.
+
+**OData `$` parameters double up.** `$select`, `$filter`, `$top` import as
+`$$select`, `$$filter`, `$$top` — MDL already uses `$` as its variable prefix.
+Cosmetic, but that is what `describe rest client` re-emits.
+
+---
+
+# SharePoint read/write (finding #27 is the important one)
+
+## 27. A NESTED export-mapping body makes the .mpr unloadable — one-line cause
+
+**Impact: critical**, same class as #16: not an error message, an unopenable
+project. And it bites immediately on SharePoint, because Graph requires a
+nested write body: `{"fields": {"Title": ...}}`.
+
+```sql
+body: mapping RestLab."SPTask" {
+  RestLab."SPTask_SPTaskFields"/RestLab."SPTaskFields" = "fields" {
+    "Title" = "Title", "Status" = "Status"
+  }
+}
+```
+
+`mxcli check` passes, `exec` reports "Created rest client", then:
+
+```
+ERROR: System.AggregateException: One or more errors occurred.
+(Export Object Mappings cannot have ObjectHandling set to 'Create')
+```
+
+**Root cause — `sdk/mpr/writer_rest.go:308`:**
+
+```go
+child := serializeInlineMappingElement(m.Entity, m.Association, m.ExposedName,
+    childJsonPath, m.Children, namespace, "Create")   // <-- hardcoded
+```
+
+The ROOT is correct: `serializeRestImplicitMappingBody` passes `"Parameter"` for
+an export mapping (line 272), while the response path passes `"Create"`
+(line 289). Only the recursion is wrong — it hardcodes `"Create"` for every
+nested child regardless of `namespace`, and Mendix rejects that on an
+`ExportMappings$ObjectMappingElement`.
+
+Omitting the optional `CREATE` keyword does **not** help — the writer never
+reads it; both spellings produce the same BSON. Verified by trying each.
+
+Suggested fix: derive the child's handling from the namespace, e.g.
+`childHandling := "Create"; if namespace == "ExportMappings" { childHandling = "Parameter" }`.
+
+- **Scope:** only NESTING breaks. A flat `body: mapping Entity { name = Name }`
+  works (the CRUD lane uses one).
+- **Workaround:** build the nested body with an inline `REST CALL` and a body
+  template, which is what `ACT_SP_CreateTask` does.
+- **Recovery:** `git checkout -- <App>.mpr mprcontents/ && git clean -fd mprcontents/`,
+  then re-run the domain and security scripts.
+
+## 28. URL and BODY placeholders are numbered independently
+
+In an inline `REST CALL`, the `{n}` placeholders in the URL and in the body are
+**separate** lists, each starting at 1. Continuing the URL's numbering into the
+body gives:
+
+```
+[error] [CE0720] "Place holder index 2 is greater than 1, the number of
+parameter(s)." at Call REST service activity 'Call REST (PATCH)'
+```
+
+Correct:
+
+```sql
+$r = rest call patch 'http://…/items/{1}/fields' with ( {1} = $ItemId )
+  body '{{"Status": "{1}"}' with ( {1} = $Status )   -- {1} again, not {2}
+```
+
+Note also that a literal `{` in a body template is escaped by **doubling** it
+(`{{` → `{`), while `}` is literal — so Graph's nested wrapper is written
+`'{{"fields": {{"Title": "{1}", "Status": "{2}"}}'`.
+
+## 29. SharePoint: what works, verified against the contract
+
+All confirmed by driving the running app and reading both the database and
+Prism's validator log.
+
+**Read, mapped.** `GET /sites/root/lists/Tasks/items/12?$expand=fields` is an
+object root with a nested `fields` object, so the document mapping populates it:
+
+| SPTask | SPTaskFields |
+| --- | --- |
+| `spitemid 12`, `etag "c4f3b8a1-…,3"`, `weburl https://contoso.sharepoint.com/…` | `Replace pump seal` / `In progress` / `Adele Vance` / `2026-08-24T00:00:00Z` / `High` |
+
+Two things this settles:
+
+- **SharePoint's `_x0020_` internal column names map fine.**
+  `"DueDate" = "Due_x0020_Date"` and `"PriorityLevel" = "Priority_x0020_Level"`
+  both populate. As with `@odata.*` (#26), the awkwardness is only in the JSON
+  key, which mappings address as a literal string.
+- **A nested object cannot be flattened onto its parent.** `fields` has to
+  become a child entity reached by an association — hence `SPTaskFields`.
+
+**Read, collection.** `GET …/items` is the usual `@odata` + `value` envelope, so
+it is transformed for display (#19), with the JSLT also renaming the `_x0020_`
+columns to readable names.
+
+**Write — and the mock proves the body was right.** The contract validates
+request bodies strictly, so a wrong shape is a 422 rather than a silent pass. A
+flat `{"Title":"oops"}` gets `422 Request body must NOT have additional
+properties; found 'Title'`. What Mendix actually sent:
+
+```
+[5:49:24] [VALIDATOR] ✔ success  The request passed the validation rules.
+[5:49:24] [NEGOTIATOR] ✔ success  Responding with the requested status code 201
+[5:49:29] [VALIDATOR] ✔ success  The request passed the validation rules.
+[5:49:29] [NEGOTIATOR] ✔ success  Responding with the requested status code 200
+```
+
+POST → **201**, PATCH → **200**, both after passing validation. That is a real
+verdict on the JSON Mendix produced, not just "the call did not throw" — which
+is the main reason to develop against a contract mock rather than a live tenant.
+
+**Every SharePoint path is parameterised in reality**
+(`/sites/{siteId}/lists/{listId}/items/{itemId}`), and a path parameter passed
+to `SEND REST REQUEST` corrupts the model (#16). Two ways through, both used
+here: bake the site and list into a literal operation path when they are fixed
+for the app, and use an inline `REST CALL` with `{1}` templating for
+item-scoped calls.
+
+---
+
+# Intercepting an existing app's outbound calls
+
+## 30. Prism cannot blanket-intercept; a forward proxy can, and Mendix honours it
+
+**Prism is per-API and requires the client to be re-pointed.** Its own CLI says
+so:
+
+- `prism mock <document>` — one document, singular positional. One spec per
+  instance, mounted at the root.
+- `prism proxy <document> <upstream>` — one spec, one upstream. It is a
+  **reverse** proxy that validates traffic for a single API, not a forward
+  proxy. `--upstream-proxy` is for *reaching* upstream through a corporate
+  proxy, not for intercepting.
+
+So mocking an existing app's calls with Prism means editing every base URL (one
+Prism per API, on its own port). Fine for a greenfield app built around
+constants; poor for an existing app with URLs spread through the model.
+
+**WireMock in browser-proxy mode intercepts by hostname.** Verified:
+
+```bash
+java -jar wiremock-standalone-3.13.2.jar --port 4040 \
+     --enable-browser-proxying --trust-all-proxy-targets
+# register a stub for host graph.microsoft.com, url /v1.0/me, then:
+curl -k -x http://127.0.0.1:4040 https://graph.microsoft.com/v1.0/me
+#   -> {"@odata.context":"stubbed-by-wiremock","displayName":"Adele Vance (STUB)",...}
+# same URL without the proxy reaches the real service:
+#   -> {"error":{"code":"InvalidAuthenticationToken",...}}
+```
+
+**The Mendix runtime honours the JVM proxy, with no model change at all.**
+This is the part that matters for an existing app. `mxcli`'s local boot
+*appends* to `JAVA_TOOL_OPTIONS` rather than replacing it
+(`cmd/mxcli/docker/localboot.go:226`), so:
+
+```bash
+export JAVA_TOOL_OPTIONS="$JAVA_TOOL_OPTIONS -Dhttp.proxyHost=127.0.0.1 -Dhttp.proxyPort=4040"
+./mxcli run --local -p RestLab.mpr
+```
+
+A microflow calling `http://api.frankfurter.dev/v1/latest` then received the
+stub, not the real API:
+
+```json
+{"base":"EUR","date":"1999-01-01","rates":{"XXX":42.0},"note":"INTERCEPTED BY WIREMOCK"}
+```
+
+No URL edits, no constants, no redeploy of the model — the running app simply
+had its egress redirected.
+
+### The HTTPS caveat, which is the real work
+
+The demo above is plain HTTP on purpose. For `https://` the proxy must present
+a certificate the JVM trusts, and **WireMock 3.13.2 on Java 21 cannot mint one**:
+
+```
+Unable to generate a certificate authority
+com.github.tomakehurst.wiremock.http.ssl.CertificateGenerationUnsupportedException:
+  Your runtime does not support generating certificates at runtime
+```
+
+`GET /__admin/certs/wiremock-ca.crt` consequently returns 500. curl worked only
+because `-k` skipped validation — a JVM will not. Options, in order of effort:
+
+1. **Point the app at the mock directly** (constants / `ApplicationRootUrl`
+   style config). No TLS problem at all, and the reason to keep base URLs in
+   constants in the first place.
+2. **mitmproxy** — purpose-built for this, generates a CA on first run; add
+   `~/.mitmproxy/mitmproxy-ca-cert.pem` to the JVM truststore.
+3. **WireMock with a supplied keystore** (`--https-port` + `--https-keystore`),
+   or a JDK/WireMock combination where runtime cert generation works.
+4. **`/etc/hosts` + a local TLS terminator** — same CA problem, more moving parts.
+
+Importing a CA into the JVM truststore is exactly what this container already
+does for its own agent proxy (`-Djavax.net.ssl.trustStore=/root/.ccr/java-truststore.p12`,
+finding #4), so the pattern is proven — it is just per-tool setup:
+
+```bash
+keytool -importcert -alias mitm-ca -file ca.pem \
+  -keystore $JAVA_HOME/lib/security/cacerts -storepass changeit
+```
+
+### Which tool for which job
+
+| Goal | Tool |
+| --- | --- |
+| Mock **one** API you have a contract for | **Prism** — `prism mock spec.json` |
+| Check a real API still matches its contract | **Prism proxy** — fails the request on violation |
+| Intercept **everything** an existing app calls, by hostname | **WireMock** browser-proxying, **mitmproxy**, or **Hoverfly** |
+| Record real traffic once and replay it forever | **WireMock** `--proxy-all` + `--record-mappings`, or Hoverfly capture/simulate |

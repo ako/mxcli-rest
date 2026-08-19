@@ -28,6 +28,7 @@ create or replace page RestLab."CallLog_Detail"
     checkbox cbSuccess (label: 'Succeeded', attribute: Success, editable: false)
     textbox tbError (label: 'Error', attribute: ErrorMessage, editable: false)
     textarea taBody (label: 'Raw response', attribute: ResponseBody, editable: false)
+    textarea taShaped (label: 'After data transformer', attribute: TransformedBody, editable: false)
     actionbutton btnClose (caption: 'Close', action: close_page)
   }
       }
@@ -127,6 +128,48 @@ create or replace page RestLab."Home_Web"
         }
       }
     }
+    row rowSP {
+      column colSP (desktopwidth: 12) {
+        container cSP (class: 'card') {
+          container cdtSPTitle { dynamictext dtSPTitle (Content: 'SharePoint read + write - local Prism mock', class: 'h4') }
+          container cdtSPBody (class: 'mx-spacing-bottom-medium') { dynamictext dtSPBody (Content: 'Needs: prism mock -p 4025 -h 127.0.0.1 specs/sharepoint.json. Read one item maps the nested fields object onto a child entity, including the _x0020_ encoded column names. The list is transformed instead. The writes are inline calls, and the mock validates the body against the contract - so a 201 or 200 in the log means the JSON Mendix sent was actually correct.') }
+          actionbutton btnSPGet (caption: 'Read item 12 (mapped)', action: microflow RestLab."ACT_Demo_SPGet", buttonstyle: primary)
+          actionbutton btnSPList (caption: 'Read list (transformed)', action: microflow RestLab."ACT_Demo_SPList")
+          actionbutton btnSPCreate (caption: 'Create item (POST)', action: microflow RestLab."ACT_Demo_SPCreate", buttonstyle: success)
+          actionbutton btnSPUpdate (caption: 'Update status (PATCH)', action: microflow RestLab."ACT_Demo_SPUpdate", buttonstyle: warning)
+        }
+      }
+    }
+    row rowGraph {
+      column colGraph (desktopwidth: 12) {
+        container cGraph (class: 'card') {
+          container cdtGraphTitle { dynamictext dtGraphTitle (Content: 'Microsoft Graph - local Prism mock', class: 'h4') }
+          container cdtGraphBody (class: 'mx-spacing-bottom-medium') { dynamictext dtGraphBody (Content: 'Needs the mock running: prism mock -p 4020 -h 127.0.0.1 specs/msgraph.json. GET /me is a single object, so the response mapping populates GraphUser - including the @odata.context annotation. GET /users is an OData collection whose value array cannot be mapped, so it is called inline with a bearer token and reshaped by a JSLT transformer instead.') }
+          actionbutton btnGraphMe (
+            caption: 'GET /me (mapped)',
+            action: microflow RestLab."ACT_Demo_GraphMe",
+            buttonstyle: primary
+          )
+          actionbutton btnGraphUsers (
+            caption: 'GET /users (transformed)',
+            action: microflow RestLab."ACT_Demo_GraphUsers"
+          )
+        }
+      }
+    }
+    row rowC {
+      column colRates (desktopwidth: 12) {
+        container cRates (class: 'card') {
+          container cdtRatesTitle { dynamictext dtRatesTitle (Content: 'Data transformer - frankfurter.dev', class: 'h4') }
+          container cdtRatesBody (class: 'mx-spacing-bottom-medium') { dynamictext dtRatesBody (Content: 'The rates arrive keyed BY CURRENCY CODE, so the property names are really data and no mapping can address them. A JSLT transformer rewrites the object into an array of code/value pairs, which IS a shape a mapping can address. Open the call log row to see the payload before and after. The import mapping that would turn it into rows is modelled but cannot run yet - see FINDINGS.md #23.') }
+          actionbutton btnRates (
+            caption: 'Get EUR rates (transformed)',
+            action: microflow RestLab."ACT_Demo_Rates",
+            buttonstyle: primary
+          )
+        }
+      }
+    }
   }
 
   container cLog (class: 'mx-spacing-top-large') {
@@ -190,6 +233,25 @@ create or replace page RestLab."Mapped_Overview"
       column colTime (attribute: "Time", caption: 'Time')
       column colInterval (attribute: "Interval", caption: 'Interval (s)')
       column colTemp (attribute: Temperature, caption: 'Temperature')
+    }
+  }
+  container cSPGrid (class: 'mx-spacing-top-large') {
+    dynamictext dtSPGrid (Content: 'SPTaskFields - the nested SharePoint fields object, mapped onto a child entity')
+    datagrid dgSP (datasource: database from RestLab."SPTaskFields") {
+      column colSPTitle (attribute: Title, caption: 'Title')
+      column colSPStatus (attribute: "Status", caption: 'Status')
+      column colSPWho (attribute: AssignedTo, caption: 'Assigned to')
+      column colSPDue (attribute: DueDate, caption: 'Due (Due_x0020_Date)')
+      column colSPPrio (attribute: PriorityLevel, caption: 'Priority (Priority_x0020_Level)')
+    }
+  }
+  container cGraphGrid (class: 'mx-spacing-top-large') {
+    dynamictext dtGraphGrid (Content: 'GraphUser - mapped from GET /me, @odata.context included')
+    datagrid dgGraph (datasource: database from RestLab."GraphUser") {
+      column colGName (attribute: DisplayName, caption: 'Display name')
+      column colGMail (attribute: Mail, caption: 'Mail')
+      column colGJob (attribute: JobTitle, caption: 'Job title')
+      column colGCtx (attribute: ODataContext, caption: '@odata.context', WrapText: true)
     }
   }
   container cPosts (class: 'mx-spacing-top-large') {

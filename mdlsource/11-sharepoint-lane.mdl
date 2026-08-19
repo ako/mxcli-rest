@@ -1,0 +1,272 @@
+/**
+ * SharePoint list read AND write, through Graph, against a local Prism mock
+ *
+ * Run the mock first:
+ *   prism mock -p 4025 -h 127.0.0.1 specs/sharepoint.json
+ *
+ * The mock validates request bodies strictly, so a write that sends the wrong
+ * JSON comes back 422 instead of silently "succeeding" -- which is the only
+ * honest way to test an export mapping without a real tenant.
+ *
+ * Note the paths are LITERAL (site and list baked in). Every real SharePoint
+ * endpoint is parameterised -- /sites/{siteId}/lists/{listId}/items -- but a
+ * PATH parameter passed to SEND REST REQUEST corrupts the .mpr (FINDINGS #16).
+ * Baking in the site and list is the workaround that keeps the document usable;
+ * item-scoped calls use an inline REST CALL instead.
+ */
+
+create or modify rest client RestLab."SharePointApi" (
+  BaseUrl: 'http://127.0.0.1:4025',
+  authentication: none
+)
+{
+  /**
+   * READ one item. Object root with a nested "fields" object, so the mapping
+   * populates SPTask and its SPTaskFields child.
+   */
+  operation "GetTask" {
+    method: get,
+    path: '/sites/root/lists/Tasks/items/12',
+    query: ($expand: String),
+    headers: ('Accept' = 'application/json', 'Authorization' = 'Bearer dev-token'),
+    timeout: 30,
+    response: mapping RestLab."SPTask" {
+      "Etag" = "@odata.etag",
+      "SPItemId" = "id",
+      "WebUrl" = "webUrl",
+      "LastModified" = "lastModifiedDateTime",
+      create RestLab."SPTask_SPTaskFields"/RestLab."SPTaskFields" = "fields" {
+        "Title" = "Title",
+        "Status" = "Status",
+        "AssignedTo" = "AssignedTo",
+        "DueDate" = "Due_x0020_Date",
+        "PriorityLevel" = "Priority_x0020_Level"
+      }
+    }
+  }
+
+  /*
+   * NO WRITE OPERATION HERE, DELIBERATELY.
+   *
+   * Graph wants a nested body -- {"fields": {"Title": ...}} -- and a nested
+   * export mapping cannot be written by mxcli today:
+   *
+   *   body: mapping RestLab."SPTask" {
+   *     RestLab."SPTask_SPTaskFields"/RestLab."SPTaskFields" = "fields" { ... }
+   *   }
+   *
+   * ...makes the .mpr UNLOADABLE:
+   *   "Export Object Mappings cannot have ObjectHandling set to 'Create'"
+   * writer_rest.go:308 hardcodes "Create" for every nested child, while the
+   * root correctly gets "Parameter" for an export mapping (line 272). Omitting
+   * the CREATE keyword does not help -- the writer never reads it.
+   * See FINDINGS.md #27.
+   *
+   * A FLAT body mapping is fine; it is only nesting that breaks. Since Graph
+   * requires the wrapper, ACT_SP_CreateTask below posts an inline body instead.
+   */
+};
+
+-- ---------------------------------------------------------------- transformer
+
+/**
+ * Flattens a SharePoint list response for display: drops the @odata envelope,
+ * lifts "value", hoists the nested "fields" onto each row, and renames the
+ * _x0020_ internal column names to something a person can read.
+ */
+create or modify data transformer RestLab."DT_SharePointTasks"
+source json '{"@odata.context":"ctx","value":[{"id":"12","fields":{"Title":"Replace pump seal","Status":"In progress","Due_x0020_Date":"2026-08-24T00:00:00Z","Priority_x0020_Level":"High"}}]}'
+{
+  jslt $$
+{
+  "count": size(.value),
+  "tasks": [for (.value) {
+    "id": .id,
+    "title": .fields.Title,
+    "status": .fields.Status,
+    "assignedTo": .fields.AssignedTo,
+    "dueDate": get-key(.fields, "Due_x0020_Date"),
+    "priority": get-key(.fields, "Priority_x0020_Level")
+  }]
+}
+  $$;
+};
+
+-- ---------------------------------------------------------------- microflows
+
+/**
+ * READ one item through the document mapping.
+ */
+create or modify microflow RestLab."ACT_SP_GetTask" ()
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+
+  $Task = send rest request RestLab."SharePointApi"."GetTask"
+    with ($expand = 'fields');
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'http://127.0.0.1:4025/sites/root/lists/Tasks/items/12?$expand=fields',
+    Method = 'GET',
+    StatusCode = $latestHttpResponse/StatusCode,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = true,
+    ErrorMessage = '',
+    ResponseBody = $latestHttpResponse/Content,
+    Lane = RestLab.Lane.SharePoint
+  );
+
+  IF $Task != empty THEN
+    CHANGE $Task (RestLab.SPTask_CallLog = $Log);
+    COMMIT $Task;
+  END IF;
+
+  RETURN $Log;
+end;
+/
+
+/**
+ * READ the list. Collection, so it is transformed for display rather than mapped.
+ */
+create or modify microflow RestLab."ACT_SP_ListTasks" ()
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+  declare $Body String = '';
+  declare $Ok Boolean = false;
+
+  $Raw = rest call get 'http://127.0.0.1:4025/sites/root/lists/Tasks/items?$expand=fields'
+    header Accept = 'application/json'
+    header 'Authorization' = 'Bearer dev-token'
+    timeout 30
+    returns string
+    on error continue;
+
+  IF $Raw != empty THEN
+    SET $Body = $Raw;
+    SET $Ok = true;
+  END IF;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'http://127.0.0.1:4025/sites/root/lists/Tasks/items?$expand=fields',
+    Method = 'GET',
+    StatusCode = 0,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = $Ok,
+    ErrorMessage = '',
+    ResponseBody = $Body,
+    Lane = RestLab.Lane.SharePoint
+  );
+
+  IF $Raw != empty THEN
+    $Shaped = transform $Raw with RestLab."DT_SharePointTasks";
+    CHANGE $Log ("TransformedBody" = $Shaped);
+    COMMIT $Log;
+  END IF;
+
+  RETURN $Log;
+end;
+/
+
+/**
+ * WRITE: create a list item with an inline POST.
+ *
+ * The body is a string template, so the nested {"fields": {...}} wrapper Graph
+ * requires is produced directly. In a Mendix text template a literal opening
+ * brace is escaped by doubling it ({{ -> {); a closing brace is literal.
+ *
+ * The mock validates the body against the contract, so the logged status is a
+ * real verdict: 201 means the JSON was shaped correctly, 422 means it was not.
+ */
+create or modify microflow RestLab."ACT_SP_CreateTask" (
+  $Title: String,
+  $Status: String
+)
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+  declare $Body String = '';
+  declare $Ok Boolean = false;
+
+  $Raw = rest call post 'http://127.0.0.1:4025/sites/root/lists/Tasks/items'
+    header 'Content-Type' = 'application/json'
+    header 'Authorization' = 'Bearer dev-token'
+    body '{{"fields": {{"Title": "{1}", "Status": "{2}"}}' with (
+      {1} = $Title,
+      {2} = $Status
+    )
+    timeout 30
+    returns string
+    on error continue;
+
+  IF $Raw != empty THEN
+    SET $Body = $Raw;
+    SET $Ok = true;
+  END IF;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'POST http://127.0.0.1:4025/sites/root/lists/Tasks/items',
+    Method = 'POST',
+    StatusCode = 0,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = $Ok,
+    ErrorMessage = '',
+    ResponseBody = $Body,
+    Lane = RestLab.Lane.SharePoint
+  );
+
+  RETURN $Log;
+end;
+/
+
+/**
+ * WRITE via an inline call: PATCH an item's fields, with the etag in If-Match.
+ * Inline because the item id is a PATH parameter.
+ */
+create or modify microflow RestLab."ACT_SP_UpdateStatus" (
+  $ItemId: String,
+  $Status: String,
+  $Etag: String
+)
+returns RestLab."CallLog" as $Log
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+  declare $Body String = '';
+  declare $Ok Boolean = false;
+
+  $Raw = rest call patch 'http://127.0.0.1:4025/sites/root/lists/Tasks/items/{1}/fields' with (
+    {1} = $ItemId
+  )
+    header 'Content-Type' = 'application/json'
+    header 'Authorization' = 'Bearer dev-token'
+    header 'If-Match' = $Etag
+    -- Body placeholders are numbered INDEPENDENTLY of the URL's: this body has
+    -- one parameter, so it is {1} even though the URL already used {1}.
+    -- Continuing the URL numbering gives CE0720 "Place holder index 2 is
+    -- greater than 1, the number of parameter(s)".
+    body '{{"Status": "{1}"}' with (
+      {1} = $Status
+    )
+    timeout 30
+    returns string
+    on error continue;
+
+  IF $Raw != empty THEN
+    SET $Body = $Raw;
+    SET $Ok = true;
+  END IF;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'PATCH http://127.0.0.1:4025/sites/root/lists/Tasks/items/' + $ItemId + '/fields',
+    Method = 'PATCH',
+    StatusCode = 0,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = $Ok,
+    ErrorMessage = '',
+    ResponseBody = $Body,
+    Lane = RestLab.Lane.SharePoint
+  );
+
+  RETURN $Log;
+end;
+/

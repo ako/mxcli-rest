@@ -16,7 +16,10 @@ create or modify enumeration RestLab."Lane" (
   "Mapping" 'Response mapping (jsonplaceholder)',
   "OpenApi" 'OpenAPI import (petstore)',
   "EdgeCase" 'Errors + auth (httpbingo)',
-  "Weather" 'Weather (open-meteo)'
+  "Weather" 'Weather (open-meteo)',
+  "Rates" 'Rates (frankfurter, transformed)',
+  "Graph" 'Microsoft Graph (mocked)',
+  "SharePoint" 'SharePoint read/write (mocked)'
 );
 
 /*
@@ -52,6 +55,8 @@ create or modify persistent entity RestLab."CallLog" (
   "ErrorMessage": String(1000),
   /** Raw response body, kept so the demo page can show it beside the mapping */
   "ResponseBody": String,
+  /** Payload after a data transformer reshaped it, when a lane uses one. */
+  "TransformedBody": String,
   "Lane": RestLab."Lane",
   /**
    * Plain DateTime set by SUB_LogCall, NOT autocreateddate.
@@ -166,6 +171,90 @@ create or modify persistent entity RestLab."WeatherCurrent" (
   "Temperature": String(30)
 );
 
+-- ---------------------------------------------------------------- rates lane
+
+/**
+ * frankfurter.dev exchange rates. The payload uses CURRENCY CODES AS PROPERTY
+ * NAMES ({"rates": {"AUD": 1.63, "BRL": 6.03, ...}}) -- property names that are
+ * really data values, which no Mendix mapping can address.
+ *
+ * A JSLT data transformer reshapes that object into an array of {code, value}
+ * pairs first, and an import mapping DOCUMENT (bound to a JSON structure) then
+ * maps it. Unlike the inline REST mapping, that route handles a repeating
+ * element, so every rate lands as its own row -- and the attributes keep their
+ * natural types instead of being forced to String.
+ */
+@position(2200, 100)
+create or modify persistent entity RestLab."RateSnapshot" (
+  "Base": String(10),
+  "RateDate": String(20),
+  "Amount": Decimal
+);
+
+@position(2200, 300)
+create or modify persistent entity RestLab."ExchangeRate" (
+  "Code": String(10),
+  "Value": Decimal
+);
+
+-- ---------------------------------------------------------------- graph lane
+
+/**
+ * Microsoft Graph user, from the local Prism mock (specs/msgraph.json).
+ *
+ * Graph is the enterprise case worth getting right, and GET /me is the shape
+ * that works: a single OBJECT at the root, so the document response mapping
+ * populates it. Graph COLLECTIONS ({"@odata.context":..., "value":[...]}) do
+ * not map -- "value" is a repeating element (FINDINGS #19).
+ *
+ * "ODataContext" maps the literal JSON field "@odata.context". Note the
+ * attribute cannot be called "Context": that is a reserved word (CE7247).
+ */
+@position(2550, 100)
+create or modify persistent entity RestLab."GraphUser" (
+  /** The @odata.context annotation Graph returns on every response. */
+  "ODataContext": String(200),
+  "GraphId": String(50),
+  "DisplayName": String(200),
+  "Mail": String(200),
+  "JobTitle": String(100),
+  "OfficeLocation": String(50),
+  "UserPrincipalName": String(200)
+);
+
+-- ---------------------------------------------------------------- sharepoint lane
+
+/**
+ * A SharePoint list item, read through Graph.
+ *
+ * Split into two entities because Graph nests the user-defined columns under
+ * "fields", and a Mendix mapping cannot flatten a nested object onto its
+ * parent -- a nested object needs a child entity reached by an association.
+ */
+@position(2900, 100)
+create or modify persistent entity RestLab."SPTask" (
+  /** "@odata.etag" -- Graph wants it back in If-Match on a write. */
+  "Etag": String(100),
+  "SPItemId": String(20),
+  "WebUrl": String(400),
+  "LastModified": String(40)
+);
+
+/**
+ * The "fields" object. Column names are SharePoint INTERNAL names, so a space
+ * arrives percent-ish encoded as _x0020_ ("Due Date" -> "Due_x0020_Date").
+ */
+@position(2900, 320)
+create or modify persistent entity RestLab."SPTaskFields" (
+  "Title": String(200),
+  "Status": String(50),
+  "AssignedTo": String(100),
+  /** from "Due_x0020_Date" */
+  "DueDate": String(40),
+  /** from "Priority_x0020_Level" */
+  "PriorityLevel": String(40)
+);
+
 -- ---------------------------------------------------------------- associations
 
 create or modify association RestLab."RestObject_RestObjectData"
@@ -194,3 +283,18 @@ create or modify association RestLab."WeatherReading_WeatherCurrent"
 
 create or modify association RestLab."WeatherReading_CallLog"
   from RestLab."WeatherReading" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."RateSnapshot_ExchangeRate"
+  from RestLab."RateSnapshot" to RestLab."ExchangeRate" type referenceset;
+
+create or modify association RestLab."RateSnapshot_CallLog"
+  from RestLab."RateSnapshot" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."GraphUser_CallLog"
+  from RestLab."GraphUser" to RestLab."CallLog" type reference;
+
+create or modify association RestLab."SPTask_SPTaskFields"
+  from RestLab."SPTask" to RestLab."SPTaskFields" type reference;
+
+create or modify association RestLab."SPTask_CallLog"
+  from RestLab."SPTask" to RestLab."CallLog" type reference;

@@ -1,0 +1,138 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "RestLab MockLab",
+    "version": "1.0.0",
+    "description": "A local contract that reproduces, deterministically and offline, the JSON shapes that decide whether a Mendix mapping works. Serve it with: prism mock -p 4010 specs/mocklab.json"
+  },
+  "servers": [{ "url": "http://127.0.0.1:4010" }],
+  "paths": {
+    "/forecast": {
+      "get": {
+        "summary": "Object root with a nested object - the shape mxcli mappings CAN handle",
+        "operationId": "getForecast",
+        "parameters": [
+          { "name": "latitude", "in": "query", "schema": { "type": "string" } },
+          { "name": "longitude", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "latitude": { "type": "string" },
+                    "longitude": { "type": "string" },
+                    "timezone": { "type": "string" },
+                    "current": {
+                      "type": "object",
+                      "properties": {
+                        "time": { "type": "string" },
+                        "temperature_2m": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "latitude": "52.37",
+                  "longitude": "4.89",
+                  "timezone": "GMT",
+                  "current": { "time": "2026-08-18T15:30", "temperature_2m": "20.0" }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/objects": {
+      "get": {
+        "summary": "ARRAY root - maps to null, the shape mxcli mappings CANNOT handle",
+        "operationId": "listObjects",
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "name": { "type": "string" }
+                    }
+                  }
+                },
+                "example": [
+                  { "id": "1", "name": "Widget" },
+                  { "id": "2", "name": "Sprocket" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rates": {
+      "get": {
+        "summary": "Dynamic property names - currency codes as keys, needs a JSLT transformer",
+        "operationId": "getRates",
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "base": { "type": "string" },
+                    "date": { "type": "string" },
+                    "rates": {
+                      "type": "object",
+                      "additionalProperties": { "type": "number" }
+                    }
+                  }
+                },
+                "example": {
+                  "base": "EUR",
+                  "date": "2026-08-18",
+                  "rates": { "AUD": 1.6278, "BRL": 6.0281, "GBP": 0.85585 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/objects/{objectId}": {
+      "get": {
+        "summary": "Path parameter - so the path-parameter defect can be reproduced offline",
+        "operationId": "getObject",
+        "parameters": [
+          { "name": "objectId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "name": { "type": "string" }
+                  }
+                },
+                "example": { "id": "7", "name": "Widget" }
+              }
+            }
+          },
+          "404": { "description": "not found" }
+        }
+      }
+    }
+  }
+}
