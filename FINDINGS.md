@@ -1078,3 +1078,108 @@ ERROR: ... (Export Object Mappings cannot have ObjectHandling set to 'Create')
 The one-line cause in `writer_rest.go:308` (hardcoded `"Create"` for every
 nested child, regardless of namespace) is untouched. Worth flagging on the PR,
 since MDL-MAP01 makes it *look* addressed.
+
+---
+
+# Testing ako/mxcli PR #192
+
+PR #192 is a superset: it already merges #188, #189, #190 and #191, and adds one
+commit — *fix(mappings): an unauthored import range is All, not First*. Built
+from source as `nightly-122-g2a9c69f` and run against this project's repros.
+
+| Finding | Result under #192 |
+| --- | --- |
+| #23 import mapping documents never execute | ✅ **FIXED** |
+| #19 repeating elements / #9 String-only types (via the transform route) | ✅ **unblocked** |
+| PR #188 multi-segment leaf path, at runtime | ✅ **verified working** |
+| #31 misleading write report | ✅ fixed (carried from #189) |
+| #36 inline REST multi-segment path silently wrong | ❌ still present |
+| #37 nested export **body** → unloadable `.mpr` | ❌ still present |
+
+## 38. #23 is fixed, and it unblocks the whole transformer route
+
+The commit quotes the exact failure this project reported —
+`key not found: Path(QName(None,),None,)` — and identifies the cause: an
+unauthored `import from mapping` range left both `ForceSingleOccurrence` and
+`ConstantRange.SingleObject` falling back to `SingleObject`, which is Studio
+Pro's *First*, not a single-object import. Only the bare form was affected;
+`all`, `first` and limit/offset all set the pointers explicitly.
+
+Its own note is worth repeating: *"the repo had no runtime coverage of import
+mappings — every existing test stopped at mx check."* That is exactly the gap
+this project kept falling into — check, exec and `mx check` all green, data
+absent at runtime.
+
+**Flat repro (#23) now works:**
+
+```
+ id                | base | ratedate
+-------------------+------+------------
+ 21673573206720654 | EUR  | 2026-08-18
+```
+
+**And the whole rates pipeline works** — REST CALL → JSLT transform → import
+mapping — which is what FINDINGS #23 recorded as blocked:
+
+```
+ rates
+-------
+    29          <- 29 currencies, one row each: a REPEATING element
+
+ code |    value          base | ratedate   |  amount
+------+-----------        -----+------------+---------
+ AUD  |  1.64010000       EUR  | 2026-08-19 | 1.00000000
+ BRL  |  6.03940000
+ CHF  |  0.94020000
+```
+
+Two constraints of the inline REST mapping fall away on this route:
+
+- **repeating elements work** (#19) — 29 child rows, not one empty one
+- **natural types survive** (#9) — `Value` and `Amount` are Decimal, no CE6099
+  and no String coercion
+
+So the recommended shape for a collection is now: inline `REST CALL` for the raw
+body, a JSLT transformer if the JSON needs reshaping, then an import mapping
+document. The inline REST response mapping remains single-object only.
+
+## 39. PR #188's multi-segment path — now verified at runtime
+
+Previously unverifiable (#35), because #23 blocked every import mapping. With
+#192 it runs, and it does what it claims:
+
+```
+ itemid |       title       | priority
+--------+-------------------+----------
+ 12     | Replace pump seal | High
+```
+
+from `Title = fields/Title` and `Priority = fields/Priority_x0020_Level` — one
+entity, no child entity for the `fields` level, and SharePoint's `_x0020_`
+encoding handled. In RestLab this would collapse `SPTask` + `SPTaskFields` into
+one entity.
+
+## 40. #36 and #37 are unchanged by #192 — both review comments stand
+
+Re-tested on `nightly-122-g2a9c69f`:
+
+- **#36** — an inline REST response mapping still accepts `"fields/Title"` as a
+  quoted identifier and stores `(Object)|fields/Title`. `mx check` 0 errors, and
+  at runtime only the top-level `id` populates:
+  `spitemid 12 | title (empty) | status (empty) | prioritylevel (empty)`.
+  Now more pointed than before: the same spelling demonstrably works in a mapping
+  document (#39) and silently does not here.
+- **#37** — a nested `body: mapping` still passes check ("Check passed!"), still
+  executes ("Created rest client"), and still leaves a project mxbuild cannot
+  load: `Export Object Mappings cannot have ObjectHandling set to 'Create'`.
+
+## 41. Note for this project: the fix is not in our binary yet
+
+`./mxcli` here is built from merged `main` (`6833c37`) and does **not** contain
+the #192 fix. `.claude/bootstrap-mxcli.sh` builds from `ako/mxcli` main, so the
+fix arrives automatically once #192 merges.
+
+Until then the rates lane stays as it is — transform and display, with the
+`import from mapping` call commented out — because enabling it would break the
+app for anyone running the committed toolchain. Once #192 is on main, that lane
+can be completed, and `SPTask`/`SPTaskFields` can be collapsed using #39.
