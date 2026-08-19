@@ -950,3 +950,131 @@ a script that is meant to be re-runnable — `12-organize.mdl` records the
 statement in a comment instead of executing it, and `07-pages.mdl` was changed
 to create `CallLog_Detail` in `Shared` directly so the stale folder never
 appears on a fresh build.
+
+---
+
+# Testing ako/mxcli PR #188 and PR #189
+
+Both branches fetched (`refs/pull/188/head`, `refs/pull/189/head`) and built from
+source, then run against this project's own repros. Baseline for comparison is
+the merged `main` build (`nightly-…`, the `./mxcli` in this repo).
+
+- PR #188 = `nightly-109-g1492e57` — *reach a nested JSON leaf without an entity
+  per level (#927)* + *catch a nested export-mapping member at check time
+  (MDL-MAP01)*
+- PR #189 = `nightly-108-gf9b816f` — *stop reporting writes that storage skipped*
+  + *carry stored element $IDs onto a rewritten document*
+
+| This project's finding | PR #188 | PR #189 |
+| --- | --- | --- |
+| #31 exec reports a write that did not happen | — | ✅ **fixed** |
+| #27 nested export-mapping **body** → unloadable `.mpr` | ❌ still corrupts | — |
+| #23 import mapping documents never execute | ❌ unchanged | ❌ unchanged |
+| Nested leaf without an entity per level | ✅ **works in mapping documents**; ❌ silently wrong in an inline REST mapping | — |
+
+## 34. PR #189 fixes the misleading write report (#31) — confirmed
+
+Re-declaring an unchanged microflow, byte-identical to what is stored:
+
+```
+merged main :  Replaced microflow: RestLab.ACT_Demo_CrudList
+PR #189     :  Unchanged microflow: RestLab.ACT_Demo_CrudList
+```
+
+This is the half of #31 that misleads. It does **not** change the underlying
+behaviour — a `folder` clause on `create or modify` still does not relocate an
+existing document, and MOVE is still required — but the console no longer claims
+a write that storage elided. Worth having: the old output made it look as though
+`12-organize.mdl` was rewriting 35 documents on every run.
+
+## 35. PR #188's multi-segment path works in mapping DOCUMENTS…
+
+`Attr = fields/Title` reaches a leaf below the object element without an entity
+for the level in between — the thing that forced `SPTaskFields` to exist purely
+to hold `fields`.
+
+```sql
+create or modify import mapping RestLab."IMM_Nested"
+  with json structure RestLab."JSON_Nested"
+{ create RestLab."NestedProbe" {
+    ItemId = id,
+    Title    = fields/Title,
+    Priority = fields/Priority_x0020_Level
+  } };
+```
+
+- merged main: **syntax error** — the form does not exist
+- PR #188: check passes, executes, `describe` round-trips it verbatim, and
+  `mx check` reports 0 errors
+
+**Runtime could not be verified**, because #23 still blocks every import mapping
+document from executing at all. So the feature is confirmed as far as the model
+layer, and no further.
+
+## 36. …but in an INLINE REST mapping the same path is silently wrong
+
+PR #188 does not touch the inline REST client mapping — `sdk/mpr/writer_rest.go`,
+`mdl/visitor/visitor_rest.go` and `mdl/executor/cmd_rest_clients.go` are all
+unchanged by it. The changed files are `visitor_import_export_mapping.go` and
+`cmd_import_mappings.go`, i.e. mapping **documents** only.
+
+But the inline form still *accepts* the syntax, because a quoted
+`"fields/Title"` is one QUOTED_IDENTIFIER:
+
+```sql
+response: mapping RestLab."SPFlatProbe" {
+  "SPItemId" = "id",
+  "Title"    = "fields/Title"
+}
+```
+
+`mxcli check` passes, `exec` succeeds, `mx check` reports 0 errors, and
+`describe` re-emits it. At runtime the top-level `id` populates and **every
+nested value is empty**:
+
+```
+ spitemid | title | status | duedate | prioritylevel
+----------+-------+--------+---------+---------------
+ 12       |       |        |         |
+```
+
+Cause: `writer_rest.go:308-315` builds the path as
+`jsonPath + "|" + m.ExposedName`, and `ExposedName` here is the whole string
+`fields/Title`, so the stored path is `(Object)|fields/Title` — one literal
+member with a slash in its name — rather than the `(Object)|fields|Title` that
+PR #188's own commit message documents as Mendix's storage form. Nothing
+converts `/` to `|` on this code path.
+
+**This is the same silent-failure shape as #9, #19 and #23**: every gate passes
+and the data is quietly absent. It is arguably worse now, because the syntax is
+about to be documented as working — a developer who reads the #927 notes will
+reasonably try it in a REST client mapping and get empty columns with no
+diagnostic.
+
+Two ways out, either would do: extend the multi-segment handling to the inline
+REST mapping (splitting on `/` when building `valueJsonPath`), or reject a `/`
+in an inline REST mapping member with a check-time error pointing at the
+document form.
+
+## 37. PR #188 does NOT close #27 — the nested export **body** still corrupts
+
+MDL-MAP01, added by PR #188's second commit, validates export mapping
+**documents** (`mdl/executor/validate_export_mapping_members.go`). The inline
+REST `body: mapping` form is a different path and is not covered:
+
+```sql
+body: mapping RestLab."SPTask" {
+  RestLab."SPTask_SPTaskFields"/RestLab."SPTaskFields" = "fields" { "Title" = "Title" }
+}
+```
+
+Under PR #188 this still passes check (`✓ Check passed!`), still executes
+("Created rest client"), and still leaves a project mxbuild cannot load:
+
+```
+ERROR: ... (Export Object Mappings cannot have ObjectHandling set to 'Create')
+```
+
+The one-line cause in `writer_rest.go:308` (hardcoded `"Create"` for every
+nested child, regardless of namespace) is untouched. Worth flagging on the PR,
+since MDL-MAP01 makes it *look* addressed.
