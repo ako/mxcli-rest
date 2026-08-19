@@ -115,10 +115,30 @@ model:
 | `09-transformer-lane.mdl` | JSLT data transformer, JSON structure, import mapping |
 | `10-graph-lane.mdl` | Microsoft Graph client, OData transformer, microflows |
 | `11-sharepoint-lane.mdl` | SharePoint list read + write (POST/PATCH), OData transformer |
+| `12-organize.mdl` | Folder layout — run last, after every document exists |
 
 **Re-run `02-security.mdl` after any change to `01-domain-model.mdl`.** Entity
 access rules store an explicit member list, so adding an attribute or
 association leaves them stale and `mx check` reports CE0066.
+
+## Module layout
+
+Functional grouping: everything for one demo lane lives together.
+
+```
+RestLab/
+├── Home_Web              entry point, at the module root
+├── Lanes/
+│   ├── Crud/ Catalog/ Mapping/ EdgeCase/
+│   └── Weather/ Rates/ Graph/ SharePoint/
+└── Shared/               SUB_LogCall, the Lane enum, CallLog_Detail, Mapped_Overview
+```
+
+The 8 REST clients, 3 data transformers, `JSON_Rates` and `IMM_Rates` stay at the
+module root because MDL has no way to move them — `MOVE` covers pages,
+microflows, snippets, nanoflows, enumerations, constants, database connections,
+Java actions and published OData services, and nothing else. They are named by
+lane so the grouping is at least readable.
 
 ## Local mocks
 

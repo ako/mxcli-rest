@@ -14,7 +14,7 @@ create or replace page RestLab."CallLog_Detail"
   PopupWidth: 900,
   PopupHeight: 640,
   PopupResizable: true,
-  folder: 'CallLog'
+  folder: 'Shared'
 )
 {
   layoutgrid lgDetail {
