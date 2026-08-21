@@ -1452,3 +1452,57 @@ which makes the nested one a narrow, adjacent fix.
 Same arrangement as before: the committed `.mpr` is valid (`mx check` 0 errors)
 so the app runs for everyone, and only re-running that one script needs the
 newer binary. It resolves itself when #193 merges.
+
+## 52. The bundled skills have no guidance on mocking an HTTP dependency
+
+**Impact: medium** — every REST skill assumes a live third-party endpoint. Sixty-
+odd skills ship with `mxcli init`, and none of them mentions Prism, WireMock,
+mitmproxy, or any other way to stand up an endpoint you control. Developing a
+REST integration against a public API means network, rate limits, credentials
+and a payload that can change under you — and none of that is where the Mendix
+defects live.
+
+In this project the mocks were load-bearing, not a convenience. `specs/mocklab.json`
+exists specifically so that #16 (path parameter corrupts the `.mpr`), #19 (array
+root maps to null) and #23 (dynamic property names) reproduce **offline and
+deterministically**, in a contract small enough to read. That is a pattern worth
+handing to the next project rather than rediscovering.
+
+**Suggested home:** a new `mock-rest-apis.md`, cross-linked from `rest-client.md`
+(Approach 0 imports a contract — say where a contract can come from) and from
+`test-app.md` (it lists prerequisites for verifying an app, and a REST app's
+prerequisite is a reachable endpoint). Both the skills `README.md` and the
+`CLAUDE.md` skill table need a row. The three `specs/*.json` here are ready-made
+fixtures if the skill wants assets.
+
+**What the skill should carry** — everything below cost time to find out and is
+not in Prism's or WireMock's front-page docs:
+
+- **Prism mocks one contract per instance and the client must point at it.** It
+  is not an interceptor; asking it to "catch all calls from an existing app" is
+  a category error (#30). Install is `npm install -g @stoplight/prism-cli`, ~15 s.
+- **Prism mounts paths at the root** and ignores a base path in `servers[0].url`.
+  Write `http://127.0.0.1:4020`, not `.../v1.0`, or every path 404s.
+- **Make `servers[0].url` absolute.** Then mxcli's OpenAPI import picks up BaseUrl
+  automatically; a relative URL forces an explicit `BaseUrl:` (#15).
+- **`Prefer: code=404`** forces any documented status — the only practical way to
+  exercise a Mendix error handler. `prism mock -d` returns schema-generated
+  random data instead of the `example` values, which catches a mapping that
+  quietly depends on one fixed payload.
+- **Prism enforces the spec's `security`**, so a call with no `Authorization`
+  gets a real 401. Useful, and it pairs with the fact that a REST client
+  document cannot hold a dynamic header value (#14).
+- **Cut a subset; never point Prism at a vendor's full contract.** The official
+  Microsoft Graph spec is 41 MB of YAML — it downloads in ~1.6 s and Prism was
+  still at "Starting Prism…" when killed at a 300 s cap. Importing it would also
+  generate thousands of operations.
+- **Runtime→mock traffic works in a proxied container** because `127.0.0.1` is in
+  the runtime's `http.nonProxyHosts`. Verified: a microflow call returned the
+  contract example in ~267 ms.
+- **For an app whose model you cannot edit, use a forward proxy, not Prism.**
+  WireMock standalone with `--enable-browser-proxying --trust-all-proxy-targets`,
+  pointed at by `JAVA_TOOL_OPTIONS=-Dhttp.proxyHost=… -Dhttp.proxyPort=…`; mxcli
+  **appends** to that variable (`localboot.go:226`), so the runtime picks it up
+  with no model change. Verified against `api.frankfurter.dev`. The catch is
+  `https://`: the proxy needs a CA the JVM trusts, and WireMock 3.13.2 on Java 21
+  cannot generate one — use mitmproxy or supply a keystore.
