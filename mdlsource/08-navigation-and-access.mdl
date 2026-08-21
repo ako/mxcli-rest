@@ -38,3 +38,5 @@ grant execute on microflow RestLab."ACT_Demo_SPGet" to RestLab."Developer", Rest
 grant execute on microflow RestLab."ACT_Demo_SPList" to RestLab."Developer", RestLab."Administrator";
 grant execute on microflow RestLab."ACT_Demo_SPCreate" to RestLab."Developer", RestLab."Administrator";
 grant execute on microflow RestLab."ACT_Demo_SPUpdate" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_BinaryDownload" to RestLab."Developer", RestLab."Administrator";
+grant execute on microflow RestLab."ACT_Demo_BinaryRoundTrip" to RestLab."Developer", RestLab."Administrator";

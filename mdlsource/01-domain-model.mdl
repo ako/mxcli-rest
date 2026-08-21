@@ -19,7 +19,9 @@ create or modify enumeration RestLab."Lane" (
   "Weather" 'Weather (open-meteo)',
   "Rates" 'Rates (frankfurter, transformed)',
   "Graph" 'Microsoft Graph (mocked)',
-  "SharePoint" 'SharePoint read/write (mocked)'
+  "SharePoint" 'SharePoint read/write (mocked)',
+  -- NB: the value cannot be called "Binary" -- reserved word in that position.
+  "Files" 'Binary download/upload (httpbingo)'
 );
 
 /*

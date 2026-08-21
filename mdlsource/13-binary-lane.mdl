@@ -1,0 +1,179 @@
+/**
+ * Binary download and upload over REST
+ *
+ * The two directions use different mechanisms, and only one of them has an
+ * inline form:
+ *
+ *   DOWNLOAD  rest call ... returns Mod.FileDoc   (inline, names the entity)
+ *   UPLOAD    rest call ... body binary $Doc/Contents
+ *
+ * BOTH directions are inline REST CALL activities, and that is not incidental:
+ * a consumed REST service document can express neither. Its response side names
+ * no target entity, and its request side has no binary body at all -- Mendix
+ * models a binary request on the microflow ACTIVITY
+ * (Microflows$BinaryRequestHandling), not on the service document. `body: file
+ * from $Doc` in a document is refused outright as MDL-REST02, because it used
+ * to send the expression text.
+ *
+ * REQUIRES mxcli with #922 (download, now on main) and ako/mxcli#193 (the
+ * `body binary` upload). The document alternative `response: file as $Doc` is
+ * unusable: it yields a variable of type Nothing (CE0041), and a CHANGE on it
+ * makes the .mpr unloadable outright. See FINDINGS.md #42 and #48.
+ *
+ * AND: the variable a download produces cannot be CHANGEd -- the activity is
+ * written with no entity, and the .mpr stops loading:
+ *   "Change in  has an invalid value '' for property Attribute."
+ * COMMIT on it is fine. To set attributes, hand it to a microflow whose
+ * PARAMETER is typed (SUB_TagDownload below) -- a parameter carries the entity
+ * type that the REST result variable does not.
+ *
+ * httpbingo.org is the target: /image/png returns a real 8 KB PNG and /post
+ * echoes what it received, including Content-Length, which is how the upload
+ * is verified rather than merely "did not throw".
+ */
+
+/**
+ * Downloaded bytes. Extends System.FileDocument, which brings Name, Contents,
+ * HasContents and Size -- those are platform members, so the access rules below
+ * grant them with `read * / write *` rather than naming them.
+ */
+@position(3250, 100)
+create or modify persistent entity RestLab."DownloadedFile" extends System.FileDocument (
+  "SourceUrl": String(400),
+  "ContentKind": String(60)
+);
+
+grant RestLab."Developer" on RestLab."DownloadedFile" (create, read *, write *);
+grant RestLab."Administrator" on RestLab."DownloadedFile" (create, delete, read *, write *);
+
+create or modify association RestLab."DownloadedFile_CallLog"
+  from RestLab."DownloadedFile" to RestLab."CallLog" type reference;
+
+-- ---------------------------------------------------------------- client
+
+-- No REST client document here at all: neither direction can be expressed by
+-- one. Both are inline REST CALL activities. See the note at the top.
+
+-- ---------------------------------------------------------------- microflows
+
+/**
+ * Sets the attributes the download could not. The parameter is typed, so CHANGE
+ * resolves the entity here even though it does not on the REST result variable.
+ */
+create or modify microflow RestLab."SUB_TagDownload" (
+  $Doc: RestLab."DownloadedFile",
+  $Url: String,
+  $Kind: String,
+  $FileName: String,
+  $Log: RestLab."CallLog"
+)
+folder 'Lanes/Binary'
+begin
+  CHANGE $Doc (
+    "SourceUrl" = $Url,
+    "ContentKind" = $Kind,
+    "Name" = $FileName,
+    RestLab.DownloadedFile_CallLog = $Log
+  );
+  COMMIT $Doc;
+end;
+/
+
+/**
+ * DOWNLOAD. The mapped result is the file document itself; Size and
+ * HasContents come from System.FileDocument and say whether bytes arrived.
+ */
+create or modify microflow RestLab."ACT_Binary_Download" ()
+returns RestLab."DownloadedFile" as $Doc
+folder 'Lanes/Binary'
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+
+  -- Inline, because only this form names the target file-document entity.
+  $Doc = rest call get 'https://httpbingo.org/image/png'
+    header Accept = 'image/png'
+    timeout 60
+    returns RestLab.DownloadedFile;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'https://httpbingo.org/image/png',
+    Method = 'GET',
+    StatusCode = 0,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = true,
+    ErrorMessage = '',
+    ResponseBody = 'binary response stored in a file document',
+    Lane = RestLab.Lane.Files
+  );
+
+  -- NOT a CHANGE here: see the note at the top of this file.
+  CALL MICROFLOW RestLab."SUB_TagDownload" (
+    Doc = $Doc,
+    Url = 'https://httpbingo.org/image/png',
+    Kind = 'image/png',
+    FileName = 'httpbingo.png',
+    Log = $Log
+  );
+
+  RETURN $Doc;
+end;
+/
+
+/**
+ * UPLOAD, for real: `body binary` sends the document's Contents.
+ *
+ * Verified against httpbingo, which echoes what it received:
+ *   Content-Length: 8090   -- the whole PNG, not the 4 bytes "$Doc"
+ *
+ * Mendix stores this as Microflows$BinaryRequestHandling on the activity, with
+ * the expression $Doc/Contents. It is a Microflows$ type, not a Rest$ one --
+ * which is why searching the metamodel for a Rest$*Body binary type suggests,
+ * wrongly, that binary upload is impossible.
+ */
+create or modify microflow RestLab."ACT_Binary_Upload" (
+  $Doc: RestLab."DownloadedFile"
+)
+returns RestLab."CallLog" as $Log
+folder 'Lanes/Binary'
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+  declare $Body String = '';
+  declare $Ok Boolean = false;
+
+  $Echo = rest call post 'https://httpbingo.org/post'
+    header 'Content-Type' = 'application/octet-stream'
+    body binary $Doc/Contents
+    timeout 60
+    returns string
+    on error continue;
+
+  IF $Echo != empty THEN
+    SET $Body = $Echo;
+    SET $Ok = true;
+  END IF;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'POST https://httpbingo.org/post (body binary)',
+    Method = 'POST',
+    StatusCode = 0,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = $Ok,
+    ErrorMessage = '',
+    ResponseBody = $Body,
+    Lane = RestLab.Lane.Files
+  );
+
+  RETURN $Log;
+end;
+/
+
+/** Download then upload the same bytes -- the round trip in one click. */
+create or modify microflow RestLab."ACT_Binary_RoundTrip" ()
+folder 'Lanes/Binary'
+begin
+  $Doc = CALL MICROFLOW RestLab."ACT_Binary_Download" ();
+  IF $Doc != empty THEN
+    CALL MICROFLOW RestLab."ACT_Binary_Upload" (Doc = $Doc);
+  END IF;
+end;
+/

@@ -128,6 +128,16 @@ create or replace page RestLab."Home_Web"
         }
       }
     }
+    row rowBin {
+      column colBin (desktopwidth: 12) {
+        container cBin (class: 'card') {
+          container cdtBinTitle { dynamictext dtBinTitle (Content: 'Binary download / upload - httpbingo.org', class: 'h4') }
+          container cdtBinBody (class: 'mx-spacing-bottom-medium') { dynamictext dtBinBody (Content: 'Both directions are inline REST CALL activities, because a consumed REST service document can express neither. Download stores a real 8 KB PNG in a file document; the round trip posts those same bytes back with body binary. Open the POST row in the call log and read Content-Length - it is 8090, the whole file.') }
+          actionbutton btnBinDown (caption: 'Download PNG', action: microflow RestLab."ACT_Demo_BinaryDownload", buttonstyle: primary)
+          actionbutton btnBinRound (caption: 'Round trip (download + upload)', action: microflow RestLab."ACT_Demo_BinaryRoundTrip", buttonstyle: warning)
+        }
+      }
+    }
     row rowSP {
       column colSP (desktopwidth: 12) {
         container cSP (class: 'card') {
@@ -161,7 +171,7 @@ create or replace page RestLab."Home_Web"
       column colRates (desktopwidth: 12) {
         container cRates (class: 'card') {
           container cdtRatesTitle { dynamictext dtRatesTitle (Content: 'Data transformer - frankfurter.dev', class: 'h4') }
-          container cdtRatesBody (class: 'mx-spacing-bottom-medium') { dynamictext dtRatesBody (Content: 'The rates arrive keyed BY CURRENCY CODE, so the property names are really data and no mapping can address them. A JSLT transformer rewrites the object into an array of code/value pairs, which IS a shape a mapping can address. Open the call log row to see the payload before and after. The import mapping that would turn it into rows is modelled but cannot run yet - see FINDINGS.md #23.') }
+          container cdtRatesBody (class: 'mx-spacing-bottom-medium') { dynamictext dtRatesBody (Content: 'The rates arrive keyed BY CURRENCY CODE, so the property names are really data and no mapping can address them. A JSLT transformer rewrites the object into an array of code/value pairs, which IS a shape a mapping can address, and an import mapping document then turns it into one row per currency - with Decimal values, which the inline REST mapping cannot do. Open the call log row to see the payload before and after.') }
           actionbutton btnRates (
             caption: 'Get EUR rates (transformed)',
             action: microflow RestLab."ACT_Demo_Rates",
@@ -235,6 +245,15 @@ create or replace page RestLab."Mapped_Overview"
       column colTemp (attribute: Temperature, caption: 'Temperature')
     }
   }
+  container cBinGrid (class: 'mx-spacing-top-large') {
+    dynamictext dtBinGrid (Content: 'DownloadedFile - binary stored in a System.FileDocument specialization')
+    datagrid dgBin (datasource: database from RestLab."DownloadedFile") {
+      column colBinName (attribute: "Name", caption: 'File name')
+      column colBinSize (attribute: "Size", caption: 'Bytes', Alignment: right)
+      column colBinHas (attribute: HasContents, caption: 'Has contents')
+      column colBinKind (attribute: ContentKind, caption: 'Content type')
+    }
+  }
   container cSPGrid (class: 'mx-spacing-top-large') {
     dynamictext dtSPGrid (Content: 'SPTaskFields - the nested SharePoint fields object, mapped onto a child entity')
     datagrid dgSP (datasource: database from RestLab."SPTaskFields") {
@@ -243,6 +262,13 @@ create or replace page RestLab."Mapped_Overview"
       column colSPWho (attribute: AssignedTo, caption: 'Assigned to')
       column colSPDue (attribute: DueDate, caption: 'Due (Due_x0020_Date)')
       column colSPPrio (attribute: PriorityLevel, caption: 'Priority (Priority_x0020_Level)')
+    }
+  }
+  container cRatesGrid (class: 'mx-spacing-top-large') {
+    dynamictext dtRatesGrid (Content: 'ExchangeRate - one row per currency, from a JSLT-reshaped payload via an import mapping')
+    datagrid dgRates (datasource: database from RestLab."ExchangeRate") {
+      column colCode (attribute: Code, caption: 'Currency')
+      column colValue (attribute: "Value", caption: 'Rate per EUR', Alignment: right)
     }
   }
   container cGraphGrid (class: 'mx-spacing-top-large') {

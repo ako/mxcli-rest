@@ -107,3 +107,16 @@ begin
   );
 end;
 /
+
+create or modify microflow RestLab."ACT_Demo_BinaryDownload" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Binary_Download" ();
+end;
+/
+
+/** Known broken: sends the text '$Doc', not the file. Regression test. */
+create or modify microflow RestLab."ACT_Demo_BinaryRoundTrip" ()
+begin
+  CALL MICROFLOW RestLab."ACT_Binary_RoundTrip" ();
+end;
+/

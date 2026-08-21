@@ -117,15 +117,26 @@ begin
     CHANGE $Log ("TransformedBody" = $Shaped);
     COMMIT $Log;
 
-    -- NEXT STEP, CURRENTLY BLOCKED:
-    --   $Snapshot = import from mapping RestLab."IMM_Rates" ($Shaped);
-    -- IMM_Rates below is the correct target shape and passes mx check, but an
-    -- import mapping document written by mxcli throws at runtime:
-    --   key not found: Path(QName(None,),None,)
-    --     at ... (Import with mapping : 'Import from JSON')
-    -- It is not specific to this mapping -- a flat two-field mapping fails the
-    -- same way. See FINDINGS.md #23. Until that is fixed the reshaped JSON is
-    -- shown rather than mapped into RateSnapshot / ExchangeRate.
+    -- The reshaped array becomes rows. This was blocked until ako/mxcli #192
+    -- (an unauthored import range is All, not First) -- before it, every import
+    -- mapping document threw `key not found: Path(QName(None,),None,)` at
+    -- runtime. See FINDINGS.md #23 and #38.
+    --
+    -- Two constraints of the INLINE REST mapping do not apply on this route:
+    -- the repeating element works (~30 rows, not one empty one), and the
+    -- attributes keep their natural Decimal type instead of being forced to
+    -- String.
+    $Snapshot = import from mapping RestLab."IMM_Rates" ($Shaped);
+
+    CHANGE $Snapshot (RestLab.RateSnapshot_CallLog = $Log);
+    COMMIT $Snapshot;
+
+    -- The mapping creates the children too, but they arrive uncommitted.
+    RETRIEVE $Rates FROM $Snapshot/RestLab.RateSnapshot_ExchangeRate;
+    LOOP $Rate IN $Rates
+    BEGIN
+      COMMIT $Rate;
+    END LOOP;
   END IF;
 
   RETURN $Log;
