@@ -1605,7 +1605,8 @@ only option.
 
 ### For mxcli
 
-One fix, the sibling of #192: the REST-call builder should write both pointers
+Filed as [ako/mxcli#242](https://github.com/ako/mxcli/issues/242). One fix, the
+sibling of #192: the REST-call builder should write both pointers
 false for a non-list mapping result, exactly as `addImportFromMappingAction` now
 does. The fix's own lesson applies again — there was no runtime coverage of
 import mappings, and the REST-call route still has none, which is why a fix that
