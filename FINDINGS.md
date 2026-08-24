@@ -1506,3 +1506,107 @@ not in Prism's or WireMock's front-page docs:
   with no model change. Verified against `api.frankfurter.dev`. The catch is
   `https://`: the proxy needs a CA the JVM trusts, and WireMock 3.13.2 on Java 21
   cannot generate one — use mitmproxy or supply a keystore.
+
+## 53. `rest call … returns mapping … as Entity` still has #192's defect
+
+**Impact: high** — it builds clean and throws at runtime, and it is the obvious
+way to write the thing.
+
+`ako/mxcli-formula1` §59 reported an import mapping that "cannot be written from
+MDL": a flat, object-rooted, three-string-field token response answered with
+
+```
+com.mendix.modules.microflowengine.MicroflowException: key not found: Path(QName(None,),None,)
+	at Formula1Backend.Sync_EnsureToken (CallRest : 'Call REST (POST)')
+```
+
+That is the same exception this project recorded as #23 and saw fixed by #192.
+Its MDL is not the problem — it is idiomatic, and close to what works here.
+**The mapping document is fine; the activity is not, and the two ways of
+invoking it that were tried happen to share the same broken shape.**
+
+### Reproduced here, on `d4998ac` (which contains #192)
+
+The formula1 shapes, rebuilt verbatim in a scratch module and run through
+`mxcli test --local`. `mx check` reports 0 errors throughout, except E:
+
+| | Form | Result |
+| --- | --- | --- |
+| A | `import from mapping IMM($Json)` — bare | **PASS** |
+| B | `import from mapping IMM($Json) first` | **FAIL** — `Path(QName(None,),None,)` |
+| C | `rest call … returns mapping IMM as Entity` | **FAIL** — same exception |
+| D | `rest call … returns string` then bare `import from mapping` | **PASS** |
+| E | `rest call … returns mapping IMM as list of Entity` | **CE0243** at build |
+
+The C failure, logged from a real boot, is identical to the formula1 report down
+to the frame:
+
+```
+	at MapProbe.ACT_C_RestMapping (CallRest : 'Call REST (GET)')
+Caused by: java.util.NoSuchElementException: key not found: Path(QName(None,),None,)
+	at com.mendix.integration.importer.mapping.MappingCache.storeValueMappingElement(MappingCache.scala:73)
+```
+
+### Why B and C fail together, and why that misleads
+
+#192's fix note is explicit: Studio Pro writes **both** `ForceSingleOccurrence`
+and `ConstantRange.SingleObject` **false** for a plain single-object import and
+expresses "one object" through `VariableType=ObjectType` alone. Both flags true
+is Studio Pro's *First* — "take one of a list" — which on an object-rooted
+mapping is what throws. The fix changed only the bare `import from mapping`
+form; `first` keeps First semantics **by design**.
+
+The REST-call path was not touched and still mirrors the old inference —
+`cmd_microflows_builder_calls.go:1246`:
+
+```go
+singleObject := !s.Result.IsList
+fso := singleObject                 // both true for `as Entity`
+```
+
+So `returns mapping … as Entity` writes exactly the shape #192 identified as
+wrong. B and C fail for one reason, not two.
+
+This is why formula1's isolation read the wrong way. Their confirming probe was
+`import from mapping IMM($Raw) FIRST`, and `first` is the one spelling the fix
+deliberately left alone — so "two ways of invoking it, one failure" reproduced
+the same defect twice rather than clearing the mapping. Dropping the `FIRST`
+keyword would have passed. Worth remembering when isolating: two routes are
+independent evidence only if they do not share the code you are trying to rule
+out.
+
+### E is not a workaround
+
+`as list of Entity` sets both flags false — the shape that works — but `mx check`
+then rejects the activity, because the mapping's root is an object:
+
+```
+[error] [CE0243] "The mapping used to return a value of type 'List of MapProbe.Stg_Token',
+        but now returns a value of type 'MapProbe.Stg_Token'…" at Call REST service activity
+```
+
+Which leaves, today, **no working `returns mapping` form for an object-rooted
+mapping**: single throws at runtime, list fails the build.
+
+### What to do instead
+
+D — the shape this project already recommends for collections, and equally the
+answer for a single object:
+
+```sql
+$Raw = rest call post '…' … returns string;
+$Tok = import from mapping M.IMM_Token($Raw);     -- no range keyword
+```
+
+For formula1 that is a three-line change and it removes the reason for routing a
+bearer token through DuckDB. The `from_json` workaround is sound and costs
+nothing extra in exposure, as their note argues — but it is a workaround, not the
+only option.
+
+### For mxcli
+
+One fix, the sibling of #192: the REST-call builder should write both pointers
+false for a non-list mapping result, exactly as `addImportFromMappingAction` now
+does. The fix's own lesson applies again — there was no runtime coverage of
+import mappings, and the REST-call route still has none, which is why a fix that
+named the right cause left the sibling path broken.
