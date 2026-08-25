@@ -1611,3 +1611,67 @@ false for a non-list mapping result, exactly as `addImportFromMappingAction` now
 does. The fix's own lesson applies again — there was no runtime coverage of
 import mappings, and the REST-call route still has none, which is why a fix that
 named the right cause left the sibling path broken.
+
+## 54. `nightly-132-g23cc8278`: #53 is fixed, and the inline REST mapping is untouched
+
+A large mapping batch landed on `ako/mxcli` main — 126 commits since `6485db62`,
+including PR #290's twelve mapping commits and a census of 327 real mappings.
+Built from source and re-run against this project's mapping repros.
+
+### #53 / [#242](https://github.com/ako/mxcli/issues/242) — fixed
+
+`3650d83c fix(rest): infer ForceSingleOccurrence from the mapping root, not the
+call site`. Same suite as #53, on the new binary:
+
+| | Form | Before | Now |
+| --- | --- | --- | --- |
+| A | `import from mapping IMM($Json)` — bare | PASS | PASS |
+| B | `import from mapping IMM($Json) first` | FAIL | FAIL — **by design** |
+| C | `rest call … returns mapping IMM as Entity` | FAIL | ✅ **PASS** |
+| D | `returns string` then bare import | PASS | PASS |
+| E | `returns mapping IMM as list of Entity` | CE0243 | CE0243 — **correct** |
+
+The commit measured all four flag combinations in one boot and found something
+worth keeping: **`ForceSingleOccurrence` alone drives the exception; the range
+flag is innocent** — which is not what reading the code suggests, and not what
+#53 inferred from it. It also declined the obvious blanket fix, because writing
+the flag false unconditionally would strip it from a Studio Pro document that
+legitimately binds one object out of a list-rooted mapping. It is now inferred
+from the mapping's own root.
+
+E stays CE0243 and that is right: an object-rooted mapping has no list to bind,
+and `sdk/microflows/microflows_actions.go:901` already documents CE0243 as the
+consequence of asking for one. B is `first` against an object root, which #192
+deliberately left meaning what it says.
+
+So the token lane the formula1 project worked around is now writable both ways —
+`returns mapping … as Entity` directly, or D.
+
+### #36 and #37 — unchanged, and structurally out of scope
+
+Re-tested on the same binary:
+
+- **#36** — an inline REST response mapping with `"Title" = "fields/Title"` still
+  passes every gate and still lands empty:
+  `expected 'id=12 title=[hello]', actual: id=12 title=[]`.
+- **#37** — a nested inline `body: mapping` still passes check, still executes,
+  and still leaves a project mxbuild cannot load
+  (`Export Object Mappings cannot have ObjectHandling set to 'Create'`).
+
+`sdk/mpr/writer_rest.go` is byte-identical across the batch: `:308` still
+hardcodes `"Create"` for every nested child, `:313` still concatenates
+`ExposedName` without splitting on `/`, and the value element still forces
+`DataTypes$StringType` and `MaxOccurs: 1` — which are #9 and #19.
+
+The reason is visible in the batch itself. The census in
+`docs/11-proposals/PROPOSAL_mapping_coverage.md` classifies 327 mapping
+**documents** (100 of them, 31%, expressible in MDL today) and does not mention
+the inline REST client form at all. Every fix and feature in the batch — `root
+a/b/c`, primitive-array wrappers, grouping nodes, custom object handling, value
+converters, message definitions — lands on the document writer. The inline form
+is a separate serializer that no one is currently measuring, so it will not
+improve as a side effect of this work; #36 and #37 need to be filed on their own
+terms.
+
+Also confirmed on main: `body binary` and MDL-REST02 are both there, so #51's
+"this lane needs a binary newer than main" no longer holds.
