@@ -79,18 +79,18 @@ Use the `-c` flag to run a single MDL command:
 
 | Skill File | When to Read |
 |------------|-------------|
-| `.ai-context/skills/write-microflows.md` | **Before writing any microflow** - syntax, common mistakes, validation checklist |
-| `.ai-context/skills/create-page.md` | **Before creating any page** - widget syntax reference |
-| `.ai-context/skills/alter-page.md` | **Before modifying pages** - ALTER PAGE/SNIPPET SET, INSERT, DROP, REPLACE |
-| `.ai-context/skills/overview-pages.md` | CRUD page patterns (overview + edit) |
-| `.ai-context/skills/master-detail-pages.md` | Master-detail page patterns |
-| `.ai-context/skills/generate-domain-model.md` | Entity, association, enumeration syntax |
-| `.ai-context/skills/organize-project.md` | Folders, MOVE command, project structure |
-| `.ai-context/skills/manage-security.md` | Security roles, GRANT/REVOKE, access control |
-| `.ai-context/skills/manage-navigation.md` | Navigation profiles, menus, home/login pages |
-| `.ai-context/skills/check-syntax.md` | **Pre-flight** validation checklist |
-| `.ai-context/skills/demo-data.md` | **READ for any database/import work** - Mendix ID system, demo data |
-| `.ai-context/skills/test-microflows.md` | **READ for testing** - test annotations, file formats, Docker setup |
+| `.ai-context/skills/write-microflows/SKILL.md` | **Before writing any microflow** - syntax, common mistakes, validation checklist |
+| `.ai-context/skills/create-page/SKILL.md` | **Before creating any page** - widget syntax reference |
+| `.ai-context/skills/alter-page/SKILL.md` | **Before modifying pages** - ALTER PAGE/SNIPPET SET, INSERT, DROP, REPLACE |
+| `.ai-context/skills/overview-pages/SKILL.md` | CRUD page patterns (overview + edit) |
+| `.ai-context/skills/master-detail-pages/SKILL.md` | Master-detail page patterns |
+| `.ai-context/skills/generate-domain-model/SKILL.md` | Entity, association, enumeration syntax |
+| `.ai-context/skills/organize-project/SKILL.md` | Folders, MOVE command, project structure |
+| `.ai-context/skills/manage-security/SKILL.md` | Security roles, GRANT/REVOKE, access control |
+| `.ai-context/skills/manage-navigation/SKILL.md` | Navigation profiles, menus, home/login pages |
+| `.ai-context/skills/check-syntax/SKILL.md` | **Pre-flight** validation checklist |
+| `.ai-context/skills/demo-data/SKILL.md` | **READ for any database/import work** - Mendix ID system, demo data |
+| `.ai-context/skills/test-microflows/SKILL.md` | **READ for testing** - test annotations, file formats, Docker setup |
 
 **Always validate before presenting to user:**
 
@@ -406,6 +406,7 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 |-------|--------|
 | mdl-entities | Entity, attribute, association syntax |
 | write-microflows | **Read first** - Microflow syntax, common mistakes |
+| write-rules | Mendix rules - Boolean/enum microflows callable from a decision |
 | write-oql-queries | OQL query syntax for VIEW entities |
 | create-page | Page and widget syntax |
 | fragments | Reusable widget group syntax |
@@ -433,6 +434,7 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 |-------|--------|
 | database-connections | External database connections (PostgreSQL, Oracle) |
 | rest-client | REST API consumption |
+| mock-rest-apis | Mock an endpoint you control (Prism, forward proxy) |
 | java-actions | Custom Java actions |
 | odata-data-sharing | OData services and external entities |
 
@@ -445,6 +447,7 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 | organize-project | Folders, MOVE command, project structure |
 | project-settings | Project configuration (model, runtime, language) |
 | business-events | Business event services |
+| translations | Localise user-visible strings (DESCRIBE/CREATE TRANSLATIONS) |
 
 ### Infrastructure
 

@@ -1675,3 +1675,41 @@ terms.
 
 Also confirmed on main: `body binary` and MDL-REST02 are both there, so #51's
 "this lane needs a binary newer than main" no longer holds.
+
+## 55. The skill sync on this batch changes the layout, and #52 shipped
+
+`mxcli init --sync-skills .` on `nightly-132-g23cc8278` refreshed 87 files across
+68 skills and **retired 65** — the flat `<name>.md` files are replaced by
+`<name>/SKILL.md`, some with a `reference/` subdirectory. Nothing was lost in the
+split: `write-microflows.md` went 1836 → 636 lines, but with its four
+`reference/*.md` files it totals 2027.
+
+The layout change breaks every path in this repo's own docs. `CLAUDE.md` and
+`AGENTS.md` (an exact copy) between them held 24 links of the form
+`.ai-context/skills/write-microflows.md`, all now dangling. Rewritten to
+`<name>/SKILL.md` and verified to resolve.
+
+`--sync-skills` is still safe for the bootstrap script — `cmd/mxcli/init.go:143`
+still returns before the hook write, and the file's md5 was unchanged across the
+run. #1's warning still applies to a **bare** `init` only.
+
+### #52 shipped as `mock-rest-apis`
+
+The gap recorded in #52 — no bundled skill covering how to stand up an endpoint
+you control — is closed, and the new skill carries the specific things that cost
+this project time: that Prism is not an interceptor ("a category error"),
+`Prefer: code=404`, the 41 MB Graph spec Prism never finished loading, the
+`http.nonProxyHosts` fact that makes loopback work inside a proxied container,
+and the WireMock 3.13.2 / Java 21 CA caveat with mitmproxy as the way out.
+
+Three other skills are new: `write-rules` (Mendix rules — Boolean/enum
+microflows callable from a decision, *not* lint rules), `translations`, and the
+`widgets/` reference tree. All three added to the tables in `CLAUDE.md`.
+
+### Still undocumented
+
+`rest-client/SKILL.md` now explains the inline `response: mapping Entity { … }`
+form well, including the new MDL-REST01 refusal of a mapping-document name. It
+says nothing about #36 (a multi-segment path in that block silently yields
+empty) or #37 (a nested `body: mapping` makes the `.mpr` unloadable) — the two
+traps a reader of that section is most likely to walk into.
