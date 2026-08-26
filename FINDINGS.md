@@ -1714,7 +1714,7 @@ says nothing about #36 (a multi-segment path in that block silently yields
 empty) or #37 (a nested `body: mapping` makes the `.mpr` unloadable) — the two
 traps a reader of that section is most likely to walk into.
 
-## 56. `nightly-166-g600a1882` (PR 304 + main): #36, #37 and #16 are all fixed
+## 56. `nightly-167-g00443a90` (main, PR 304 merged): #36, #37 and #16 are all fixed
 
 One commit — `db9ee430 fix(rest): correct the inline REST mapping paths, export
 handling, and the REST call's parameter-mapping type` — closes the three defects
@@ -1722,7 +1722,10 @@ this project had left open, and its message credits FINDINGS #36 and #37 as the
 report. The third it found while verifying the first, and it is **#16**, the
 oldest critical one here.
 
-PR 304 itself is layouts, not mappings; it merges main, so one build covers both.
+PR 304 itself is layouts, not mappings. It was verified first at its own head
+`600a1882`, then re-run against the remote HEAD `00443a90` once it merged —
+identical trees (`git diff --stat 600a1882 00443a90` is empty), separate builds,
+same results both times.
 
 ### Verified at runtime
 
