@@ -1713,3 +1713,83 @@ form well, including the new MDL-REST01 refusal of a mapping-document name. It
 says nothing about #36 (a multi-segment path in that block silently yields
 empty) or #37 (a nested `body: mapping` makes the `.mpr` unloadable) — the two
 traps a reader of that section is most likely to walk into.
+
+## 56. `nightly-166-g600a1882` (PR 304 + main): #36, #37 and #16 are all fixed
+
+One commit — `db9ee430 fix(rest): correct the inline REST mapping paths, export
+handling, and the REST call's parameter-mapping type` — closes the three defects
+this project had left open, and its message credits FINDINGS #36 and #37 as the
+report. The third it found while verifying the first, and it is **#16**, the
+oldest critical one here.
+
+PR 304 itself is layouts, not mappings; it merges main, so one build covers both.
+
+### Verified at runtime
+
+`mx check` **0 errors on a project holding all three shapes at once** — the
+nested export body and the path-parameter call together, either of which used to
+make the `.mpr` unopenable.
+
+| | Repro | Before | Now |
+| --- | --- | --- | --- |
+| #36 | inline mapping, `"Title" = "fields/Title"` | `title=[]` | ✅ `id=12 title=[hello]` |
+| #37 | nested inline `body: mapping` | `.mpr` unloadable | ✅ loads, 0 errors |
+| #16 | `send rest request … with ($objectId = '7')` | `.mpr` unloadable | ✅ real call, 1.0s |
+| #53 | `returns mapping … as Entity` | — | ✅ still passing |
+| A, D | bare `import from mapping` | — | ✅ still passing |
+
+The fixes are what the report asked for: the member is stored as
+`(Object)|fields|Title`, nested **export** children are now Find/Error instead of
+the illegal `Create`, and path parameters write
+`Microflows$RestOperationParameterMapping` — the type that exists.
+
+`describe` was fixed in the same motion and now annotates the stored path, which
+makes the pipe form visible without decoding BSON:
+
+```sql
+Response: mapping MapProbe.SPFlat {
+  "SPItemId" = "id",           -- (Object)|id
+  "Title" = "fields/Title",    -- (Object)|fields|Title
+}
+```
+
+### What this unblocks here
+
+Two workarounds in this repo are now unnecessary:
+
+- `11-sharepoint-lane.mdl` bakes the site and list into every path because a path
+  parameter corrupted the `.mpr` (#16), and has **no write operation at all**
+  because a nested export body did (#37). Both constraints are gone: the lane can
+  take real `/sites/{siteId}/lists/{listId}/items` paths and gain the POST it was
+  written around.
+- Anywhere a nested response value was flattened to dodge #36 can use the natural
+  `a/b` member.
+
+Not done in this commit — it is a lane rewrite, not a verification.
+
+### PR 304: layouts
+
+`describe layout` → rename → `exec` really is the copy operation, and the losses
+are declared rather than silent. Copying `Atlas_Core.Atlas_Default` into a module
+we own emitted the warning in the output itself:
+
+```
+-- Forms$SidebarToggleButton (sidebarToggle3)  -- NOT re-executable: mxcli cannot
+   author this widget, so re-running this script would drop it
+```
+
+and the copy then reproduced the documented image caveat exactly: CE0463 →
+`mxcli fix widgets` → "No image selected." The skill says both will happen. They
+did.
+
+### The stale-binary trap
+
+`.claude/bootstrap-mxcli.sh` rebuilds only `if [ ! -x ./mxcli ]`, so a project
+binary never ages out — and the SessionStart hook then runs
+`init --sync-skills` with it. This session started with `nightly-123` still in
+place, which **re-created all 65 flat skill files** #55 had retired, on top of
+the new `<name>/SKILL.md` tree. Upgrading `./mxcli` and re-syncing cleared them
+again.
+
+So after any upstream verification, replace `./mxcli` rather than leaving the new
+build beside it, or the next session start silently reverts the skills.

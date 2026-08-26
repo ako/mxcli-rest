@@ -409,6 +409,7 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 | write-rules | Mendix rules - Boolean/enum microflows callable from a decision |
 | write-oql-queries | OQL query syntax for VIEW entities |
 | create-page | Page and widget syntax |
+| write-layouts | CREATE/ALTER LAYOUT - the frame a page renders inside |
 | fragments | Reusable widget group syntax |
 
 ### Patterns
