@@ -1796,3 +1796,54 @@ again.
 
 So after any upstream verification, replace `./mxcli` rather than leaving the new
 build beside it, or the next session start silently reverts the skills.
+
+## 57. `nightly-212-gc5fb9ecb`: no regressions, and the fixes hold
+
+45 commits since `00443a90`, mostly mapping documents, JSON structures, describe
+round-trips, navigation profiles and Java-version handling. **Nothing in the
+batch touches the inline REST serializer** (`sdk/mpr/writer_rest.go`,
+`mdl/executor/cmd_rest_clients.go` — no commits), so this round was a regression
+check rather than a new verification.
+
+Everything #56 established still holds, re-run on the new build:
+
+| | Repro | Result |
+| --- | --- | --- |
+| #36 | inline mapping, `"Title" = "fields/Title"` | ✅ `id=12 title=[hello]` |
+| #16 | `send rest request … with ($objectId = '7')` | ✅ real call, 710ms |
+| #37 | nested inline `body: mapping` | ✅ `mx check` 0 errors |
+| #53 | `returns mapping … as Entity` | ✅ |
+| A, D | bare `import from mapping` | ✅ |
+
+5/5, and `mx check` again reports **0 errors on a project holding the nested
+export body and the path-parameter call at once**.
+
+### The part worth checking: the project's own mapping documents were rewritten
+
+Three commits in this batch change how JSON structures and mapping documents are
+written — `300912ba fix(json): sanitise exposed names, and give the structure
+root MinOccurs 1`, `118c21af fix(mappings): resolve a mapping's schema source
+instead of writing it through`, `1a9e2917 fix(mappings): mirror the schema facets
+on export`. Re-running `09-transformer-lane.mdl` reported
+
+```
+Modified json structure: RestLab.JSON_Rates
+Modified import mapping RestLab.IMM_Rates
+```
+
+— i.e. the same MDL now produces different BSON. Three `.mxunit` files changed,
+each the same size as before, so this is a shape change and exactly the kind of
+thing that could silently break an import that every static gate still passes.
+
+It does not. The rates lane — inline `REST CALL` → JSLT transform → import
+mapping document → repeating element — still imports the full set at runtime
+(asserted `> 20` currency rows through the test endpoint, against
+frankfurter.dev). The rewritten units are committed.
+
+`describe` → `check` round-trips cleanly for `IMM_Rates`, `JSON_Rates` and
+`SharePointApi`, which is what `4f4088c7 fix(mappings): make DESCRIBE emit MDL
+its own grammar accepts` claims.
+
+Two skills changed with the binary (`check-syntax`, `manage-navigation`),
+re-synced. `./mxcli` promoted to this build — see #56 on why leaving the new one
+beside a stale `./mxcli` reverts the skills at the next session start.
