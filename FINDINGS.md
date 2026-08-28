@@ -1847,3 +1847,64 @@ its own grammar accepts` claims.
 Two skills changed with the binary (`check-syntax`, `manage-navigation`),
 re-synced. `./mxcli` promoted to this build — see #56 on why leaving the new one
 beside a stale `./mxcli` reverts the skills at the next session start.
+
+## 58. `nightly-231-g8321ea06` (main + PR 325 + PR 326): a fourth unloadable-`.mpr` class, now refused
+
+PR 325 (one commit, mapping XML schema sources) and PR 326 (six commits: check
+refusals, page typing, validation feedback, DROP in a folder, EXTENDS validation,
+System tables) are independent branches off main. Merged onto main locally and
+built as one tree, because that union is what lands; the merge was clean.
+
+### Regression pass: nothing broke
+
+- **All 13 `mdlsource/*.mdl` scripts still pass `check --references`.** This was
+  the real risk — PR 326 adds *new refusals*, and a stricter checker is exactly
+  the thing that starts rejecting a corpus that was fine yesterday. None of ours.
+- The standing suite is 5/5 (#36, #16, #37 via `mx check`, #53, A/D), `mx check`
+  0 errors with the nested export body and the path-parameter call both present.
+- The rates lane still imports its full set at runtime. Better than last time:
+  `09-transformer-lane.mdl` now reports **`Unchanged`** for the transformer, JSON
+  structure, import mapping and microflow, where #57's batch rewrote three of
+  them. The mapping-document write has settled.
+
+### The find: MDL008, and it is our own recurring bug class
+
+`1d009569 fix(check): refuse a bare entity reference in a microflow body`. An
+entity named without its module prefix:
+
+```sql
+$T = create "CallLog" ("Method" = 'GET');   -- no module
+```
+
+**Before** (`nightly-212`, the binary this project was on): `Check passed!`,
+`exec` succeeds, and then the project cannot be opened —
+
+```
+ERROR: Mendix.Modeler.Storage.StorageLoadException: One or more invalid values
+  were detected while loading the project:
+   - Change in  has an invalid value '' for property Attribute.
+     The text 'Method' is not a valid AttributeIdentifier.
+```
+
+Verified here by running it: the activity has no Entity key, so the member
+assignments go to disk as bare words. **After**: refused at check time, with a
+message that explains the mechanism rather than naming a rule number —
+
+```
+✗ create: entity 'CallLog' is missing its module prefix — MDL has no implicit
+  module context, and an unqualified name is written as no reference at all,
+  which Mendix cannot load  [MDL008]
+```
+
+That is the same failure shape as #16, #37 and the `body: file` one: every static
+gate green, project unopenable, no error list. Four now, all closed by a
+check-time refusal. The pattern is worth stating plainly — **when mxcli cannot
+write a valid document, the fix that helps is refusing the input, not writing it
+and hoping.** MDL-REST02, MDL-REST01 and MDL008 are all that shape.
+
+`553f73c8 fix(check): validate an entity's EXTENDS target` is the same story
+smaller: `extends RestLab.NoSuchParent` was accepted before and is a reference
+error now.
+
+Two skills gained content with the binary and one is new (`record-narrated-demo`,
+added to the tables); `./mxcli` promoted to this build.

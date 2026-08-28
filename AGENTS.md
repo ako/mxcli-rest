@@ -467,6 +467,7 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 |-------|--------|
 | test-app | Playwright UI tests + DB assertions |
 | test-microflows | Microflow unit testing (.test.mdl files) |
+| record-narrated-demo | Record a narrated walkthrough of the running app |
 | write-lint-rules | Custom Starlark lint rule authoring |
 | assess-quality | **Full project quality assessment** against best practices |
 
