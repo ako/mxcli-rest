@@ -1908,3 +1908,64 @@ error now.
 
 Two skills gained content with the binary and one is new (`record-narrated-demo`,
 added to the tables); `./mxcli` promoted to this build.
+
+## 59. `nightly-486-g41c55d09`: 264 commits, nothing broken, and two things worth adopting
+
+The largest batch yet — PRs 325 and 326 landed (#58 verified them pre-merge) and
+264 commits followed. Most of it is elsewhere in the tool: pages, navigation,
+OQL checks, workflows, a project knowledge store. Investigated for what reaches
+this project.
+
+### Regression pass: clean
+
+- **All 13 `mdlsource/*.mdl` still pass**, with **one** new warning across the
+  whole corpus, and it is a good one:
+
+  ```
+  ⚠ attribute 'Year' is an OQL reserved word — valid Mendix, but a view entity
+    referencing it unquoted fails to build with CE0174  [MDL071]
+      at RestLab.RestObjectData
+  ```
+
+  It goes on to say the fix is usually to quote it in the view's OQL rather than
+  rename, and names the one case where renaming is required (a view entity's own
+  attribute, whose name is its select alias). No view here uses it, so nothing to
+  do — but that is a warning that explains rather than nags.
+- Standing suite 5/5; `mx check` 0 errors with the nested export body and the
+  path-parameter call both present; MDL008 still refuses the unqualified `create`.
+- Rates lane still imports at runtime, and `09-transformer-lane.mdl` reports
+  **`Unchanged`** for all four documents — second batch running, so the mapping
+  writer has genuinely settled rather than having had a quiet interval.
+- `mxcli lint` is **identical** old to new: 276 issues, 0 errors, same rule
+  distribution. No new rule fires on this project.
+
+### `mxcli brain` — a knowledge store, and this file is its use case
+
+`feat(brain)` adds `mxcli brain`: decisions and requirements *"mxcli cannot
+compute"*, in `docs/brain/`, sharded by anchor. Its framing is the interesting
+part, and it is the rule FINDINGS.md has been following by instinct:
+
+> Anything mxcli CAN answer does not belong here — entities, microflows, pages,
+> bindings and references are all queryable, and a note that transcribes them is
+> a note that will disagree with the project.
+
+The mechanism worth stealing even if we never adopt the command: **a decision's
+anchor points backward at what exists, so one that stops resolving means the
+decision is stale and `brain check` fails.** This file has no such property —
+every finding here is prose, and the ones about fixed defects (#16, #36, #37,
+#43, #53) only stopped being true because someone re-ran them. `capture` /
+`promote` also separates what an agent notices from what a person commits, which
+is roughly what has been happening manually in this session.
+
+Not adopted: it would mean splitting FINDINGS.md across `docs/brain/` shards, and
+most entries here are upstream defect reports rather than project decisions —
+the wrong shape for the store. Worth revisiting if this repo ever grows real
+architectural decisions.
+
+### Also new here
+
+`upgrade-mendix-version` (headless version moves, "the two green false successes
+that upgrade nothing"), a generated `widgets/SKILL.md` for this project's own 42
+widgets, and two mapping references — `mapping-root-selection.md` and
+`message-definitions.md`. 23 skill files refreshed, both new skills added to the
+tables.

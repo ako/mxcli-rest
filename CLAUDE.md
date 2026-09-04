@@ -446,6 +446,8 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 | manage-security | Security roles, GRANT/REVOKE, access control |
 | manage-navigation | Navigation profiles, menus, home/login pages |
 | organize-project | Folders, MOVE command, project structure |
+| project-brain | Decisions and requirements mxcli cannot compute (`mxcli brain`) |
+| upgrade-mendix-version | Move a project to a newer Mendix version headlessly |
 | project-settings | Project configuration (model, runtime, language) |
 | business-events | Business event services |
 | translations | Localise user-visible strings (DESCRIBE/CREATE TRANSLATIONS) |
