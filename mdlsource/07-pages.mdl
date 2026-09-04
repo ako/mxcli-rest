@@ -180,6 +180,19 @@ create or replace page RestLab."Home_Web"
         }
       }
     }
+    row rowPub {
+      column colPub (desktopwidth: 12) {
+        container cPub (class: 'card') {
+          container cdtPubTitle { dynamictext dtPubTitle (Content: 'Message definition export - httpbingo.org', class: 'h4') }
+          container cdtPubBody (class: 'mx-spacing-bottom-medium') { dynamictext dtPubBody (Content: 'The only lane that EXPORTS, and the only contract taken FROM the domain model rather than matched against it. A message definition selects entities, attributes and associations; the export mapping binds to that and turns a rate snapshot into JSON. Fetch rates first, then publish - the call log row shows the generated JSON beside httpbingo echo of what was actually sent.') }
+          actionbutton btnPub (
+            caption: 'Publish rate snapshots',
+            action: microflow RestLab."ACT_Demo_PublishSnapshot",
+            buttonstyle: primary
+          )
+        }
+      }
+    }
   }
 
   container cLog (class: 'mx-spacing-top-large') {

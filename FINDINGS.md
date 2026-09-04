@@ -1506,3 +1506,569 @@ not in Prism's or WireMock's front-page docs:
   with no model change. Verified against `api.frankfurter.dev`. The catch is
   `https://`: the proxy needs a CA the JVM trusts, and WireMock 3.13.2 on Java 21
   cannot generate one — use mitmproxy or supply a keystore.
+
+## 53. `rest call … returns mapping … as Entity` still has #192's defect
+
+**Impact: high** — it builds clean and throws at runtime, and it is the obvious
+way to write the thing.
+
+`ako/mxcli-formula1` §59 reported an import mapping that "cannot be written from
+MDL": a flat, object-rooted, three-string-field token response answered with
+
+```
+com.mendix.modules.microflowengine.MicroflowException: key not found: Path(QName(None,),None,)
+	at Formula1Backend.Sync_EnsureToken (CallRest : 'Call REST (POST)')
+```
+
+That is the same exception this project recorded as #23 and saw fixed by #192.
+Its MDL is not the problem — it is idiomatic, and close to what works here.
+**The mapping document is fine; the activity is not, and the two ways of
+invoking it that were tried happen to share the same broken shape.**
+
+### Reproduced here, on `d4998ac` (which contains #192)
+
+The formula1 shapes, rebuilt verbatim in a scratch module and run through
+`mxcli test --local`. `mx check` reports 0 errors throughout, except E:
+
+| | Form | Result |
+| --- | --- | --- |
+| A | `import from mapping IMM($Json)` — bare | **PASS** |
+| B | `import from mapping IMM($Json) first` | **FAIL** — `Path(QName(None,),None,)` |
+| C | `rest call … returns mapping IMM as Entity` | **FAIL** — same exception |
+| D | `rest call … returns string` then bare `import from mapping` | **PASS** |
+| E | `rest call … returns mapping IMM as list of Entity` | **CE0243** at build |
+
+The C failure, logged from a real boot, is identical to the formula1 report down
+to the frame:
+
+```
+	at MapProbe.ACT_C_RestMapping (CallRest : 'Call REST (GET)')
+Caused by: java.util.NoSuchElementException: key not found: Path(QName(None,),None,)
+	at com.mendix.integration.importer.mapping.MappingCache.storeValueMappingElement(MappingCache.scala:73)
+```
+
+### Why B and C fail together, and why that misleads
+
+#192's fix note is explicit: Studio Pro writes **both** `ForceSingleOccurrence`
+and `ConstantRange.SingleObject` **false** for a plain single-object import and
+expresses "one object" through `VariableType=ObjectType` alone. Both flags true
+is Studio Pro's *First* — "take one of a list" — which on an object-rooted
+mapping is what throws. The fix changed only the bare `import from mapping`
+form; `first` keeps First semantics **by design**.
+
+The REST-call path was not touched and still mirrors the old inference —
+`cmd_microflows_builder_calls.go:1246`:
+
+```go
+singleObject := !s.Result.IsList
+fso := singleObject                 // both true for `as Entity`
+```
+
+So `returns mapping … as Entity` writes exactly the shape #192 identified as
+wrong. B and C fail for one reason, not two.
+
+This is why formula1's isolation read the wrong way. Their confirming probe was
+`import from mapping IMM($Raw) FIRST`, and `first` is the one spelling the fix
+deliberately left alone — so "two ways of invoking it, one failure" reproduced
+the same defect twice rather than clearing the mapping. Dropping the `FIRST`
+keyword would have passed. Worth remembering when isolating: two routes are
+independent evidence only if they do not share the code you are trying to rule
+out.
+
+### E is not a workaround
+
+`as list of Entity` sets both flags false — the shape that works — but `mx check`
+then rejects the activity, because the mapping's root is an object:
+
+```
+[error] [CE0243] "The mapping used to return a value of type 'List of MapProbe.Stg_Token',
+        but now returns a value of type 'MapProbe.Stg_Token'…" at Call REST service activity
+```
+
+Which leaves, today, **no working `returns mapping` form for an object-rooted
+mapping**: single throws at runtime, list fails the build.
+
+### What to do instead
+
+D — the shape this project already recommends for collections, and equally the
+answer for a single object:
+
+```sql
+$Raw = rest call post '…' … returns string;
+$Tok = import from mapping M.IMM_Token($Raw);     -- no range keyword
+```
+
+For formula1 that is a three-line change and it removes the reason for routing a
+bearer token through DuckDB. The `from_json` workaround is sound and costs
+nothing extra in exposure, as their note argues — but it is a workaround, not the
+only option.
+
+### For mxcli
+
+Filed as [ako/mxcli#242](https://github.com/ako/mxcli/issues/242). One fix, the
+sibling of #192: the REST-call builder should write both pointers
+false for a non-list mapping result, exactly as `addImportFromMappingAction` now
+does. The fix's own lesson applies again — there was no runtime coverage of
+import mappings, and the REST-call route still has none, which is why a fix that
+named the right cause left the sibling path broken.
+
+## 54. `nightly-132-g23cc8278`: #53 is fixed, and the inline REST mapping is untouched
+
+A large mapping batch landed on `ako/mxcli` main — 126 commits since `6485db62`,
+including PR #290's twelve mapping commits and a census of 327 real mappings.
+Built from source and re-run against this project's mapping repros.
+
+### #53 / [#242](https://github.com/ako/mxcli/issues/242) — fixed
+
+`3650d83c fix(rest): infer ForceSingleOccurrence from the mapping root, not the
+call site`. Same suite as #53, on the new binary:
+
+| | Form | Before | Now |
+| --- | --- | --- | --- |
+| A | `import from mapping IMM($Json)` — bare | PASS | PASS |
+| B | `import from mapping IMM($Json) first` | FAIL | FAIL — **by design** |
+| C | `rest call … returns mapping IMM as Entity` | FAIL | ✅ **PASS** |
+| D | `returns string` then bare import | PASS | PASS |
+| E | `returns mapping IMM as list of Entity` | CE0243 | CE0243 — **correct** |
+
+The commit measured all four flag combinations in one boot and found something
+worth keeping: **`ForceSingleOccurrence` alone drives the exception; the range
+flag is innocent** — which is not what reading the code suggests, and not what
+#53 inferred from it. It also declined the obvious blanket fix, because writing
+the flag false unconditionally would strip it from a Studio Pro document that
+legitimately binds one object out of a list-rooted mapping. It is now inferred
+from the mapping's own root.
+
+E stays CE0243 and that is right: an object-rooted mapping has no list to bind,
+and `sdk/microflows/microflows_actions.go:901` already documents CE0243 as the
+consequence of asking for one. B is `first` against an object root, which #192
+deliberately left meaning what it says.
+
+So the token lane the formula1 project worked around is now writable both ways —
+`returns mapping … as Entity` directly, or D.
+
+### #36 and #37 — unchanged, and structurally out of scope
+
+Re-tested on the same binary:
+
+- **#36** — an inline REST response mapping with `"Title" = "fields/Title"` still
+  passes every gate and still lands empty:
+  `expected 'id=12 title=[hello]', actual: id=12 title=[]`.
+- **#37** — a nested inline `body: mapping` still passes check, still executes,
+  and still leaves a project mxbuild cannot load
+  (`Export Object Mappings cannot have ObjectHandling set to 'Create'`).
+
+`sdk/mpr/writer_rest.go` is byte-identical across the batch: `:308` still
+hardcodes `"Create"` for every nested child, `:313` still concatenates
+`ExposedName` without splitting on `/`, and the value element still forces
+`DataTypes$StringType` and `MaxOccurs: 1` — which are #9 and #19.
+
+The reason is visible in the batch itself. The census in
+`docs/11-proposals/PROPOSAL_mapping_coverage.md` classifies 327 mapping
+**documents** (100 of them, 31%, expressible in MDL today) and does not mention
+the inline REST client form at all. Every fix and feature in the batch — `root
+a/b/c`, primitive-array wrappers, grouping nodes, custom object handling, value
+converters, message definitions — lands on the document writer. The inline form
+is a separate serializer that no one is currently measuring, so it will not
+improve as a side effect of this work; #36 and #37 need to be filed on their own
+terms.
+
+Also confirmed on main: `body binary` and MDL-REST02 are both there, so #51's
+"this lane needs a binary newer than main" no longer holds.
+
+## 55. The skill sync on this batch changes the layout, and #52 shipped
+
+`mxcli init --sync-skills .` on `nightly-132-g23cc8278` refreshed 87 files across
+68 skills and **retired 65** — the flat `<name>.md` files are replaced by
+`<name>/SKILL.md`, some with a `reference/` subdirectory. Nothing was lost in the
+split: `write-microflows.md` went 1836 → 636 lines, but with its four
+`reference/*.md` files it totals 2027.
+
+The layout change breaks every path in this repo's own docs. `CLAUDE.md` and
+`AGENTS.md` (an exact copy) between them held 24 links of the form
+`.ai-context/skills/write-microflows.md`, all now dangling. Rewritten to
+`<name>/SKILL.md` and verified to resolve.
+
+`--sync-skills` is still safe for the bootstrap script — `cmd/mxcli/init.go:143`
+still returns before the hook write, and the file's md5 was unchanged across the
+run. #1's warning still applies to a **bare** `init` only.
+
+### #52 shipped as `mock-rest-apis`
+
+The gap recorded in #52 — no bundled skill covering how to stand up an endpoint
+you control — is closed, and the new skill carries the specific things that cost
+this project time: that Prism is not an interceptor ("a category error"),
+`Prefer: code=404`, the 41 MB Graph spec Prism never finished loading, the
+`http.nonProxyHosts` fact that makes loopback work inside a proxied container,
+and the WireMock 3.13.2 / Java 21 CA caveat with mitmproxy as the way out.
+
+Three other skills are new: `write-rules` (Mendix rules — Boolean/enum
+microflows callable from a decision, *not* lint rules), `translations`, and the
+`widgets/` reference tree. All three added to the tables in `CLAUDE.md`.
+
+### Still undocumented
+
+`rest-client/SKILL.md` now explains the inline `response: mapping Entity { … }`
+form well, including the new MDL-REST01 refusal of a mapping-document name. It
+says nothing about #36 (a multi-segment path in that block silently yields
+empty) or #37 (a nested `body: mapping` makes the `.mpr` unloadable) — the two
+traps a reader of that section is most likely to walk into.
+
+## 56. `nightly-167-g00443a90` (main, PR 304 merged): #36, #37 and #16 are all fixed
+
+One commit — `db9ee430 fix(rest): correct the inline REST mapping paths, export
+handling, and the REST call's parameter-mapping type` — closes the three defects
+this project had left open, and its message credits FINDINGS #36 and #37 as the
+report. The third it found while verifying the first, and it is **#16**, the
+oldest critical one here.
+
+PR 304 itself is layouts, not mappings. It was verified first at its own head
+`600a1882`, then re-run against the remote HEAD `00443a90` once it merged —
+identical trees (`git diff --stat 600a1882 00443a90` is empty), separate builds,
+same results both times.
+
+### Verified at runtime
+
+`mx check` **0 errors on a project holding all three shapes at once** — the
+nested export body and the path-parameter call together, either of which used to
+make the `.mpr` unopenable.
+
+| | Repro | Before | Now |
+| --- | --- | --- | --- |
+| #36 | inline mapping, `"Title" = "fields/Title"` | `title=[]` | ✅ `id=12 title=[hello]` |
+| #37 | nested inline `body: mapping` | `.mpr` unloadable | ✅ loads, 0 errors |
+| #16 | `send rest request … with ($objectId = '7')` | `.mpr` unloadable | ✅ real call, 1.0s |
+| #53 | `returns mapping … as Entity` | — | ✅ still passing |
+| A, D | bare `import from mapping` | — | ✅ still passing |
+
+The fixes are what the report asked for: the member is stored as
+`(Object)|fields|Title`, nested **export** children are now Find/Error instead of
+the illegal `Create`, and path parameters write
+`Microflows$RestOperationParameterMapping` — the type that exists.
+
+`describe` was fixed in the same motion and now annotates the stored path, which
+makes the pipe form visible without decoding BSON:
+
+```sql
+Response: mapping MapProbe.SPFlat {
+  "SPItemId" = "id",           -- (Object)|id
+  "Title" = "fields/Title",    -- (Object)|fields|Title
+}
+```
+
+### What this unblocks here
+
+Two workarounds in this repo are now unnecessary:
+
+- `11-sharepoint-lane.mdl` bakes the site and list into every path because a path
+  parameter corrupted the `.mpr` (#16), and has **no write operation at all**
+  because a nested export body did (#37). Both constraints are gone: the lane can
+  take real `/sites/{siteId}/lists/{listId}/items` paths and gain the POST it was
+  written around.
+- Anywhere a nested response value was flattened to dodge #36 can use the natural
+  `a/b` member.
+
+Not done in this commit — it is a lane rewrite, not a verification.
+
+### PR 304: layouts
+
+`describe layout` → rename → `exec` really is the copy operation, and the losses
+are declared rather than silent. Copying `Atlas_Core.Atlas_Default` into a module
+we own emitted the warning in the output itself:
+
+```
+-- Forms$SidebarToggleButton (sidebarToggle3)  -- NOT re-executable: mxcli cannot
+   author this widget, so re-running this script would drop it
+```
+
+and the copy then reproduced the documented image caveat exactly: CE0463 →
+`mxcli fix widgets` → "No image selected." The skill says both will happen. They
+did.
+
+### The stale-binary trap
+
+`.claude/bootstrap-mxcli.sh` rebuilds only `if [ ! -x ./mxcli ]`, so a project
+binary never ages out — and the SessionStart hook then runs
+`init --sync-skills` with it. This session started with `nightly-123` still in
+place, which **re-created all 65 flat skill files** #55 had retired, on top of
+the new `<name>/SKILL.md` tree. Upgrading `./mxcli` and re-syncing cleared them
+again.
+
+So after any upstream verification, replace `./mxcli` rather than leaving the new
+build beside it, or the next session start silently reverts the skills.
+
+## 57. `nightly-212-gc5fb9ecb`: no regressions, and the fixes hold
+
+45 commits since `00443a90`, mostly mapping documents, JSON structures, describe
+round-trips, navigation profiles and Java-version handling. **Nothing in the
+batch touches the inline REST serializer** (`sdk/mpr/writer_rest.go`,
+`mdl/executor/cmd_rest_clients.go` — no commits), so this round was a regression
+check rather than a new verification.
+
+Everything #56 established still holds, re-run on the new build:
+
+| | Repro | Result |
+| --- | --- | --- |
+| #36 | inline mapping, `"Title" = "fields/Title"` | ✅ `id=12 title=[hello]` |
+| #16 | `send rest request … with ($objectId = '7')` | ✅ real call, 710ms |
+| #37 | nested inline `body: mapping` | ✅ `mx check` 0 errors |
+| #53 | `returns mapping … as Entity` | ✅ |
+| A, D | bare `import from mapping` | ✅ |
+
+5/5, and `mx check` again reports **0 errors on a project holding the nested
+export body and the path-parameter call at once**.
+
+### The part worth checking: the project's own mapping documents were rewritten
+
+Three commits in this batch change how JSON structures and mapping documents are
+written — `300912ba fix(json): sanitise exposed names, and give the structure
+root MinOccurs 1`, `118c21af fix(mappings): resolve a mapping's schema source
+instead of writing it through`, `1a9e2917 fix(mappings): mirror the schema facets
+on export`. Re-running `09-transformer-lane.mdl` reported
+
+```
+Modified json structure: RestLab.JSON_Rates
+Modified import mapping RestLab.IMM_Rates
+```
+
+— i.e. the same MDL now produces different BSON. Three `.mxunit` files changed,
+each the same size as before, so this is a shape change and exactly the kind of
+thing that could silently break an import that every static gate still passes.
+
+It does not. The rates lane — inline `REST CALL` → JSLT transform → import
+mapping document → repeating element — still imports the full set at runtime
+(asserted `> 20` currency rows through the test endpoint, against
+frankfurter.dev). The rewritten units are committed.
+
+`describe` → `check` round-trips cleanly for `IMM_Rates`, `JSON_Rates` and
+`SharePointApi`, which is what `4f4088c7 fix(mappings): make DESCRIBE emit MDL
+its own grammar accepts` claims.
+
+Two skills changed with the binary (`check-syntax`, `manage-navigation`),
+re-synced. `./mxcli` promoted to this build — see #56 on why leaving the new one
+beside a stale `./mxcli` reverts the skills at the next session start.
+
+## 58. `nightly-231-g8321ea06` (main + PR 325 + PR 326): a fourth unloadable-`.mpr` class, now refused
+
+PR 325 (one commit, mapping XML schema sources) and PR 326 (six commits: check
+refusals, page typing, validation feedback, DROP in a folder, EXTENDS validation,
+System tables) are independent branches off main. Merged onto main locally and
+built as one tree, because that union is what lands; the merge was clean.
+
+### Regression pass: nothing broke
+
+- **All 13 `mdlsource/*.mdl` scripts still pass `check --references`.** This was
+  the real risk — PR 326 adds *new refusals*, and a stricter checker is exactly
+  the thing that starts rejecting a corpus that was fine yesterday. None of ours.
+- The standing suite is 5/5 (#36, #16, #37 via `mx check`, #53, A/D), `mx check`
+  0 errors with the nested export body and the path-parameter call both present.
+- The rates lane still imports its full set at runtime. Better than last time:
+  `09-transformer-lane.mdl` now reports **`Unchanged`** for the transformer, JSON
+  structure, import mapping and microflow, where #57's batch rewrote three of
+  them. The mapping-document write has settled.
+
+### The find: MDL008, and it is our own recurring bug class
+
+`1d009569 fix(check): refuse a bare entity reference in a microflow body`. An
+entity named without its module prefix:
+
+```sql
+$T = create "CallLog" ("Method" = 'GET');   -- no module
+```
+
+**Before** (`nightly-212`, the binary this project was on): `Check passed!`,
+`exec` succeeds, and then the project cannot be opened —
+
+```
+ERROR: Mendix.Modeler.Storage.StorageLoadException: One or more invalid values
+  were detected while loading the project:
+   - Change in  has an invalid value '' for property Attribute.
+     The text 'Method' is not a valid AttributeIdentifier.
+```
+
+Verified here by running it: the activity has no Entity key, so the member
+assignments go to disk as bare words. **After**: refused at check time, with a
+message that explains the mechanism rather than naming a rule number —
+
+```
+✗ create: entity 'CallLog' is missing its module prefix — MDL has no implicit
+  module context, and an unqualified name is written as no reference at all,
+  which Mendix cannot load  [MDL008]
+```
+
+That is the same failure shape as #16, #37 and the `body: file` one: every static
+gate green, project unopenable, no error list. Four now, all closed by a
+check-time refusal. The pattern is worth stating plainly — **when mxcli cannot
+write a valid document, the fix that helps is refusing the input, not writing it
+and hoping.** MDL-REST02, MDL-REST01 and MDL008 are all that shape.
+
+`553f73c8 fix(check): validate an entity's EXTENDS target` is the same story
+smaller: `extends RestLab.NoSuchParent` was accepted before and is a reference
+error now.
+
+Two skills gained content with the binary and one is new (`record-narrated-demo`,
+added to the tables); `./mxcli` promoted to this build.
+
+## 59. `nightly-486-g41c55d09`: 264 commits, nothing broken, and two things worth adopting
+
+The largest batch yet — PRs 325 and 326 landed (#58 verified them pre-merge) and
+264 commits followed. Most of it is elsewhere in the tool: pages, navigation,
+OQL checks, workflows, a project knowledge store. Investigated for what reaches
+this project.
+
+### Regression pass: clean
+
+- **All 13 `mdlsource/*.mdl` still pass**, with **one** new warning across the
+  whole corpus, and it is a good one:
+
+  ```
+  ⚠ attribute 'Year' is an OQL reserved word — valid Mendix, but a view entity
+    referencing it unquoted fails to build with CE0174  [MDL071]
+      at RestLab.RestObjectData
+  ```
+
+  It goes on to say the fix is usually to quote it in the view's OQL rather than
+  rename, and names the one case where renaming is required (a view entity's own
+  attribute, whose name is its select alias). No view here uses it, so nothing to
+  do — but that is a warning that explains rather than nags.
+- Standing suite 5/5; `mx check` 0 errors with the nested export body and the
+  path-parameter call both present; MDL008 still refuses the unqualified `create`.
+- Rates lane still imports at runtime, and `09-transformer-lane.mdl` reports
+  **`Unchanged`** for all four documents — second batch running, so the mapping
+  writer has genuinely settled rather than having had a quiet interval.
+- `mxcli lint` is **identical** old to new: 276 issues, 0 errors, same rule
+  distribution. No new rule fires on this project.
+
+### `mxcli brain` — a knowledge store, and this file is its use case
+
+`feat(brain)` adds `mxcli brain`: decisions and requirements *"mxcli cannot
+compute"*, in `docs/brain/`, sharded by anchor. Its framing is the interesting
+part, and it is the rule FINDINGS.md has been following by instinct:
+
+> Anything mxcli CAN answer does not belong here — entities, microflows, pages,
+> bindings and references are all queryable, and a note that transcribes them is
+> a note that will disagree with the project.
+
+The mechanism worth stealing even if we never adopt the command: **a decision's
+anchor points backward at what exists, so one that stops resolving means the
+decision is stale and `brain check` fails.** This file has no such property —
+every finding here is prose, and the ones about fixed defects (#16, #36, #37,
+#43, #53) only stopped being true because someone re-ran them. `capture` /
+`promote` also separates what an agent notices from what a person commits, which
+is roughly what has been happening manually in this session.
+
+Not adopted: it would mean splitting FINDINGS.md across `docs/brain/` shards, and
+most entries here are upstream defect reports rather than project decisions —
+the wrong shape for the store. Worth revisiting if this repo ever grows real
+architectural decisions.
+
+### Also new here
+
+`upgrade-mendix-version` (headless version moves, "the two green false successes
+that upgrade nothing"), a generated `widgets/SKILL.md` for this project's own 42
+widgets, and two mapping references — `mapping-root-selection.md` and
+`message-definitions.md`. 23 skill files refreshed, both new skills added to the
+tables.
+
+## 60. Message definitions: the association cardinality is wrong for a REFERENCESET
+
+The new `message-definitions` reference states the rule plainly, and it is worth
+quoting because it is *nearly* right:
+
+> the stored cardinality tracks the **direction of traversal**, not the
+> association's type. Reaching `Customer` from `Order` follows the foreign key
+> and gives a single object; reaching `Order` from `Customer` is the reverse and
+> gives a list.
+
+That is a rule about a **Reference**. Applied to a **ReferenceSet** it produces
+the wrong answer, because a set is many in *both* directions. Measured all four
+ways in one collection, reading `MaxOccurs` back out of the `.mxunit`:
+
+| Association | Type | Direction | Stored `MaxOccurs` | Correct? |
+| --- | --- | --- | --- | --- |
+| `Post_Author` | Reference | Post → Author (forward) | `1` | ✅ single |
+| `Post_Author` | Reference | Author → Post (reverse) | `-1` | ✅ list |
+| `RateSnapshot_ExchangeRate` | **ReferenceSet** | Snapshot → Rate (forward) | **`1`** | ❌ **should be a list** |
+| `RateSnapshot_ExchangeRate` | ReferenceSet | Rate → Snapshot (reverse) | `-1` | ✅ list |
+
+So the implemented rule is *direction alone* — forward is 1, reverse is -1 —
+and it never asks whether the association is a set.
+
+**It does not corrupt anything**, which is a genuine improvement on the older
+defects here: `mxcli check` passes and `exec` succeeds, but mxbuild rejects the
+result with two errors rather than failing to load —
+
+```
+[error] [CE6524] "The domain model has changed and is no longer consistent with
+  the message definition … The occurrence of 'RestLab.RateSnapshot_ExchangeRate'
+  has changed" at Entity message definition 'RateSnapshot'
+[error] [CE0295] "Association 'RestLab.RateSnapshot_ExchangeRate' is not allowed."
+  at Object mapping element 'Rates'
+```
+
+CE6524's own advice — *"Resolve by refreshing the message definition"* — is the
+tell: Mendix thinks the model changed under a definition that was in fact
+written wrong a second ago.
+
+**Consequence for this app.** Lane 14 wanted `RateSnapshot` with its rates
+nested, and cannot have it: that is the forward traversal of a ReferenceSet. The
+lane ships the snapshot flat, plus a second definition rooted at `ExchangeRate`
+that reaches back to the snapshot — the reverse traversal, which is written
+correctly and builds clean. The example still shows an association member; it
+just points the other way than it should.
+
+### A dropped association is not refused, and mxbuild is what catches it
+
+The second half of the question. Dropping an association a message definition
+still references:
+
+```
+$ mxcli -c 'DROP ASSOCIATION DelProbe.Child_Parent'
+Dropped association: DelProbe.Child_Parent
+```
+
+No warning, no naming of the definition that referenced it — although the same
+reference documents a guard for the neighbouring case ("dropping or renaming a
+definition a mapping still references is refused, naming the mappings"). mxbuild
+then reports it properly:
+
+```
+[error] [CE1613] "The selected association 'DelProbe.Child_Parent' no longer
+  exists." at Entity message definition 'ParentMsg'
+```
+
+and `describe` still emits the dangling member as though it were valid, so a
+describe → exec round trip carries the broken reference forward.
+
+One interaction worth knowing: while that CE1613 was present, **mxbuild reported
+only it** — the two CE6524s elsewhere in the project vanished from the list and
+came back the moment the dangling reference was removed. A clean-looking error
+list is not evidence that the rest of the model is clean.
+
+### Three smaller things, all measured while building lane 14
+
+- **`Publish` and `Contract` are reserved** in an enumeration value position,
+  exactly like `Binary` (see 01-domain-model). `Outbound` was the third choice.
+- **`alter enumeration … add value` has no `IF NOT EXISTS`**, so a script that
+  adds one is not re-runnable — it errors, and `exec` stops there, leaving the
+  rest of the script unapplied. The value now lives in `01-domain-model.mdl`
+  with the others, which is idempotent.
+- **`ALTER PAGE` does not reference-check its target page.** `alter page
+  RestLab."RestLab_Home"` (no such page) *passed* `mxcli check -p --references`
+  and was then refused by `exec` with `page not found`. Harmless, but it
+  contradicts the check-syntax skill's own promise that "exec refuses exactly
+  what check rejects" — here exec is the stricter gate.
+- **A bare variable as an inline REST body silently fails.** `body $Json` passes
+  check and executes, and the call then returns nothing at all
+  (`echoLen=0`). The placeholder form `body '{1}' with ({1} = $Json)` sends it —
+  971 bytes back from httpbingo. Same family as #43's `body: file from $Doc`.
+
+### The lane, verified
+
+```
+json=[{"Base":"EUR","RateDate":"2026-09-04","BaseAmount":1}]  echoLen=971
+```
+
+`BaseAmount` is the point: the attribute is `Amount`, and the exposed name comes
+from the message definition, not from the entity. Asserted at runtime — the
+generated JSON and httpbingo's echo of what was actually sent both contain it.
