@@ -120,3 +120,20 @@ begin
   CALL MICROFLOW RestLab."ACT_Binary_RoundTrip" ();
 end;
 /
+
+/**
+ * Publish every stored rate snapshot as JSON (lane 14).
+ *
+ * There is no ORDER BY on a retrieve, so this publishes all of them rather
+ * than pretending to pick the newest. Fetch rates first or there is nothing
+ * to publish.
+ */
+create or modify microflow RestLab."ACT_Demo_PublishSnapshot" ()
+begin
+  RETRIEVE $Snapshots FROM RestLab."RateSnapshot";
+  LOOP $S IN $Snapshots
+  BEGIN
+    CALL MICROFLOW RestLab."ACT_Publish_RateSnapshot" (Snapshot = $S);
+  END LOOP;
+end;
+/

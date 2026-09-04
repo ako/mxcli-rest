@@ -45,6 +45,7 @@ rows are simply missing at runtime.
 | Catalog (dummyjson) | object root + nested **array** | ⚠️ one child row, all attributes empty |
 | CRUD (restful-api.dev) | **array** root | ❌ null — 0 rows |
 | Blog (jsonplaceholder) | **array** root | ❌ null — 0 rows |
+| **Publish** (httpbingo) | export, not import — contract from the domain model | ✅ snapshot exported and echoed back |
 
 **For a collection, use the transform route, not the inline mapping.** The rates
 lane (frankfurter.dev) returns currency codes as property names — data
@@ -130,6 +131,7 @@ model:
 | `10-graph-lane.mdl` | Microsoft Graph client, OData transformer, microflows |
 | `11-sharepoint-lane.mdl` | SharePoint list read + write (POST/PATCH), OData transformer |
 | `13-binary-lane.mdl` | Binary download/upload (upload is a known-broken regression test) |
+| `14-message-definition-lane.mdl` | Message definition + export mapping, published as JSON |
 | `12-organize.mdl` | Folder layout — run last, after every document exists |
 
 **Re-run `02-security.mdl` after any change to `01-domain-model.mdl`.** Entity

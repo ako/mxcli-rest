@@ -1,0 +1,145 @@
+/**
+ * The message-definition lane: a contract taken FROM the domain model
+ *
+ * Every other mapping in this app is bound to a JSON structure -- a schema
+ * written by hand (or inferred from a sample) and then matched against
+ * entities. A MESSAGE DEFINITION is the other way round: it is a SELECTION
+ * OVER THE DOMAIN MODEL. Every element names an entity, an attribute or an
+ * association, so there is no second copy of the shape to keep in step.
+ *
+ * That is also why it is the only non-JSON mapping source MDL can author. An
+ * XML schema is an imported .xsd and a web service is a WSDL binding; neither
+ * has a spelling here. A message definition has nothing external in it.
+ *
+ * This lane EXPORTS, which nothing else here does: RateSnapshot and its
+ * ExchangeRate children (populated by lane 09) become JSON and go out over
+ * HTTP. httpbingo echoes the request back, so the generated JSON is visible
+ * in the call log rather than taken on trust.
+ */
+
+-- The Lane value this uses is declared with the others in 01-domain-model.mdl:
+-- `alter enumeration ... add value` has no IF NOT EXISTS, so a script that adds
+-- one is not re-runnable (FINDINGS #60).
+
+-- ------------------------------------------------------------ 1. the contract
+
+/**
+ * A bare name is an ATTRIBUTE; Assoc/Module.Entity is an ASSOCIATION.
+ *
+ * Naming the association's TARGET is not decoration. The stored cardinality
+ * follows the DIRECTION of traversal, not the association's type: reaching
+ * ExchangeRate from RateSnapshot is a list, and the same association read the
+ * other way is a single object. See FINDINGS #60, where both directions and a
+ * non-connecting association were measured.
+ *
+ * mxcli does not pluralise an exposed name the way Studio Pro does -- it
+ * defaults to the entity's own name -- so `as 'Rates'` is written out.
+ */
+create or modify message definition collection RestLab."MD_Rates"
+  folder 'Lanes/Publish'
+(
+    --
+  -- The message that gets published. Flat, and that is not the design I wanted:
+  -- the nested `Rates` member belongs here and mxcli cannot write it, because
+  -- RateSnapshot_ExchangeRate is a REFERENCESET and mxcli stores MaxOccurs 1
+  -- for the forward traversal. mxbuild rejects it (CE6524 + CE0295). Measured
+  -- four ways in FINDINGS #60.
+  --
+  definition "RateSnapshot" for RestLab."RateSnapshot" as 'Snapshot' (
+    "Base",
+    "RateDate",
+    "Amount" as 'BaseAmount'
+  ),
+    --
+  -- The association member, in the direction mxcli gets right.
+  --
+  -- Reading RateSnapshot FROM ExchangeRate is the reverse traversal, stored
+  -- MaxOccurs -1, and mxbuild accepts it. Semantically honest too: the
+  -- association is a set, so a rate can belong to more than one snapshot.
+  --
+  -- A bare name is an ATTRIBUTE; Assoc/Module.Entity is an ASSOCIATION, and
+  -- naming the target is required because the cardinality follows the
+  -- DIRECTION of traversal. mxcli does not pluralise an exposed name the way
+  -- Studio Pro does, so `as 'Snapshots'` is written out.
+  --
+  definition "RateWithSnapshot" for RestLab."ExchangeRate" as 'Rate' (
+    "Code",
+    "Value",
+    RestLab."RateSnapshot_ExchangeRate"/RestLab."RateSnapshot" as 'Snapshots' (
+      "Base",
+      "RateDate"
+    )
+  )
+);
+
+-- ------------------------------------------------------------- 2. the mapping
+
+/**
+ * `with message definition` takes a THREE-part reference -- collection then
+ * definition -- because a collection holds many definitions.
+ */
+create or modify export mapping RestLab."EXM_RateSnapshot"
+  folder 'Lanes/Publish'
+  with message definition RestLab."MD_Rates"."RateSnapshot"
+{
+  RestLab."RateSnapshot" {
+    Base = "Base",
+    RateDate = "RateDate",
+    BaseAmount = "Amount"
+  }
+};
+
+-- ----------------------------------------------------------- 3. the microflow
+
+/**
+ * Turn one snapshot into JSON and POST it.
+ *
+ * The snapshot is a PARAMETER rather than a retrieve, so the export is the
+ * reusable half and choosing what to publish is the caller's problem.
+ */
+create or modify microflow RestLab."ACT_Publish_RateSnapshot" (
+  $Snapshot: RestLab."RateSnapshot"
+)
+returns RestLab."CallLog" as $Log
+folder 'Lanes/Publish'
+begin
+  declare $Start DateTime = [%CurrentDateTime%];
+  declare $Body String = '';
+  declare $Ok Boolean = false;
+
+  -- Domain model -> JSON, shaped by the message definition.
+  $Json = export to mapping RestLab."EXM_RateSnapshot" ($Snapshot);
+
+  $Echo = rest call post 'https://httpbingo.org/post'
+    header 'Content-Type' = 'application/json'
+    body '{1}' with ({1} = $Json)
+    timeout 30
+    returns string
+    on error continue;
+
+  IF $Echo != empty THEN
+    SET $Body = $Echo;
+    SET $Ok = true;
+  END IF;
+
+  $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
+    Url = 'POST https://httpbingo.org/post (export mapping)',
+    Method = 'POST',
+    StatusCode = 0,
+    DurationMs = millisecondsBetween($Start, [%CurrentDateTime%]),
+    Success = $Ok,
+    ErrorMessage = '',
+    ResponseBody = $Body,
+    Lane = RestLab.Lane.Outbound
+  );
+
+  -- The generated JSON, kept beside the echo so the page can show both.
+  CHANGE $Log ("TransformedBody" = $Json);
+  COMMIT $Log;
+
+  RETURN $Log;
+end;
+/
+
+grant execute on microflow RestLab."ACT_Publish_RateSnapshot" to RestLab."Developer";
+grant execute on microflow RestLab."ACT_Publish_RateSnapshot" to RestLab."Administrator";

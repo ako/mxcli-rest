@@ -20,8 +20,10 @@ create or modify enumeration RestLab."Lane" (
   "Rates" 'Rates (frankfurter, transformed)',
   "Graph" 'Microsoft Graph (mocked)',
   "SharePoint" 'SharePoint read/write (mocked)',
-  -- NB: the value cannot be called "Binary" -- reserved word in that position.
-  "Files" 'Binary download/upload (httpbingo)'
+  -- NB: the value cannot be called "Binary" -- reserved word in that position,
+  -- and neither "Publish" nor "Contract" can be used either (FINDINGS #60).
+  "Files" 'Binary download/upload (httpbingo)',
+  "Outbound" 'Message definition export (httpbingo)'
 );
 
 /*

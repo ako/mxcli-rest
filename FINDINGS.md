@@ -1969,3 +1969,106 @@ that upgrade nothing"), a generated `widgets/SKILL.md` for this project's own 42
 widgets, and two mapping references — `mapping-root-selection.md` and
 `message-definitions.md`. 23 skill files refreshed, both new skills added to the
 tables.
+
+## 60. Message definitions: the association cardinality is wrong for a REFERENCESET
+
+The new `message-definitions` reference states the rule plainly, and it is worth
+quoting because it is *nearly* right:
+
+> the stored cardinality tracks the **direction of traversal**, not the
+> association's type. Reaching `Customer` from `Order` follows the foreign key
+> and gives a single object; reaching `Order` from `Customer` is the reverse and
+> gives a list.
+
+That is a rule about a **Reference**. Applied to a **ReferenceSet** it produces
+the wrong answer, because a set is many in *both* directions. Measured all four
+ways in one collection, reading `MaxOccurs` back out of the `.mxunit`:
+
+| Association | Type | Direction | Stored `MaxOccurs` | Correct? |
+| --- | --- | --- | --- | --- |
+| `Post_Author` | Reference | Post → Author (forward) | `1` | ✅ single |
+| `Post_Author` | Reference | Author → Post (reverse) | `-1` | ✅ list |
+| `RateSnapshot_ExchangeRate` | **ReferenceSet** | Snapshot → Rate (forward) | **`1`** | ❌ **should be a list** |
+| `RateSnapshot_ExchangeRate` | ReferenceSet | Rate → Snapshot (reverse) | `-1` | ✅ list |
+
+So the implemented rule is *direction alone* — forward is 1, reverse is -1 —
+and it never asks whether the association is a set.
+
+**It does not corrupt anything**, which is a genuine improvement on the older
+defects here: `mxcli check` passes and `exec` succeeds, but mxbuild rejects the
+result with two errors rather than failing to load —
+
+```
+[error] [CE6524] "The domain model has changed and is no longer consistent with
+  the message definition … The occurrence of 'RestLab.RateSnapshot_ExchangeRate'
+  has changed" at Entity message definition 'RateSnapshot'
+[error] [CE0295] "Association 'RestLab.RateSnapshot_ExchangeRate' is not allowed."
+  at Object mapping element 'Rates'
+```
+
+CE6524's own advice — *"Resolve by refreshing the message definition"* — is the
+tell: Mendix thinks the model changed under a definition that was in fact
+written wrong a second ago.
+
+**Consequence for this app.** Lane 14 wanted `RateSnapshot` with its rates
+nested, and cannot have it: that is the forward traversal of a ReferenceSet. The
+lane ships the snapshot flat, plus a second definition rooted at `ExchangeRate`
+that reaches back to the snapshot — the reverse traversal, which is written
+correctly and builds clean. The example still shows an association member; it
+just points the other way than it should.
+
+### A dropped association is not refused, and mxbuild is what catches it
+
+The second half of the question. Dropping an association a message definition
+still references:
+
+```
+$ mxcli -c 'DROP ASSOCIATION DelProbe.Child_Parent'
+Dropped association: DelProbe.Child_Parent
+```
+
+No warning, no naming of the definition that referenced it — although the same
+reference documents a guard for the neighbouring case ("dropping or renaming a
+definition a mapping still references is refused, naming the mappings"). mxbuild
+then reports it properly:
+
+```
+[error] [CE1613] "The selected association 'DelProbe.Child_Parent' no longer
+  exists." at Entity message definition 'ParentMsg'
+```
+
+and `describe` still emits the dangling member as though it were valid, so a
+describe → exec round trip carries the broken reference forward.
+
+One interaction worth knowing: while that CE1613 was present, **mxbuild reported
+only it** — the two CE6524s elsewhere in the project vanished from the list and
+came back the moment the dangling reference was removed. A clean-looking error
+list is not evidence that the rest of the model is clean.
+
+### Three smaller things, all measured while building lane 14
+
+- **`Publish` and `Contract` are reserved** in an enumeration value position,
+  exactly like `Binary` (see 01-domain-model). `Outbound` was the third choice.
+- **`alter enumeration … add value` has no `IF NOT EXISTS`**, so a script that
+  adds one is not re-runnable — it errors, and `exec` stops there, leaving the
+  rest of the script unapplied. The value now lives in `01-domain-model.mdl`
+  with the others, which is idempotent.
+- **`ALTER PAGE` does not reference-check its target page.** `alter page
+  RestLab."RestLab_Home"` (no such page) *passed* `mxcli check -p --references`
+  and was then refused by `exec` with `page not found`. Harmless, but it
+  contradicts the check-syntax skill's own promise that "exec refuses exactly
+  what check rejects" — here exec is the stricter gate.
+- **A bare variable as an inline REST body silently fails.** `body $Json` passes
+  check and executes, and the call then returns nothing at all
+  (`echoLen=0`). The placeholder form `body '{1}' with ({1} = $Json)` sends it —
+  971 bytes back from httpbingo. Same family as #43's `body: file from $Doc`.
+
+### The lane, verified
+
+```
+json=[{"Base":"EUR","RateDate":"2026-09-04","BaseAmount":1}]  echoLen=971
+```
+
+`BaseAmount` is the point: the attribute is `Amount`, and the exposed name comes
+from the message definition, not from the entity. Asserted at runtime — the
+generated JSON and httpbingo's echo of what was actually sent both contain it.

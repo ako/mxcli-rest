@@ -97,3 +97,8 @@ move page RestLab."Mapped_Overview"  to folder 'Shared';
 -- with "folder not found" when the folder is absent, so keeping it here would
 -- make the script error on every re-run. 07-pages.mdl now creates the page in
 -- 'Shared' directly, so a fresh build never produces the stale folder.
+
+-- Lane 14: the message-definition export. The collection, the export mapping
+-- and ACT_Publish_RateSnapshot carry `folder` clauses of their own; the demo
+-- wrapper lives with the other wrappers in 06 and is placed here.
+move microflow RestLab."ACT_Demo_PublishSnapshot" to folder 'Lanes/Publish';
