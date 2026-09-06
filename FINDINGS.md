@@ -2072,3 +2072,90 @@ json=[{"Base":"EUR","RateDate":"2026-09-04","BaseAmount":1}]  echoLen=971
 `BaseAmount` is the point: the attribute is `Amount`, and the exposed name comes
 from the message definition, not from the entity. Asserted at runtime — the
 generated JSON and httpbingo's echo of what was actually sent both contain it.
+
+## 61. v0.21.0 fixes all four of #60 — and its new lint caught a hole I had made
+
+`nightly-556-ge6a83b5d`, 70 commits and the v0.21.0 release. Four of the five
+things #60 recorded are fixed, and the fifth was never a defect.
+
+| #60 item | v0.21.0 |
+| --- | --- |
+| ReferenceSet forward traversal stored `MaxOccurs 1` | ✅ `22898479` — `-1` both ways, `mx check` clean |
+| Dropping an exposed association was unguarded | ✅ `5faadc01` — refused, and it names the members |
+| `alter enumeration … add value` had no `IF NOT EXISTS` | ✅ `1848dd48` |
+| `ALTER PAGE` did not reference-check its target | ✅ `13614f5b` |
+
+The drop guard is better than a refusal: it names every definition holding the
+association and hands over the statements that release it.
+
+```
+Error: association RestLab.RateSnapshot_ExchangeRate is still exposed by a
+message definition — dropping it would leave the definition bound to nothing
+(CE1613). Remove the member first:
+  alter message definition RestLab.MD_Check.Nested drop member ExchangeRate;
+  alter message definition RestLab.MD_Rates.RateWithSnapshot drop member RateSnapshot;
+```
+
+**Lane 14 now has the shape it was designed for.** The workaround definition is
+gone and the snapshot carries its rates:
+
+```json
+{"Base":"EUR","RateDate":"2026-09-04","BaseAmount":1,
+ "Rates":[{"Code":"AUD","Value":1.6134}, … 29 of them]}
+```
+
+3919 bytes echoed back. Asserted at runtime on the nested array specifically,
+not just on the snapshot fields.
+
+All 14 scripts still pass despite roughly eight new check rules; standing suite
+5/5; rates lane unchanged and still importing.
+
+## `create or modify persistent entity` silently deletes every access rule
+
+**Impact: critical, and it had already happened.** v0.21.0's lint reported 197
+issues where the previous binary reported 276 — `SEC001` (no access rules)
+appearing on 14 entities while `CONV006`/`CONV007`, which can only fire on rules
+that exist, collapsed from 105 findings to 7. Three rules moving together like
+that is not a lint change; it is the model.
+
+It was the model. Decoding the RestLab domain model unit:
+
+| Commit | `DomainModels$AccessRule` |
+| --- | --- |
+| `c77c6e8`, `b681c55`, `8fcaa21` | 32 |
+| **`df64b81`** (the lane commit, already in PR #5) | **2** |
+
+Thirty access rules were gone, `mx check` reported 0 errors, and I pushed it.
+
+The cause is one statement, reproduced on a scratch entity:
+
+```
+$ mxcli exec grant.mdl      -- create or modify entity + grant
+Granted access on RestLab.AccProbe to RestLab.Developer
+$ mxcli -c 'SHOW ACCESS ON ENTITY RestLab.AccProbe'
+  RestLab.AccProbe.Name: ReadWrite
+
+$ mxcli exec modify.mdl      -- create or modify THE SAME entity, no grant
+Modified entity: RestLab.AccProbe
+$ mxcli -c 'SHOW ACCESS ON ENTITY RestLab.AccProbe'
+No access rules on RestLab.AccProbe
+```
+
+`create or modify` rewrites the entity and takes its access rules with it. The
+only output is `Modified entity:`. This is the same shape as `mxcli-sudoku`
+#24 — *"CREATE OR MODIFY … silently deletes attributes"* — one field over, and
+worse, because the loss is a **security** regression that every static gate
+passes: `mxcli check`, `exec` and `mx check` are all clean afterwards.
+
+I hit it by re-running `01-domain-model.mdl` to add one enumeration value. That
+script declares 16 entities with `create or modify` and no grants, so one run
+stripped every rule the project had.
+
+**Fixed here**: `02-security.mdl` re-applied (32 rules back, `SHOW ACCESS`
+answering again, lint back to 281), and `01-domain-model.mdl` now opens with a
+warning that a re-run deletes access rules and that 02 must follow it.
+
+**The general rule this project should follow**: after any `exec` of a script
+containing `create or modify entity`, re-run the security script. And the lint
+is worth running as a diff, not a number — the 276 → 197 drop looked like an
+improvement and was a hole.

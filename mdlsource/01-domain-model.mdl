@@ -6,6 +6,16 @@
  * show "this call produced these objects".
  */
 
+-- WARNING: re-running this script DELETES every entity access rule.
+--
+-- `create or modify persistent entity` rewrites the entity and drops its
+-- access rules with it -- silently, reporting only `Modified entity:`. This
+-- script declares no grants, so a re-run leaves 16 entities unprotected and
+-- mx check still reports 0 errors. It cost 30 access rules once already
+-- (FINDINGS #61).
+--
+-- ALWAYS run 02-security.mdl after this file.
+
 create module RestLab;
 
 -- ---------------------------------------------------------------- enumerations

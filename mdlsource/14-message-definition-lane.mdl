@@ -17,20 +17,21 @@
  * in the call log rather than taken on trust.
  */
 
--- The Lane value this uses is declared with the others in 01-domain-model.mdl:
--- `alter enumeration ... add value` has no IF NOT EXISTS, so a script that adds
--- one is not re-runnable (FINDINGS #60).
+-- The Lane value this uses is declared with the others in 01-domain-model.mdl.
+-- (`alter enumeration ... add value if not exists` also works now -- mxcli
+-- v0.21.0 added the guard this script originally needed. FINDINGS #61.)
 
 -- ------------------------------------------------------------ 1. the contract
 
 /**
  * A bare name is an ATTRIBUTE; Assoc/Module.Entity is an ASSOCIATION.
  *
- * Naming the association's TARGET is not decoration. The stored cardinality
- * follows the DIRECTION of traversal, not the association's type: reaching
- * ExchangeRate from RateSnapshot is a list, and the same association read the
- * other way is a single object. See FINDINGS #60, where both directions and a
- * non-connecting association were measured.
+ * Naming the association's TARGET is required, because the stored cardinality
+ * follows the DIRECTION of traversal -- and, for a ReferenceSet, is a list
+ * both ways. This lane was written flat at first: mxcli stored MaxOccurs 1 for
+ * the forward traversal of a set and mxbuild rejected it (CE6524 + CE0295).
+ * Fixed in v0.21.0, so the nested shape below is the one that was wanted all
+ * along. FINDINGS #60 measured it, #61 verified the fix.
  *
  * mxcli does not pluralise an exposed name the way Studio Pro does -- it
  * defaults to the entity's own name -- so `as 'Rates'` is written out.
@@ -38,36 +39,13 @@
 create or modify message definition collection RestLab."MD_Rates"
   folder 'Lanes/Publish'
 (
-    --
-  -- The message that gets published. Flat, and that is not the design I wanted:
-  -- the nested `Rates` member belongs here and mxcli cannot write it, because
-  -- RateSnapshot_ExchangeRate is a REFERENCESET and mxcli stores MaxOccurs 1
-  -- for the forward traversal. mxbuild rejects it (CE6524 + CE0295). Measured
-  -- four ways in FINDINGS #60.
-  --
   definition "RateSnapshot" for RestLab."RateSnapshot" as 'Snapshot' (
     "Base",
     "RateDate",
-    "Amount" as 'BaseAmount'
-  ),
-    --
-  -- The association member, in the direction mxcli gets right.
-  --
-  -- Reading RateSnapshot FROM ExchangeRate is the reverse traversal, stored
-  -- MaxOccurs -1, and mxbuild accepts it. Semantically honest too: the
-  -- association is a set, so a rate can belong to more than one snapshot.
-  --
-  -- A bare name is an ATTRIBUTE; Assoc/Module.Entity is an ASSOCIATION, and
-  -- naming the target is required because the cardinality follows the
-  -- DIRECTION of traversal. mxcli does not pluralise an exposed name the way
-  -- Studio Pro does, so `as 'Snapshots'` is written out.
-  --
-  definition "RateWithSnapshot" for RestLab."ExchangeRate" as 'Rate' (
-    "Code",
-    "Value",
-    RestLab."RateSnapshot_ExchangeRate"/RestLab."RateSnapshot" as 'Snapshots' (
-      "Base",
-      "RateDate"
+    "Amount" as 'BaseAmount',
+    RestLab."RateSnapshot_ExchangeRate"/RestLab."ExchangeRate" as 'Rates' (
+      "Code",
+      "Value"
     )
   )
 );
@@ -85,7 +63,11 @@ create or modify export mapping RestLab."EXM_RateSnapshot"
   RestLab."RateSnapshot" {
     Base = "Base",
     RateDate = "RateDate",
-    BaseAmount = "Amount"
+    BaseAmount = "Amount",
+    RestLab."RateSnapshot_ExchangeRate"/RestLab."ExchangeRate" as Rates {
+      Code = "Code",
+      Value = "Value"
+    }
   }
 };
 
