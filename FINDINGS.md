@@ -2159,3 +2159,70 @@ warning that a re-run deletes access rules and that 02 must follow it.
 containing `create or modify entity`, re-run the security script. And the lint
 is worth running as a diff, not a number — the 276 → 197 drop looked like an
 improvement and was a hole.
+
+## 62. PR 403 fixes the access-rule loss — and corrects my report
+
+`320a3042 fix(entities): modify an entity in place instead of rebuilding it`,
+one commit, built as `nightly-557-g320a3042`. #61's repro, re-run verbatim:
+
+```
+$ mxcli exec grant.mdl        # create or modify entity + grant
+$ mxcli -c 'SHOW ACCESS ON ENTITY RestLab.AccProbe'
+Rule 1: RestLab.Developer   Rights: create, read, write
+
+$ mxcli exec modify.mdl        # create or modify THE SAME entity, no grant
+Modified entity: RestLab.AccProbe
+$ mxcli -c 'SHOW ACCESS ON ENTITY RestLab.AccProbe'
+Rule 1: RestLab.Developer   Rights: create, read, write     <- survives
+```
+
+And on the script that actually did the damage here — `01-domain-model.mdl`,
+15 entities modified in one run:
+
+| | before | after |
+| --- | --- | --- |
+| `DomainModels$AccessRule` | 32 | **32** |
+| `DomainModels$MemberAccess` | 172 | **172** |
+
+Under the previous binary that same run left 2 rules and 18 members.
+
+### It corrects #61 on one point
+
+#61 said the loss passes every static gate, including `mx check`. The commit
+measured otherwise on a larger project — 0 errors became **288, every one
+CE2729** — and states the rule precisely:
+
+> The loss is silent exactly where nothing depends on the access, and surfaces
+> later on someone else's change.
+
+Both are true and mine was the narrower case: this project's entities are read
+through microflows and datasources that had not yet bound the missing members,
+so `mx check` stayed at 0. I generalised from one project's state to "every
+static gate passes" without testing a project where something was bound. The
+accurate claim is that **`mx check` is not a reliable detector of the loss**,
+which is worse than "it never catches it" — a gate that catches the problem
+sometimes is the kind you learn to trust.
+
+### The fix is structural, which is the interesting part
+
+The modify branch built a fresh entity from the AST and swapped it in, so every
+field MDL has no words for went with it. Documentation and indexes had each been
+carried back individually after their own defect report; access rules would have
+been the third, the view/external-source fields and OData remote properties the
+next. Instead the direction is inverted — start from what is stored and overwrite
+only what the statement declares — and **a reflection test now fails on any
+Entity field in neither group**, naming all 19 the wholesale replace was
+discarding.
+
+That closes the class rather than the instance. Worth remembering as a shape:
+three individually-reported carry-back defects were one structural defect.
+
+### Regression
+
+All 14 scripts pass; `mx check` 0 errors; lint 281, unchanged; the runtime suite
+is **6/6** — the five standing repros plus the publish lane's nested array.
+`SHOW ACCESS` answers for every granted entity.
+
+`./mxcli` promoted to this build. It is a PR head, not main, so re-running a
+domain-model script with an older binary still strips the rules; #61's warning in
+`01-domain-model.mdl` stays until 403 merges.
