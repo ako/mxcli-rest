@@ -61,6 +61,23 @@ are working on.
 reading them all reinstates exactly the context cost the split removed. If you
 do not know which modules you are touching yet, read `project.md` and come back.
 
+**`mxcli brain brief` produces that set for you**, so the rule above does not
+depend on judgement:
+
+```
+mxcli brain brief --slice 07-planning     # project + the modules that slice's
+                                          # requirements anchor into + its plan
+mxcli brain brief --module Sales          # project + Sales, no plan
+```
+
+The modules are *derived* from the slice's requirement anchors — you do not tell
+it which modules the slice touches, because that is what you opened the brief to
+find out. The pack goes to stdout and its size to stderr, so it pipes.
+
+This matters most when each slice runs in its own session or sub-agent: the pack
+is then re-read from a cold start every slice, and reading the whole store
+instead is roughly three times the tokens.
+
 ## Writing to it
 
 An agent **captures**; a person **promotes**. Capturing is free and reversible;
@@ -113,6 +130,23 @@ more decisions:
 
 So anchor a requirement at what you are *going to* build. `@Sales.ACT_Order_Approve`
 before that microflow exists is correct, not a mistake.
+
+**Never anchor a requirement at a bare module.** `@Sales` resolves the instant
+the module exists — long before any of the work inside it — so the requirement
+reports **built** with nothing done. `mxcli brain capture --requirement` refuses
+it and names the alternative, because the failure is silent and flattering:
+the plan shows progress that has not happened and nothing else disagrees.
+Anchor at a document the slice actually creates. (Measured on a real project:
+two requirements anchored at a module both read as built after slice 01.)
+
+A module **role** is a fine anchor and resolves like any document — a security
+requirement anchored at the roles it creates is measured correctly. Anchoring at
+the documents whose access rules the roles govern works too, and says something
+slightly different; either is legitimate.
+
+A **theme** has no model element to anchor at (it is files under `theme/`, which
+is the point of `mxcli theme`). Anchor the branding requirement at the branded
+**layout** the slice adds — the model-side half of the same work.
 
 ### Progress is derived, never written
 
@@ -259,15 +293,31 @@ cap: the cap is what stops the store becoming a file nobody reads.
 |---|---|
 | `mxcli brain init -p app.mpr` | Creates `docs/brain/`. Refuses a `docs/brain/` it did not write |
 | `mxcli brain capture "<text>" [-a @Anchor]…` | Queues an entry. Never commits |
-| `mxcli brain staged` | Lists the queue with the shard each entry would land in |
+| `mxcli brain staged [--since <id>] [--slice <n>] [--fail-if-empty]` | Lists the queue with the shard each entry would land in. `--since` is the slice boundary — see below |
 | `mxcli brain promote <id> [--to <shard>]` | Writes it into its shard. The human step |
 | `mxcli brain drop <id>` | Removes it from the queue or from its shard |
 | `mxcli brain capture "<text>" --slice <name> [-a @Anchor]…` | Queues a **requirement** of that slice |
 | `mxcli brain capture "<text>" --open [-a @Anchor]…` | Queues an **open question**; its anchors are not checked |
 | `mxcli brain resolve <id> "<answer>"` | Answers a question, turning it into a decision in place |
-| `mxcli brain plan` | The roadmap: each slice's requirements counted against the model |
+| `mxcli brain plan [--slice <name>]` | The roadmap: each slice's requirements counted against the model |
+| `mxcli brain brief --slice <name> \| --module <M>` | The reading pack: exactly the shards that work needs |
 | `mxcli brain check [--changed]` | Anchors still resolve, entries in the right shard, plus slice progress |
 | `mxcli brain show [<shard>]` | Entries, lines and headroom per shard |
+
+## Renaming
+
+`mxcli rename` updates the brain's anchors along with the model's own
+cross-references, and says how many it touched. You do not have to fix them by
+hand, and `--dry-run` previews the brain's share too.
+
+This is done at the rename because it cannot be done afterwards. A decision's
+anchor points backward, so a stale one is reported `NOT FOUND` — but a
+requirement's points forward, so a stale one just counts as `PLANNED`, which is
+exactly what a forward anchor failing is supposed to mean. Once the old name is
+gone there is no way to tell "never built" from "built, then renamed".
+
+If you rename an element some other way — in Studio Pro, or by hand — run
+`mxcli brain check` afterwards and expect the plan's counts to have moved.
 
 ## What not to record
 
@@ -278,3 +328,33 @@ cap: the cap is what stops the store becoming a file nobody reads.
 - Sprint chatter and task assignment. Requirements and their slices, yes; who is
   doing what this week, no — that belongs in an issue tracker.
 - A restatement of Mendix documentation. Record what is true *here*.
+
+## Handing a slice to another agent
+
+Every command above takes `--json`, so a dispatcher can act on the answers
+rather than read them. Two shapes are worth knowing.
+
+**Give the agent its pack.** `mxcli brain brief --slice <name>` is one bounded
+read instead of a directory the agent has to navigate.
+
+**Check that it recorded something.** With one agent per slice the brain stops
+being a record and becomes the *only* channel between slices — the next agent
+has no memory of this one, so a capture that never happened is a decision lost
+rather than a note lost. Note the boundary before dispatching and ask afterwards:
+
+```
+before=$(mxcli brain staged --json | jq -r .last_id)
+# ... the slice's agent runs, and captures ...
+mxcli brain staged --since "$before" --fail-if-empty --json
+```
+
+`--since` rather than `--slice` is deliberate: `capture --slice` is what makes an
+entry a *requirement*, so a decision found while building a slice carries no
+slice at all — and a slice's findings are mostly decisions. The queue is
+append-only, so its own order is the honest boundary. `last_id` comes back even
+when nothing matched, so a slice that recorded nothing still hands the next one
+a boundary.
+
+## Project brain (`mxcli brain init/capture/staged/promote/drop/check/show`)
+
+an **opt-in** store in `docs/brain/` for the project knowledge mxcli cannot compute. The governing rule is that anything derivable from the model is answered by a command and never written down — a note that transcribes the model disagrees with it silently. Records shard by **anchor scope**: an entry's first anchor names its file (`@Sales.Order` → `modules/Sales.md`), an anchorless entry is cross-cutting (`project.md`), and there is no index to maintain because the module prefix *is* the file name. That is what makes the cap per-shard rather than a project-wide budget, and lets a session load `project.md` plus the modules it is touching. `check` answers two independent questions: each anchor is **resolved / not found / not indexable** — only the middle one fails, and the third exists because the catalog's `objects` view covers the describable types only, so a scheduled event would otherwise read as *missing* (separated with `FindDocumentUnit`, which cannot miss a kind because it never asks what kind anything is). Misfiling is a **second axis, not a fourth state**: every anchor can resolve and the entry still be in the wrong file, and it is only decided when something resolved — judging it on an all-not-indexable entry reintroduced the same false staleness through the other axis (caught by a test, with the guard stubbed as the control). An agent `capture`s to a git-ignored queue and a person `promote`s; the queue is deliberately **not** sharded, because routing it would force the file decision before a human has looked at the entry. `mxcli lint` prints the unpromoted-queue count, because a report only `brain check` prints is a report nothing demands. Sizes are computed by `brain show` and never written into a committed file. A second record kind, **requirement**, lives in `plan/<slice>.md` and inverts the anchor's meaning: a decision's anchor points backward (not resolving = stale, fails), a requirement's points forward (not resolving = not built yet, passes). Measured: filed as an ordinary entry, one unbuilt requirement takes `brain check` to exit 1 — which is why it is a separate kind rather than more entries in the same files. That inversion is also what makes `brain plan` a real progress report: a requirement is *built* when its anchors resolve, so creating the microflow it names moves the count with the plan file untouched (measured 0/1 → 1/0). A status written beside a requirement is therefore refused by the skill, not just discouraged. Slices are ordered by name (`01-accounts`), span modules by design (so misfiling does not apply), and carry a generous cap that enforces the slicing discipline — a slice too long to read should be split. A third kind, **open question** (`--open`), records what is *not* decided; its anchors are deliberately **not** checked, since the question is often whether the thing should exist at all — measured, the identical anchor exits 1 as a decision and 0 as a question. `brain resolve` converts one into a decision in place, keeping its id and position and starting to check its anchors, which is the transition the kind exists for. Unanswered questions are reported by `brain check` and by `mxcli lint`. The skill also gives capture a **trigger** rather than good intentions — a correction you have had to make twice — because the decisions half otherwise under-fills while the plan half fills at bootstrap. `bootstrap-app` asks for requirements at the interview and records them by default. Package: `cmd/mxcli/brain/`. See `docs-site/src/tools/project-brain.md` and `docs/11-proposals/PROPOSAL_project_brain.md`

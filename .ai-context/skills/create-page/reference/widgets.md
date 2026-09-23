@@ -103,6 +103,7 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
 ```
 
 **Action Bindings:**
+- `action: nothing` - Deliberately no action (a decorative button, a card that is not clickable)
 - `action: save_changes` - Save changes to object
 - `action: save_changes close_page` - Save and close page
 - `action: cancel_changes` - Cancel changes
@@ -112,17 +113,40 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
 - `action: microflow Module.MicroflowName(Param: $value)` - Call microflow with parameters
 - `action: nanoflow Module.NanoflowName` - Call nanoflow (client-side)
 - `action: nanoflow Module.NanoflowName(Param: $value)` - Call nanoflow with parameters
+- `action: nanoflow Module.NanoflowName($Param = $value)` - Also accepted (microflow-style)
+- **Every parameter needs an argument, or an enclosing data container of its
+  type.** A flow called with a parameter nothing fills is **CE1571**; `mxcli
+  check -p` reports it. This is the same on every widget that takes an action,
+  a clickable `container` included.
 - `action: show_page Module.PageName` - Navigate to page
 - `action: show_page Module.PageName(Param: $value)` - Navigate with parameters
 - `action: show_page Module.PageName($Param = $value)` - Also accepted (microflow-style)
 - `action: create_object Module.Entity then show_page Module.PageName` - Create and navigate
-- **A `show_page` argument must be the context object.** Mendix takes the page
-  argument from the enclosing data widget, so the only spellings that mean
-  anything are `$currentObject` or the name of the variable that widget is bound
-  to (`datasource: $Customer` → `(Customer: $Customer)` is fine). Naming any other
-  variable is refused as **MDL-PAGEARG01** — it used to be accepted and silently
-  opened the page with the context object anyway. To open a page with something
-  else, call a microflow that shows it.
+- **A `show_page` argument must be the context object, and there has to BE one.**
+  Mendix takes the page argument from the enclosing data widget, so the only
+  spellings that mean anything are `$currentObject` or the name of the variable
+  that widget is bound to (`datasource: $Customer` → `(Customer: $Customer)` is
+  fine). Naming any other variable is refused as **MDL-PAGEARG01** — it used to be
+  accepted and silently opened the page with the context object anyway.
+- **Outside a data widget the same rule leaves nothing at all**, so a button sitting
+  on the page itself (or in a plain `container`/`layoutgrid`) may pass **no**
+  argument — not a page parameter, not `$currentObject`, not a literal. There is no
+  context object there for Mendix to infer, and the page opens with nothing:
+  mxbuild reports **CE1571** per parameter of the target page, and a page whose
+  parameters are optional would simply show the wrong data. MDL-PAGEARG01 refuses
+  that too (mendixlabs/mxcli#1029). To open a parameterised page from such a
+  button, call a microflow that does `show page Module.Page(Param: $value)` —
+  that path wires the arguments properly.
+- **The list above is the whole vocabulary, and a keyword without its argument is
+  not in it.** `action: open_link` with no URL, `action: show_page` with no page,
+  `action: microflow` with no name — each is **MDL-WIDGET28**. Until
+  mendixlabs/mxcli#1062 these were written as a widget with *no action at all*:
+  it rendered, carried its caption, and did nothing, while `mxcli check`, `exec`
+  and mxbuild all reported success, because a no-action widget is legal Mendix.
+  An invented keyword (`action: totally_made_up`) did the same. Use
+  `action: nothing` when a control really is meant to be inert, so a dead one
+  always means a mistake.
+- The same forms serve `onclick:` (an alias of `action:`) and `onchange:`.
 
 **Button Styles:** `default`, `primary`, `success`, `info`, `warning`, `danger`, `inverse`
 - Case-insensitive (`primary` and `Primary` both work).
@@ -340,8 +364,9 @@ column colActions (caption: 'Actions') {
 |--------|-------------|
 | `datasource: database from Module.Entity` | Direct database query |
 | `datasource: $Variable` | Variable bound (requires DATAVIEW parent with entity) |
-| `datasource: microflow Module.GetData` | Microflow datasource — no `()`, the name alone |
-| `datasource: nanoflow Module.GetData` | Nanoflow datasource (client-side, no server roundtrip) — no `()` |
+| `datasource: microflow Module.GetData` | Microflow datasource with **no parameters** — the name alone |
+| `datasource: microflow Module.GetData($Param)` | Microflow datasource **with** parameters — one argument per parameter, required. Mendix does not auto-map an object in scope, so leaving it out is **CE1571** |
+| `datasource: nanoflow Module.GetData` | Nanoflow datasource (client-side, no server roundtrip) — same rule: the name alone only when it takes no parameters |
 | `datasource: selection widgetName` | Listen to selection from another widget |
 | `datasource: association path` | Retrieve by association from context (ByAssociation) |
 | `datasource: $currentObject/Module.Assoc` | Sugar for `association` — same semantics, reads more naturally |
@@ -533,7 +558,19 @@ gallery productGallery (datasource: database Module.Product, selection: single) 
 
 ### Filter Widgets
 
-Filter widgets are used inside GALLERY FILTER containers to enable search/filtering:
+A filter widget lives in one of two places: **inside a DATA GRID column's own braces**,
+where it filters that column, or inside a **GALLERY FILTER container**, where it filters
+the whole list. The widgets below are the same either way:
+
+```sql
+datagrid dg (datasource: database Module.Entity) {
+  column colName (attribute: Name) { textfilter f1 }   -- the grid form
+}
+
+gallery g (datasource: database Module.Entity) {
+  filter flt { textfilter f1 }                         -- the gallery form
+}
+```
 
 **TEXTFILTER** - Text search filter:
 ```sql
@@ -641,7 +678,7 @@ Display images on pages:
 ```sql
 -- Image with dimensions (responsive by default)
 image imgLogo (width: 200, height: 100)
-staticimage imgBanner (width: 400, height: 120)
+staticimage imgBanner (Image: 'MyModule.Images.banner', width: 400, height: 120)
 
 -- Dynamic image (from entity data source, e.g. inside a DataView)
 dynamicimage imgProduct (width: 300, height: 200)
@@ -651,6 +688,65 @@ image imgIcon
 ```
 
 **Properties:** `width: integer`, `height: integer`, `AlternativeText: 'text'`, `WidthUnit: pixels | percentage | auto`, `HeightUnit: pixels | percentage | auto`, `Responsive: true | false`, `DisplayAs: fullImage | thumbnail | icon`, `class: 'css'`, `style: 'css'`
+
+#### `Image:` — which image a STATICIMAGE shows
+
+`Image:` names an entry in an image collection, as the three-part qualified name
+`Module.Collection.Image` — the same shape `Icon:` and the pluggable `image`
+widget use, because all three are by-name references to the same `Images$Image`
+element. `describe image collection Module.Images` lists the names.
+
+Without it the widget is written with no reference and mxbuild reports
+**CE0436 "No image selected."** Until mendixlabs/mxcli#1057 there was no way to
+say it at all, so `describe page` marked every stored static image
+`-- NOT re-executable` and the round trip dropped it.
+
+```sql
+staticimage imgAllSelected (Image: 'MyFirstModule.Images.gallery')
+```
+
+`WidthUnit:`, `HeightUnit:` (`pixels` | `percentage` | `auto`) and
+`Responsive: false` are written too. Leave them out for Studio Pro's defaults —
+auto units and a responsive image — which `describe page` also omits, so a
+round trip neither loses them nor invents them.
+
+**CE0582** is reported for `staticimage` wherever it appears, by any app running
+the React client — which Mendix added in **10.7** and which is the only client on
+11, so this is not a Mendix 11 rule. The replacement is the pluggable `image`
+widget, which takes the same `Image:`; Studio Pro offers the conversion from the
+CE0582 error's context menu. mxcli still writes it, because round-tripping a
+model that already contains one is the point — and `mxcli lint` reports it as
+**MPR012** so a new page does not reach for it by accident.
+
+#### `DataSource:` — which object a DYNAMICIMAGE shows
+
+A dynamic image shows the image held by an **object**, so it needs the entity
+that object belongs to — reachable from the widget's context, which in practice
+means the enclosing data container's entity:
+
+```sql
+listview lvPhoto (DataSource: database from MyModule.Photo) {
+  dynamicimage imgPhoto (
+    DataSource: database from MyModule.Photo,
+    DefaultImage: 'MyModule.Images.placeholder',
+    Width: 200, Height: 200
+  )
+}
+```
+
+**Without `DataSource:` the build fails with CE0489** ("Select an entity for the
+data source of this dynamic image"). Every `dynamicimage` mxcli wrote before this
+was missing it, so the widget could not build at all.
+
+`DefaultImage:` is the fallback shown when the object carries no image, named the
+same three-part way as `staticimage`'s `Image:`. `WidthUnit:`/`HeightUnit:`,
+`Responsive: false`, `DisplayAs: thumbnail` and `OnClickType: enlarge` are all
+written; leave them out for Mendix's defaults (auto, responsive, full size, no
+enlarge), which `describe page` also omits.
+
+CE0582 applies here too — the React client supports neither legacy image widget,
+and the pluggable `image` widget is the replacement for both. `mxcli lint` reports
+either as **MPR012**.
 
 #### Setting Image Source (PLUGGABLEWIDGET syntax)
 
@@ -684,8 +780,8 @@ alter page Mod.Home {
 
 For theme images, use paths relative to `theme/web/` (e.g., `img/logo.svg` → `theme/web/img/logo.svg`).
 
-**A per-row image URL comes from the entity, two ways.** `imageUrl` is a text
-template, so it takes either spelling:
+**A per-row image URL comes from the entity, three ways.** `imageUrl` is a text
+template, so it takes any of these spellings:
 
 ```sql
 -- named placeholder: shortest form for a single attribute
@@ -698,7 +794,22 @@ pluggablewidget 'com.mendix.widget.web.image.Image' cardImage (
   datasource: imageUrl,
   imageUrl: '{1}/{2}', contentparams: [{1} = BaseUrl, {2} = PictureUrl]
 )
+
+-- `<Name>Params`: the property's OWN parameters. `contentparams` is one list
+-- shared by every template on the widget, so it cannot bind `imageUrl` and
+-- `alternativeText` to different attributes; this can (ako/mxcli#575).
+pluggablewidget 'com.mendix.widget.web.image.Image' cardImage (
+  datasource: imageUrl,
+  imageUrl: '{1}',        imageUrlParams: [{1} = PictureUrl],
+  alternativeText: '{1}', alternativeTextParams: [{1} = Name]
+)
 ```
+
+The same companion works on any pluggable widget's text-template property — a
+TreeNode's `headerCaption`, a Timeline's `title` / `description` /
+`timeIndication` — under the property's own name + `Params`. Without it a
+text-template property took literal text only, so it rendered the same string
+on every row with `check`, `exec` and `mx check` all clean.
 
 Every `{N}` must have a matching parameter — Mendix rejects a shortfall with
 `CE0720` ("place holder index N is greater than …, the number of parameter(s)").
@@ -723,6 +834,22 @@ actionbutton btnSubmit (
 )
 ```
 
+### Inputs in a List View Need `editable: true` on the List View
+
+A list view has an `Editable` of its own, default **false** (Mendix's default),
+and its read-only context wins over `editable: Always` on an input inside it —
+even inside a nested data view. Without it every input renders as a read-only
+value, while `mx check` and the build stay clean. `mxcli check` reports this as
+MDL-WIDGET31.
+
+```sql
+listview lvRows (datasource: database Mod.Row, editable: true) {
+  textbox tName (label: 'Name', attribute: Name)
+}
+```
+
+Write `true` unquoted: `editable: 'true'` is a string and is written false.
+
 ### Only a CONTAINER (or a Button) Can Be Clicked
 
 `onclick:` is an alias for `action:`, and mxcli writes it for three widget kinds
@@ -737,9 +864,10 @@ Two shapes, two remedies:
   the input widgets, `groupbox`, `tabcontainer`, `layoutgrid`, `snippetcall`) —
   put the action on a `container` inside the widget. A container renders with
   `tabindex="0" role="button"`, so it is the correct modelling, not a workaround.
-- **Mendix models one but mxcli cannot write it yet** (`listview`,
-  `staticimage`, `dynamicimage`) — the container is a workaround here; the model
-  could hold the action.
+- **Mendix models one but mxcli cannot write it yet** — nobody is in this group
+  today. `listview`, `staticimage` and `dynamicimage` were, and their actions
+  have been written since ako/mxcli#512; MDL-WIDGET23's second message survives
+  so the next such gap has a sentence, not because one is open.
 
 ```sql
 -- WRONG: silently does nothing
@@ -846,6 +974,42 @@ controlbar controlBar1 {
   actionbutton btnNew (caption: 'New', action: create_object Module.Entity then show_page Module.EditPage, buttonstyle: primary)
 }
 ```
+
+**A control bar is not row-scoped.** It sits above the rows, so the grid's
+current object is not in scope there — an action calling a flow with a parameter
+gets **CE1571** unless you give it an argument, and `$currentObject` is unbound
+(`mxcli check` reports MDL-BUTTON01). The remedy is the grid's **selection**,
+addressed by the widget's own name and available once `selection:` is set:
+
+```sql
+datagrid dgMaterials (
+  datasource: database from Module.Material,
+  selection: single
+) {
+  column colName (attribute: Name, caption: 'Name')
+
+  -- Row-scoped: the grid's row supplies the parameter, no argument needed.
+  column colRow (caption: 'Row') {
+    container cRowUnlink (action: nanoflow Module.ACT_UnLink, class: 'command') {
+      actionbutton btnRowUnlink (caption: 'Unlink')
+    }
+  }
+
+  controlbar controlBar1 {
+    -- Not row-scoped: pass the selection explicitly.
+    container cUnlink (
+      class: 'command',
+      action: nanoflow Module.ACT_UnLink ($Material = $dgMaterials)
+    ) {
+      actionbutton btnUnlink (caption: 'Unlink')
+    }
+  }
+}
+```
+
+A **container** takes an argument list exactly like an `actionbutton` does — the
+two share one action grammar. Reaching for a button because a container "cannot
+pass parameters" changes the rendering for no reason (mendixlabs/mxcli#1082).
 
 ### Charts (Charts.mpk — ColumnChart / BarChart / AreaChart / PieChart)
 

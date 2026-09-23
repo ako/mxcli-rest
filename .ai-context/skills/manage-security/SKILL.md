@@ -33,27 +33,63 @@ constraint, not a detail: it decides what your screens can be, and finding it la
 means rebuilding them (ako/mxcli-maintenance-2 designed a technician picker, built
 it, tested it, and tore it out).
 
-Both consequences are **silent** — the page renders, the data is simply missing, and
-`mx check` and `mxcli lint` both pass:
+Every consequence is **silent** — the page renders, the data is simply missing, and
+`mx check`, `mxcli lint` and `mxcli report` all pass:
 
 | What you build | What a non-Administrator sees |
 |---|---|
 | A combo box over `System.User` (e.g. "pick a technician") | **The current user only** |
 | A grid over `System.Workflow` / `System.WorkflowUserTask` | **Empty** |
+| Either of those, re-sourced from a **microflow** | **Every row present, every field blank** |
 
-Three ways around it, in order of preference:
+### The rule: a microflow data source moves the ROWS, not the MEMBERS
 
-1. **Record, don't pick.** Target the task at a *role*, let whoever opens it do the
-   work, and stamp who acted on completion — a plain association plus a denormalised
-   name your own module owns, which every role can then read.
-2. **A microflow data source.** Microflows bypass entity access by default, so a page
-   can show data the role cannot read directly.
+Learn this as a rule rather than as a symptom, because the obvious workaround only
+*looks* like it worked, and the same trap is waiting on the next screen.
+
+A microflow does not apply entity access, so its retrieve returns every row. But the
+runtime **re-applies entity access when it serializes those objects to the client,
+XPath constraint included** — so a row the role may not read arrives with every
+member empty. The list comes out the right length and the cards come out blank.
+
+Measured in a browser on Mendix 11.14.0 — one page, two microflow-sourced lists over
+the *same* `System.User` retrieve, opened by two users:
+
+| list | as Administrator | as a plain User |
+|---|---|---|
+| A — the `System.User` objects themselves | `probe_admin`, `probe_viewer` | **(blank)**, `probe_viewer` |
+| B — a module-owned copy, `Name` read *inside* the microflow | `probe_admin`, `probe_viewer` | `probe_admin`, `probe_viewer` |
+
+Both lists hold two rows for both users, so the microflow really did carry the rows
+past entity access. Only A loses the values, and it loses them **per object**:
+`System.User`'s own rule grants read where `[id = '[%CurrentUser%]']`, which is why
+a user picker shows you yourself and nobody else rather than showing nothing.
+
+`System.WorkflowUserTask` has no such escape hatch for an ordinary role, so a
+workflow inbox built this way comes out *entirely* blank — the reported case
+(ako/mxcli#587): the inbox drew the right number of cards, every one of them empty,
+with `mxcli check`, `lint`, `report` and `docker check` all at 0 errors.
+
+### What to do instead
+
+1. **Record, don't pick.** Have the workflow stamp itself against a row your own
+   module owns — an `ON CREATED MICROFLOW` writing an association plus a plain status
+   string — and list *those* objects. Target a task at a *role*, let whoever opens it
+   do the work, and record who acted when they act.
+2. **Read it inside a microflow, return your OWN object.** Entity access does not
+   apply to the retrieve *or* to the member read, only to what crosses to the client
+   — so copy the values you need onto an entity your module owns (persistent or
+   non-persistent) and bind the page to that. This is list B above, and it is the
+   same shape the reporter arrived at independently for user pickers: `Engineer` is a
+   module-owned entity rather than `System.User`.
 3. **Split the page by role.** Keep raw System grids on an Administrator-only page.
    Mendix hides a button to a page the user may not view, so the link simply does not
    appear.
 
-Related: `grant … on System.User` is refused outright — the System module's domain
-model is not stored in the project, so it has no access rules to add to.
+Related: `grant … on System.User` is refused by `exec` — the System module's domain
+model is not stored in the project, so it has no access rules to add to. The refusal
+is at execution, not at `mxcli check`, so a script carrying one passes `check` and
+then stops part-way through.
 
 ## Syntax Reference
 
@@ -175,6 +211,19 @@ grant view on page MyModule.Customer_Overview to MyModule.User, MyModule.Admin;
 revoke view on page MyModule.Customer_Overview from MyModule.User;
 ```
 
+### Always Qualify a Module Role
+
+A module role is always `Module.Role`. The grammar makes the module part
+optional, so a bare `Admin` parses — and then either fails at exec (after every
+earlier statement has already been written) or, in `create user role`, is stored
+as `.Admin` and refused by MxBuild with **CE1613**. `mxcli check` reports it as
+**MDL-GRANT02** without needing a project.
+
+```sql
+grant Admin on MyModule.Customer (read *);            -- ✗ MDL-GRANT02
+grant MyModule.Admin on MyModule.Customer (read *);   -- ✓
+```
+
 ### Entity Access (CRUD)
 
 GRANT is **additive** — it merges with existing access, never removes permissions.
@@ -215,6 +264,22 @@ revoke MyModule.User on MyModule.Customer (write (Email));
 -- Partial revoke: remove structural permission
 revoke MyModule.User on MyModule.Customer (delete);
 ```
+
+#### Members added later
+
+A rule also carries a default for members added **after** it was written, and MDL
+derives it from the grant: `write *` → ReadWrite, `read *` → ReadOnly, and a
+grant written **purely as member lists** leaves it at **None**.
+
+So `alter entity … add attribute` gives the new attribute None on a
+member-listed rule. Nothing is broken — every rule gets an entry, the build is
+clean — but the attribute renders blank for that role. `alter entity` warns and
+prints the grant that widens it.
+
+What decides this is the rule's default, **not** how narrow its member list is:
+`read *, write (Email)` is narrower than `read *, write *` and still picks up new
+members, because `read *` set its default to ReadOnly. Give a rule `read *` and
+narrow with `revoke` when the role should follow the entity as it grows.
 
 #### Inherited members
 
@@ -274,6 +339,18 @@ Three things worth knowing, each of which was a defect until
 
 A run that skipped something says so. `All entity access rules are up to date`
 means every module was looked at.
+
+The commonest source of a stale rule is a module that arrived from outside
+Studio Pro. `mxcli marketplace install` and `mxcli marketplace update` copy the
+incoming units in verbatim, so a package whose rules do not cover their entities'
+members used to land CE0066 in the project with nothing said about it
+([mendixlabs/mxcli#1085](https://github.com/mendixlabs/mxcli/issues/1085)); both
+now run this reconcile for the module they copy in and report the count. Run it
+by hand for a module installed some other way, or by an older mxcli:
+
+```bash
+mxcli -p app.mpr -c "update security UserCommons"
+```
 
 A member name that matches nothing is now an error rather than a silent skip:
 

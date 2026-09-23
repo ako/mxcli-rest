@@ -37,6 +37,15 @@ Two separate commands are needed. The full catalog must exist before community d
 | `REFRESH CATALOG FULL` | `GRAPH_GOD_NODES`, `GRAPH_MODULE_COUPLING`, `GRAPH_MODULE_COHESION`, `GRAPH_DEAD_ASSETS`, `GRAPH_ENTITY_HOTSPOTS`, `GRAPH_MODULE_DEPENDENCIES`, `GRAPH_REFKIND_DISTRIBUTION` |
 | `REFRESH CATALOG COMMUNITIES` | `COMMUNITIES`, `COMMUNITY_SUMMARY`, `GRAPH_CYCLES`, `GRAPH_LAYERS`, `GRAPH_CENTRALITY`, `GRAPH_INTEGRATION_SURFACE` |
 
+**An empty table from the second row is ambiguous unless you check.** Step 2 is
+not a build mode — it augments whatever the catalog is, so `Build mode: full`
+says nothing about whether it ran, and before mendixlabs/mxcli#1060 an un-run
+pass and a genuinely cycle-free project produced the same `0 rows`. A query now
+warns `requires refresh catalog communities (not run for this catalog)` when the
+pass is missing, and `SHOW CATALOG STATUS` has a `Graph analysis:` line. **No
+warning plus no rows is a real answer**; treat anything else as "not computed
+yet", not as "clean".
+
 `REFRESH CATALOG COMMUNITIES` with a resolution modifier:
 - `REFRESH CATALOG COMMUNITIES` — default resolution (balanced granularity)
 - `REFRESH CATALOG COMMUNITIES resolution 0.6` — coarser clusters (fewer, larger communities; good for monolith-to-multi-app planning)
@@ -233,6 +242,37 @@ ORDER BY CycleSize DESC, CycleId
 **Size 2**: mutual reference between two elements — e.g. workflow A calls workflow B which triggers workflow A. Investigate before assuming it's intentional; these can cause infinite loops at runtime.  
 **Size 3+**: a dependency ring — must be broken before the module can be split or properly layered.
 
+### Module cycles are a different query, not a rollup
+
+`GRAPH_CYCLES` is **document**-level. Two modules referencing each other almost
+never means two documents do — Administration calls something in Atlas_Core from
+one page while Atlas_Core reaches back from another — so `GRAPH_CYCLES` is
+correctly empty for a genuinely circular pair of modules. Reading it as "no
+circular dependencies" was mendixlabs/mxcli#1060. Ask the module question of the
+module table:
+
+```sql
+SELECT ModuleName, CycleSize, RefKinds
+FROM CATALOG.GRAPH_MODULE_CYCLES
+ORDER BY CycleSize DESC, ModuleName
+```
+
+`RefKinds` names the kinds on that module's edges **into the rest of the cycle** —
+the references to go and break, as opposed to everything else the module points at.
+
+The two also read different edges. `GRAPH_MODULE_CYCLES` uses every reference
+kind, matching `GRAPH_MODULE_COUPLING`; the computed asset pass
+(`GRAPH_CYCLES`/`COMMUNITIES`/`GRAPH_LAYERS`/`GRAPH_CENTRALITY`) is restricted to
+the structural kinds so navigational edges do not blur the clustering. On a stock
+app that is about a third of the edges. `GRAPH_ANALYSIS_SCOPE` reports the split
+per kind, which is the query to run when coupling shows an edge and the computed
+tables act as though it were not there:
+
+```sql
+SELECT RefKind, Edges, InAssetGraph FROM CATALOG.GRAPH_ANALYSIS_SCOPE
+ORDER BY InAssetGraph, Edges DESC
+```
+
 ---
 
 ## Use Case 8: Monolith-to-Multi-App Planning
@@ -294,7 +334,9 @@ Elements at the same layer can be parallelised safely. A microflow calling somet
 | Which modules are tightly coupled? | `GRAPH_MODULE_COUPLING` |
 | Is module M self-contained? | `GRAPH_MODULE_COHESION` |
 | What is unused / dead? | `GRAPH_DEAD_ASSETS` |
-| Are there circular dependencies? | `GRAPH_CYCLES` |
+| Are there circular dependencies between **documents**? | `GRAPH_CYCLES` |
+| Are there circular dependencies between **modules**? | `GRAPH_MODULE_CYCLES` |
+| Why isn't an edge I see in coupling affecting the cycles/layers? | `GRAPH_ANALYSIS_SCOPE` |
 | Which entities are hotspots? | `GRAPH_ENTITY_HOTSPOTS` |
 | What contracts would a split require? | `GRAPH_INTEGRATION_SURFACE` |
 | What reference types cross module boundaries? | `GRAPH_MODULE_DEPENDENCIES` |

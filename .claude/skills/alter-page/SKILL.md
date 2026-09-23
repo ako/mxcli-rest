@@ -117,6 +117,7 @@ set Title = 'New Page Title'
 set PopupWidth = 800
 set PopupHeight = 480
 set PopupResizable = true
+set Documentation = 'What this page is for.'
 
 -- Retarget a button's on-click action. Any form `create page` accepts works
 -- here, including the combined ones.
@@ -124,9 +125,14 @@ set Action = microflow Module.ACT_Other on btnSave
 set Action = SAVE_CHANGES CLOSE_PAGE on btnSave
 set Action = SHOW_PAGE Module.DetailPage on btnEdit
 
+-- Retarget ONE named action slot of a pluggable widget, by the widget's own
+-- property key (the same key `create page` takes: `createFileAction: …`).
+set 'createFileAction' = microflow Module.ACT_CreateFile on fileUploader1
+set 'onSelectionChange' = show_page Module.Detail on dgOrders
+
 -- Rebind a data-bound widget
 set DataSource = $OrderParam on dvOrder
-set DataSource = DATABASE Module.Order on dgOrders
+set DataSource = microflow Module.MF_Get on dvOrder
 ```
 
 **Prefer `set Action` over `replace` when only the action changes.** `replace`
@@ -144,6 +150,7 @@ so a silent write would build cleanly and then fail to open.
 | Property | Widget Types | Value Type | Example |
 |----------|-------------|------------|---------|
 | `Action` | Widgets with an on-click action (ACTIONBUTTON, LINKBUTTON, clickable containers) | Any `create page` action expression | `set Action = microflow M.ACT_Go on btnSave` |
+| `'<slotKey>'` | Pluggable widgets — any **action-typed** property (File Uploader `createFileAction`, DataGrid 2 `onSelectionChange`, …) | Any `create page` action expression | `set 'createFileAction' = microflow M.ACT_Create on fileUploader1` — refused, naming the widget's action slots, if the key is not action-typed |
 | `caption` | ACTIONBUTTON, LINKBUTTON | String | `set caption = 'Submit' on btnSave` |
 | `content` | DYNAMICTEXT | String | `set content = 'New Heading' on txtTitle` |
 | `label` | TEXTBOX, TEXTAREA, DATEPICKER, COMBOBOX, CHECKBOX, RADIOBUTTONS | String | `set label = 'full Name' on txtName` |
@@ -154,6 +161,7 @@ so a silent write would build cleanly and then fail to open.
 | `visible` | Any widget | String or Boolean | `set visible = false on txtHidden` |
 | `Name` | Any widget | String | `set Name = 'newName' on oldName` |
 | `Title` | Page-level only (case-sensitive) | String | `set Title = 'Edit Customer'` |
+| `Documentation` | Page-level only (case-sensitive) | String (`''` clears) | `set Documentation = 'Coordinator triage step.'` |
 | `layout` | Page-level only | Qualified name | `set layout = Atlas_Core.Atlas_Default` |
 | `PopupWidth` | Page-level only (case-sensitive) | Positive integer (pixels) | `set PopupWidth = 800` |
 | `PopupHeight` | Page-level only (case-sensitive) | Positive integer (pixels) | `set PopupHeight = 480` |
@@ -196,7 +204,6 @@ from a microflow to a page parameter:
 ```sql
 ALTER PAGE MyModule.OrderPage {
   SET DataSource = $Order ON dvOrder;                       -- page/snippet parameter
-  SET DataSource = database MyModule.Order ON dgOrders;      -- database
   SET DataSource = microflow MyModule.MF_Get ON dvOrder;     -- microflow
   SET DataSource = nanoflow MyModule.NF_Get ON dvOrder;      -- nanoflow
   SET DataSource = selection dgOrders ON dvDetail;           -- listen to widget
@@ -207,9 +214,23 @@ The parameter must exist on the page (or snippet) being altered — its entity i
 read from the container's own parameter list, and an unknown name is refused
 rather than written as an unresolved reference.
 
-`association` sources are **not** supported by SET. Use REPLACE for those, which
-rebuilds the widget through the CREATE PAGE path and handles every datasource
-type; the error message says so.
+`association` and `database` sources are **not** supported by SET. Use REPLACE
+for those, which rebuilds the widget through the CREATE PAGE path and handles
+every datasource type; the error message says so.
+
+A `database` source has no single stored shape — the widget holding it decides
+which element Mendix writes (a list view, a data grid and a pluggable widget
+each store a different one), and SET writes the property directly rather than
+rebuilding the widget, so it has nothing to choose from. This used to be
+accepted and half-applied: the widget was left with a source that DESCRIBE read
+back as absent and mxbuild rejected as **CE7007**, on a page `exec` had just
+reported as altered (mendixlabs/mxcli#1032).
+
+A **data view** is the one case REPLACE does not rescue: it binds to a single
+object, so Mendix gives it no database form at all and the CREATE PAGE path
+refuses one too. Point it at a context parameter, a microflow, a nanoflow or
+`selection <widget>`, and use a list view or a data grid to show a query. The
+refusal says which of the two situations you are in.
 
 ### INSERT - Add Widgets
 
@@ -238,6 +259,16 @@ without needing a sibling to anchor to. Widgets inserted into a dataview take th
 dataview's entity as their context. Supported on simple containers (container,
 dataview, groupbox, scroll-container region); for a layout grid or tab container,
 insert relative to a widget inside the target column/tab instead.
+
+**The context comes from the nearest enclosing data source, whatever kind it is**
+— a database or association source, a microflow/nanoflow source (the entity is
+the flow's return type), or `datasource: selection <list>`, which takes the
+entity of the list it listens to. A bare attribute in the inserted or replaced
+widget resolves against that entity, exactly as it would in `create page`. When
+no enclosing source can be resolved, the binding is written unset rather than
+guessed at — `describe page` then prints `<unbound>`, and mxbuild reports
+`CE0402 "No value specified."`, so re-describe the page after an ALTER that
+moves data-bound widgets.
 
 ### DROP - Remove Widgets
 
@@ -460,13 +491,31 @@ actions — cannot be set by ALTER at all. It refuses them and points at
 `create or replace page`, rather than writing a string where Mendix expects a
 reference.
 
+**Widget property names are matched case-insensitively**, pluggable ones
+included, so a spelling `CREATE PAGE` accepts is a spelling `ALTER PAGE` accepts
+— `set PageSize = 10 on dgProducts` and `set pageSize = 10 on dgProducts` are the
+same statement. This is what makes DESCRIBE output re-executable: `describe page`
+prints the capitalised `PageSize:`, while the widget template stores `pageSize`
+(mendixlabs/mxcli#1069). A property the widget does not declare is still an
+error — and `mxcli check … --references` reports it **before** the script runs,
+so a typo no longer lands halfway through. The pre-flight resolves the name
+against the stored document rather than a list, so it is right about whatever
+widget package this project has installed; the error names the widget's own
+property keys. `ON` a widget the page does not have is caught the same way.
+
+Two things it deliberately stays quiet about, because it cannot answer them: a
+page the script itself creates (nothing is stored yet — the widgets there are
+checked where they are written), and a widget an `INSERT` in the same script
+adds. Both still fail at exec if they are genuinely wrong.
+
 ## Common Mistakes
 
 | Mistake | Fix |
 |---------|-----|
-| Missing `on widgetName` for widget SET | Add `on widgetName` (only page-level properties — `Title`, `PopupWidth`, `PopupHeight`, `PopupResizable`, `Class`, `Style` — omit ON) |
+| Missing `on widgetName` for widget SET | Add `on widgetName` (only page-level properties — `Title`, `Documentation`, `PopupWidth`, `PopupHeight`, `PopupResizable`, `Class`, `Style` — omit ON) |
 | `unsupported page-level property: title` | Page-level property names are case-sensitive — use `Title`, `PopupWidth`, `PopupHeight`, `PopupResizable`, `Class`, `Style` |
 | Using unquoted pluggable property names | Quote pluggable props: `set 'showLabel' = false on cb` |
+| `pluggable property "X" not found` | The widget does not declare it — casing is not the problem (any casing resolves). The error lists the keys it does declare; `describe widget <type>` or `describe page` shows them in context. Run `mxcli check … --references` to get this before the script runs |
 | Wrong widget name | Use `describe page Module.Name` to see widget names |
 | SET on non-existent widget | Widget names are case-sensitive; check with DESCRIBE |
 | Missing semicolons between operations | Each operation inside `{ }` ends with `;` |

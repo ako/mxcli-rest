@@ -40,7 +40,11 @@ and mxcli's own rules; it does not validate the Mendix model. Run
 
 `mxcli check script.mdl` alone checks syntax and the semantic rules that need no
 model. **Pass `-p` and it also resolves every reference** — modules, entities,
-pages, microflows and icons — against that project:
+pages, microflows and icons — against that project. It reaches inside stored
+documents where a name can only be answered there: an `ALTER PAGE … SET` is
+dry-run against the page it edits, so a widget the page does not have, or a
+property the stored widget does not declare, is reported here rather than
+stopping the script partway through `exec`.
 
 ```bash
 mxcli check script.mdl                 # syntax + model-free rules
@@ -53,6 +57,77 @@ printed an unqualified `Check passed!` having resolved nothing — a misspelled
 icon or entity sailed through a command that had been handed the project. A run
 without a project now says what it did not check, so a pass is never read as
 more than it is.
+
+### It also reports a name the PROJECT already has
+
+A plain `create` of a document the project already carries is a `check` error,
+not something to discover at exec time:
+
+```
+statement 4: association already exists in project: Sales.Order_Customer — use CREATE OR MODIFY to update it
+```
+
+The reason it belongs in `check` is that **`exec` stops at the first one having
+already written everything before it**. A script whose fourth statement
+conflicts leaves three statements' worth of changes in the project and no
+fourth — so "run it and see" is not a free experiment. `check` reports every
+conflict in the script before anything is written.
+
+Three spellings say "fine if it already exists", and none is reported:
+`create or modify`, `create or replace`, and `create … if not exists` (which
+leaves the stored element untouched rather than rewriting it). `create module M;`
+is never reported either — it is a no-op when the module exists, which is what
+lets it open every script.
+
+The types covered are the ones `exec` refuses: entity, enumeration, constant,
+association, microflow, nanoflow, rule, page, snippet, java action, javascript
+action, workflow, and the integration/agent document types. If you find one that
+`exec` refuses and `check` does not, that is a bug of exactly the shape
+`TestEveryCreateDocTypeIsProjectChecked` exists to prevent.
+
+### It reports what the script REMOVES from the project
+
+`create or modify entity` is on the list above — it is never a conflict, because
+"fine if it already exists" is exactly what it says. What it does **not** say is
+that it rebuilds the entity from the statement, so every member the statement
+omits is deleted. Slice an app into ordered scripts and that becomes a real
+hazard: an attribute added by a later `alter entity` — a calculated one whose
+microflow does not exist until then is the usual reason — is gone the moment the
+earlier script is re-run on its own. **Script order is load-bearing, even though
+each script is individually idempotent.**
+
+`check` now says so before anything is written, as **MDL087**:
+
+```
+⚠ applying this script to the project removes 1 member(s) from entity
+  ServiceCore.LithoSystem that it does not restate: OpenRequestCount
+  — anything still bound to them (widgets, microflows) fails the build with CE1613
+    at ServiceCore.LithoSystem
+    → … or add them incrementally with 'alter entity ServiceCore.LithoSystem
+      add attribute <name>: <type>;' in this script; if they are meant to go,
+      say so with 'alter entity … drop attribute <name>;'
+```
+
+`exec` prints the same list — but as it applies the statement, by which point the
+attribute is gone. Left unreported entirely, the loss surfaces slices later as
+`CE1613` on whatever still binds it, naming the *page*, not the script that
+removed the attribute (ako/mxcli#562).
+
+Two properties of the rule are worth knowing, because they are what keep it from
+becoming noise you learn to scroll past:
+
+- **It is the NET effect of the whole script, not one statement's.** A script
+  that rebuilds an entity and then adds the members back with `alter entity …
+  add attribute` loses nothing and is silent. So the *combined* slices check
+  clean and slice 01 alone does not, which is precisely the difference that bit.
+- **An explicit removal is not reported.** `drop attribute`, `rename attribute`
+  and `drop entity` say what they do. Only a member the project holds, that the
+  script neither restates nor asks to remove, is a warning.
+
+It is a **warning**: "modify to this shape" is a legitimate intent and `check`
+still exits 0. The defect was the silence, not the behaviour. It also covers the
+members that are not attributes — the four audit system fields and an omitted
+`extends` — because those drop the same way.
 
 ### It resolves MEMBER names too, where it can establish the entity
 

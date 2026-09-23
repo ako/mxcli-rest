@@ -140,6 +140,17 @@ The **bare** form is the icon-collection icon and is what you normally want. Use
 navigation` emits it for you — and `image` for a picture from an image
 collection, which is a different document from an icon collection.
 
+**Do not invent a glyph code.** It is a bare integer that nothing resolves, so a
+code the Mendix font does not define passes `mxcli check` AND `mx check` at 0
+errors and then breaks `mxbuild --target=deploy` with *"An exception occurred
+while exporting layout '<some layout>'"* — a message naming a document that is
+not the cause. `mxcli check` now warns (**MDL078**) against the 247 codes the
+shipped font defines, but a glyph is still an unchecked number where an icon
+collection reference is a resolved model reference. Browse the codes with `show glyphs`
+(`show glyphs like 'star'` searches by name, `describe glyph 57350` goes the
+other way), or use `icon Atlas_Core.Atlas.<name>` and list the names with
+`describe icon collection Atlas_Core.Atlas`.
+
 The icon-collection form is a **qualified name** — a model reference, written
 like every other reference in MDL, not a string:
 
@@ -178,6 +189,94 @@ replay:
 menu item 'Close' page MyModule.Close;
 -- icon System.Images.Close (Forms$ImageIcon) is not reproducible by CREATE NAVIGATION; set it in Studio Pro
 ```
+
+### Offline Synchronization
+
+An offline profile downloads **nothing** until its entities are given a sync
+mode. Without a `SYNC` block the app builds, routes and installs as a PWA — and
+shows an empty screen. That is the single most common way an offline profile
+looks broken while every check passes.
+
+```sql
+create or replace navigation PhoneOffline
+  home page MyModule.Mobile_Dashboard
+  sync (
+    sync MyModule.Setting online;
+    sync MyModule.Vehicle all;
+    sync MyModule.Trip where [Distance > 0];
+    sync MyModule.AuditEntry never;
+    sync MyModule.Lookup none;
+    sync MyModule.Draft none preserve data;
+  );
+```
+
+| MDL | Meaning |
+|---|---|
+| `online` | fetched from the server, never held on the device |
+| `all` | every object downloaded |
+| `where [<xpath>]` | only the objects the XPath selects |
+| `never` | not synchronized |
+| `none` | not downloaded; anything already on the device is dropped |
+| `none preserve data` | not downloaded; what is on the device stays |
+
+**The words are not Studio Pro's captions.** Its dialog shows "All Objects" and
+"By XPath"; neither is a value Mendix stores. `all` and `where` are. Copying a
+caption out of the UI gives a parse error rather than a broken document, which
+is deliberate.
+
+**`where` implies the constrained mode** rather than naming it, so a constraint
+without a mode and a mode without a constraint are both unspellable.
+
+**Use the bracket form.** It takes the XPath verbatim — nothing inside is
+escaped, so quoted literals stay readable:
+
+```sql
+sync MyModule.Team where [contains(Name, 'abc')];
+```
+
+A quoted `where '<xpath>'` still parses, but every quote inside it must be
+doubled — and a stored constraint already carries Mendix's own escaping, so the
+two compose into runs of six quotes. `describe navigation` emits the bracket
+form. This is the general problem tracked as `mendixlabs/mxcli#750`.
+
+**The block replaces the stored list**, the way `menu (...)` replaces the menu.
+Omitting it leaves the stored configuration alone.
+
+**Ask the catalog which entities sync, rather than reading the profile.**
+
+```sql
+select EntityQualifiedName, SyncMode, XPathConstraint
+  from CATALOG.OFFLINE_ENTITY_CONFIGS where ProfileName = 'PhoneOffline';
+```
+
+And before changing an entity, ask which profiles download it — an offline
+change reaches every device that already synced:
+
+```
+show references to MyModule.Order
+```
+
+The `sync` row names the profile. Every mode produces one, **including the
+modes that download nothing**: a profile with `sync X never` still names `X`,
+so renaming or dropping it leaves the configuration dangling.
+
+**Errors when the server rejects an object.** Studio Pro's *"Throw error when
+server rejects objects during synchronization"* checkbox:
+
+```sql
+create or replace navigation PhoneOffline
+  home page MyModule.Mobile_Dashboard
+  on sync error continue;      -- default is `throw`
+```
+
+It uses the phrase MDL already has for failure handling — a microflow's
+`on error continue` — rather than a keyword of its own. Omitting the clause
+leaves the stored value alone; `describe navigation` emits it only when it is
+not the default, so existing scripts stay quiet.
+
+**Compatibility mode has no syntax.** mxcli reads it, preserves it across a
+rewrite, and `describe navigation` flags any entity that has it on — it is never
+silently dropped.
 
 ### Clear the Menu
 
@@ -343,8 +442,6 @@ export level are preserved, so menu widgets pointing at it keep working.
   image icon cannot be written by MDL; `describe` flags those on their own
   comment line rather than dropping them silently, so re-running the output
   loses that icon visibly.
-- **Authoring needs the default engine.** Under `MXCLI_ENGINE=legacy`,
-  create/modify/drop refuse rather than writing a differently-shaped document.
 
 ## Offline Profiles
 
@@ -409,3 +506,11 @@ stored. MDL does not author per-entity sync modes — set those in Studio Pro.
 - [ ] Use `describe navigation` to verify changes after applying
 - [ ] For a **menu document**, confirm you want `create menu` and not a profile menu — `show navigation menu` vs `describe menu` tells them apart
 - [ ] No menu item targets a page with required parameters (CE1571)
+
+## Offline synchronization (`CREATE NAVIGATION … SYNC (…)`)
+
+an offline navigation profile downloads **nothing** until each entity has a sync mode, so a profile mxcli created built, routed and installed as a PWA and showed an **empty app** — with `mxcli check`, `exec` and `mx check` all clean. The six mode words are the members Mendix stores, **not** Studio Pro's captions (its "All Objects" is `ALL`, its "By XPath" is `WHERE`), and a caption is refused rather than written — the CE0463 gallery defect wearing a different hat. `WHERE` takes the XPath in **brackets**, verbatim: the quoted form doubles every quote, and a stored constraint already carries Mendix's own escaping, so the two compose into runs of six (mendixlabs/mxcli#750, and `PROPOSAL_first_class_expressions.md`). The write is an **overlay keyed by entity**, so `CompatibilityMode` — stored, unauthorable — survives a rewrite; every reference config carries `false`, so only a synthetic `true` case distinguishes a correct writer from one that always emits `false`. `DownloadMode`/`ShouldDownload` are deliberately **not** written though gen declares them: zero occurrences in ako/TestApp, and a property Studio Pro fills in on load is one whose emission makes a document Studio Pro cannot open. Creating the *profile* stays modelsdk-only (a fourteen-key document pinned to a Studio Pro reference); the SYNC block works on both engines. `ON SYNC ERROR THROW|CONTINUE` writes `ThrowPartialSyncError`, a property **neither generated source declares** (zero occurrences in gen and in generated/metamodel), so it is read from `element.Base.Raw()` and written as a raw key. The spec field is a **pointer**: the property is a bare bool with no unset value, so a non-pointer would reset it on every rewrite that never mentions the clause. Absent reads as **true**, matching every reference profile and Studio Pro's checked-by-default box. Both halves are in the catalog: `CATALOG.OFFLINE_ENTITY_CONFIGS` holds one row per configured entity (the profile's `OfflineEntityCount` said how many and nothing else), and a configured entity emits a **`sync` edge** into `CATALOG.REFS` so `show references to Mod.Entity` names the profiles that download it. Every mode gets an edge, **including the ones that download nothing** — a profile with `sync X never` still names X, so renaming or dropping it leaves the config dangling, which is exactly what the edge exists to reveal. and `docs/11-proposals/PROPOSAL_offline_sync_configuration.md`
+
+## Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU)
+
+standalone `Menus$MenuDocument`, the reusable menu a menu widget points at (Atlas_Core's `Phone_Menu`/`Tablet_Menu`) — **not** the menu inside a navigation profile, though both are built from the same items, so the item syntax is shared with `CREATE NAVIGATION`'s `MENU (...)` block. DESCRIBE is round-trippable. Written through gen+codec, which is load-bearing: Studio Pro's menu documents carry typed-array marker **3** on the item collection and each item's sub-items (the codec default), while the navigation writers hand-build items with marker **1** — unverified whether that is a latent navigation bug or a real difference, so navigation is left alone. Authoring is modelsdk-only; legacy refuses. Two traps: a menu item cannot open a page with required parameters (**CE1571**), and only `Forms$IconCollectionIcon` round-trips (glyph/image icons are flagged by DESCRIBE, not dropped silently)

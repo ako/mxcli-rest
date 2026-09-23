@@ -2226,3 +2226,62 @@ is **6/6** — the five standing repros plus the publish lane's nested array.
 `./mxcli` promoted to this build. It is a PR head, not main, so re-running a
 domain-model script with an older binary still strips the rules; #61's warning in
 `01-domain-model.mdl` stays until 403 merges.
+
+## 63. `737840b` (0.23.0) and PR 650: `describe` was calling a single-object import a list
+
+Two and a half weeks and **678 commits** since the v0.21.0 verification, across
+releases 0.22.0 and 0.23.0. PR 403's access-rule fix (#62) is merged into main.
+
+### Regression pass on main: clean
+
+All 14 `mdlsource/*.mdl` pass, `mx check` 0 errors, `SHOW ACCESS` answering for
+every granted entity, lint 278 (from 281 — three fewer info findings, no rule
+newly firing). The rates lane still imports at runtime.
+
+### PR 650 — and this project is its case
+
+`1b5f5593 fix: describe leaves 'all' off an import that returns one object`.
+Lane 09 is exactly the shape: `IMM_Rates` is object-rooted and the activity is
+written bare.
+
+```sql
+-- 09-transformer-lane.mdl, as authored
+$Snapshot = import from mapping RestLab."IMM_Rates" ($Shaped);
+
+-- main 737840b describes it as
+$Snapshot = import from mapping RestLab.IMM_Rates($Shaped) all;
+
+-- PR 650 describes it as
+$Snapshot = import from mapping RestLab.IMM_Rates($Shaped);
+```
+
+**Nothing is corrupted, and that is the point.** Both spellings exec to
+`Unchanged microflow` on both binaries — measured here, not assumed — because
+#192's runtime fix made a missing keyword store All explicitly, so the bare form
+and `all` build the identical activity. What was wrong was the *reading*: the
+printed `all` says "this imports a list" about an activity that binds one object.
+
+That matters more in this repo than a formatting nit normally would. `describe`
+is how FINDINGS reads the model back — #36's stored path, #53's flag pair, #60's
+cardinality were all settled by describing and looking. A describe that is
+faithful in bytes but misleading in meaning is the one failure mode that
+verification method cannot catch by round-tripping, which is precisely what it
+did here: both texts re-exec clean.
+
+The commit's history is the interesting part. #881 deliberately always printed
+`all`, because at the time a missing keyword stored *First* — printing it was
+correct then. The runtime fix removed that hazard and nobody revisited the
+formatter, so a guard outlived the thing it guarded against. Worth watching for:
+the fixes in this file that took the form "always write X to be safe" have the
+same shape.
+
+The skill text is corrected with it — `json-structures-and-mappings` now says
+omitting the keyword means All, that the cardinality comes from the mapping's
+root, and that the two spellings store the same activity.
+
+### Not re-run this session
+
+The container is new, so the five-probe harness from #56–#62 (mock servers,
+`MapProbe` module, binary and path-parameter repros) went with the old
+scratchpad. Only the rates lane was rebuilt and run. The static gates above
+cover the rest; a full runtime re-verification would need the harness rebuilt.

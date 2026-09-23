@@ -66,7 +66,7 @@ If you're not sure whether the logic belongs in a microflow or a nanoflow, read 
 | **JavaScript actions** | Not supported | Supported |
 | **SYNCHRONIZE** | Not available | Available (offline sync) |
 | **File downloads** | Supported | Not supported |
-| **Error handling** | Full `ON ERROR` blocks + `RAISE ERROR` | Per-action `ON ERROR` supported; `RAISE ERROR` / `ErrorEvent` forbidden |
+| **Error handling** | Full `ON ERROR` blocks; `RAISE ERROR` **inside a handler only** (main flow = MDL084 / CE0710) | Per-action `ON ERROR` supported; `RAISE ERROR` / `ErrorEvent` forbidden |
 | **Offline** | Not available | Available |
 | **Binary return type** | Supported | Not supported |
 
@@ -159,6 +159,8 @@ begin
   return 7;
 end;
 ```
+
+The sibling document annotation is **`@applyentityaccess`** — runs the flow under the current user's entity access rules rather than with full access, with the same absent-preserves rule and an explicit `(false)` to turn it off ([pitfalls](reference/pitfalls.md#apply-entity-access)).
 
 Two rules follow, and both are enforced rather than documented-and-hoped:
 
@@ -386,8 +388,8 @@ toString($value)           -- Convert to string
 >
 > **MDL044 also blocks `mxcli exec`**, not just `check`: a call to a name Mendix
 > has no built-in for is CE0117 at build time, so exec refuses to write the
-> microflow rather than leaving you to find out from mxbuild. Two names that
-> look plausible and are not real: `currentDeviceType()` and `trunc()` (use
+> microflow or nanoflow (log messages included). Not real: `currentDeviceType()`,
+> `[%CurrentDeviceType%]` (a CE0117 `check` misses) and `trunc()` (use
 > `round`/`floor`/`ceil`). If exec rejects a function you believe IS a Mendix
 > built-in, build it once and — if mxbuild accepts it — add it to `funcTable` in
 > `mdl/exprcheck/func_checker.go`; that table is the rule's only allow-list.
@@ -460,8 +462,9 @@ call java action Module.RefreshData(Url = $Url) in queue Module.RefreshQueue;
 ```
 
 **Queued calls** — the queue must already exist (`create queue Module.RefreshQueue
-(Parallelism: 2)`), and a queued **Java action must `returns void`** or the build
-fails with CE7038. Rewriting a microflow that has a queued call must restate the
+(Parallelism: 2)`), and the called flow must return nothing: a queued
+**microflow with a `returns` clause** fails the build with CE7033 (`mxcli check`:
+MDL088), a queued **Java action must `returns void`** or it fails with CE7038. Rewriting a microflow that has a queued call must restate the
 `in queue` clause; a rewrite that omits it is refused rather than silently
 dropping the binding. See `.claude/skills/mendix/scheduled-events-and-queues`.
 
@@ -597,6 +600,29 @@ $var/Module.AssociationName/attribute   -- Chained
 commit $Order;                                          -- Annotations apply here
 ```
 
+### Annotations Are Notes, and a Note Can Be Shared
+
+A note is a node with edges in Mendix, not a property of the activity it
+documents. So `@annotation` is **repeatable** — one activity can carry several,
+each its own note — and one note can be attached to several activities:
+
+```mdl
+@annotation(id: n1, text: 'both of these touch the same record')
+commit $Order;
+@annotation(id: n1)                     -- attaches THAT note, does not copy it
+commit $Invoice;
+```
+
+`id:` is scoped to the flow you are writing and is not stored in the model; it
+exists only so a second mention can point at the first. **Without it, two lines
+with identical text are two separate notes** — mxcli never merges on text.
+
+A note's own canvas geometry is `position: (x, y)` and `size: (w, h)`, e.g.
+`@annotation(text: 'note', position: (175, -40), size: (260, 70))`. Omit them
+and the note goes 100px above the activity at 200×50, stacking 60px per extra
+note; DESCRIBE omits them again whenever they match, so an ordinary note keeps
+the short `@annotation 'text'` form.
+
 ### Execute Database Query Pattern
 ```mdl
 -- Static query (3-part name: Module.Connection.Query)
@@ -634,3 +660,41 @@ call microflow ... on error rollback;                  -- Rollback on error
 call microflow ... on error { log ...; return ...; };  -- Custom handler
 call microflow ... on error without rollback { ... };  -- No rollback
 ```
+
+The clause goes on whichever activity may fail, not only on calls:
+
+```mdl
+declare $Name String = 'default' on error { return 'could not initialise'; };
+$Name = $Other/Name on error { return 'lookup failed'; };
+change $Order (Status = Shipped) on error { log error 'could not ship'; return; };
+log info node 'App' 'starting' on error { return; };
+show message 'saved' on error { return; };
+
+-- BLOCKING halts the client until dismissed; after `objects`, before `on error`.
+show message 'Hello {1}' type Warning objects [$Name] blocking;
+validation feedback $Order/Total message 'must be positive' on error { return; };
+show page Module.Page on error { return; };
+close page on error { return; };
+```
+
+**Two limits, both reported rather than silently ignored:**
+
+- **`on error continue` is rejected by Mendix** (CE6035) on `create`, `change`,
+  `commit`, `log`, `show page`, `close page`, `show message` and
+  `validation feedback` — **MDL076**. A custom `{ handler }` is accepted on all
+  of them; `continue` is fine on `declare`, `set`, `retrieve`, `delete` and
+  `call microflow`. Measured on 11.14.0 — note that create-*variable* and
+  change-*variable* accept `continue` while change-*object* does not.
+- **The list-operation and aggregate forms of `set`** (`$x = head($l)`,
+  `$n = count($l)`) have no error handling in Mendix at all — **MDL077**.
+
+**In a nanoflow, almost none of them take a clause at all.** `change`, `log`,
+`show page`, `close page`, `show message` and `validation feedback` are CE6035
+there whichever form is written; only `declare` and `set` accept one. See
+`write-nanoflows`.
+
+**End the handler.** A handler body that does not finish with `return` or `throw`
+merges back into the main flow, so a variable created *after* the merge point is
+out of scope on the error path — CE0108, which Studio Pro reports for the same
+model. Ending the handler (as Studio Pro does when you wire it to an end event)
+avoids this entirely.

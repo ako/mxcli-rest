@@ -155,7 +155,12 @@ datagrid GridName (
 **Properties:**
 - `datasource: database from Module.Entity` - Entity data source (required)
 - `where [condition]` - Optional XPath filter (inline after entity in DataSource)
-- `sort by attr asc|desc` - Optional sorting (inline after WHERE: `sort by Name asc, Price desc`)
+- `sort by attr asc|desc` - Optional sorting (inline after WHERE: `sort by Name asc, Price desc`).
+  A sort may navigate associations, one `/` per hop, with the last segment the attribute:
+  `sort by Order_BillTo/City asc`. **Name the hop when more than one association reaches the
+  same entity** — a bare `Module.Address.City` is resolved by inference, which cannot tell
+  `Order_ShipTo` from `Order_BillTo`, and the wrong one builds cleanly and sorts by the wrong
+  thing (mendixlabs/mxcli#1152)
 - `selection: Multi` - Multi-selection (`Multi`, `Single`, or omit for none)
 - `PagingPosition: both` - Pagination bar position (`top`, `bottom`, `both`)
 - `designproperties: ['Compact': on, 'Hover': on, 'Striped': on]` - Atlas design tokens
@@ -213,6 +218,17 @@ column colDate   (attribute: OrderDate) { datefilter f3 }      -- Date and time
 column colStatus (attribute: "Status")  { dropdownfilter f4 }  -- Enumeration
 -- Boolean columns: omit the filter entirely
 ```
+
+**The filter goes inside the column's own braces** — `column c (attribute: Name) { textfilter f1 }`.
+A `filter { … }` block after the column is the gallery's spelling and is refused as
+MDL-WIDGET30 on a data grid. That case, and a column over an association (a
+`dropdownfilter` taking `Association`, `datasource` and `CaptionAttribute`), are in
+[`reference/column-filters.md`](reference/column-filters.md).
+
+**The grid filters itself — do not build a filter bar beside it.** The shape to avoid is a
+non-persistent filter entity, inputs bound to it, an apply microflow on every change, and
+an XPath on the grid reading that object back: measured on one generated app, three
+microflows and 1,100 characters of XPath against five lines, one filter per column.
 
 ## NewEdit Page Template
 
@@ -482,7 +498,12 @@ module/
 
 ## Parameterized Snippets
 
-Snippets can accept parameters to display context-specific data:
+Snippets can accept parameters to display context-specific data. **A snippet
+parameter must be an entity.** A primitive one (`params: { $Label: String }`) is
+refused as **MDL087**, because Mendix rejects it with **CE0046** *"Invalid data
+type 'String'."* — a *page* parameter may be a primitive, a snippet parameter may
+not. To parameterise a snippet on a value, keep the primitive on the calling
+page's parameters, or pass an object and read the member inside the snippet.
 
 ```sql
 -- Create a snippet with a parameter
@@ -539,13 +560,21 @@ navigationlist widgetName {
 - `action: microflow Module.MicroflowName(Param: $value)` - Call microflow with parameters
 - `action: show_page Module.PageName` - Navigate to page
 - `action: show_page Module.PageName(Param: $value)` - Navigate with parameters
-- **A `show_page` argument must be the context object.** Mendix takes the page
-  argument from the enclosing data widget, so the only spellings that mean
-  anything are `$currentObject` or the name of the variable that widget is bound
-  to (`datasource: $Customer` → `(Customer: $Customer)` is fine). Naming any other
-  variable is refused as **MDL-PAGEARG01** — it used to be accepted and silently
-  opened the page with the context object anyway. To open a page with something
-  else, call a microflow that shows it.
+- **A `show_page` argument must be the context object, and there has to BE one.**
+  Mendix takes the page argument from the enclosing data widget, so the only
+  spellings that mean anything are `$currentObject` or the name of the variable
+  that widget is bound to (`datasource: $Customer` → `(Customer: $Customer)` is
+  fine). Naming any other variable is refused as **MDL-PAGEARG01** — it used to be
+  accepted and silently opened the page with the context object anyway.
+- **Outside a data widget the same rule leaves nothing at all**, so a button sitting
+  on the page itself (or in a plain `container`/`layoutgrid`) may pass **no**
+  argument — not a page parameter, not `$currentObject`, not a literal. There is no
+  context object there for Mendix to infer, and the page opens with nothing:
+  mxbuild reports **CE1571** per parameter of the target page, and a page whose
+  parameters are optional would simply show the wrong data. MDL-PAGEARG01 refuses
+  that too (mendixlabs/mxcli#1029). To open a parameterised page from such a
+  button, call a microflow that does `show page Module.Page(Param: $value)` —
+  that path wires the arguments properly.
 
 ## Handling Circular Dependencies
 
