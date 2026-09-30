@@ -19,19 +19,19 @@ Use this skill when the user wants to:
 
 ```sql
 -- List all business event service documents
-show business event services;
+list business event services;
 
 -- Filter by module
-show business event services in MyModule;
+list business event services in MyModule;
 
 -- List all business event client documents (future)
-show business event clients;
+list business event clients;
 
 -- List individual messages across all services
-show business events;
+list business events;
 
 -- Filter messages by module
-show business events in MyModule;
+list business events in MyModule;
 
 -- Full MDL description (round-trippable)
 describe business event service Module.ServiceName;

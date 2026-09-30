@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * Microsoft Graph, against a local Prism mock
  *
@@ -24,7 +25,7 @@
 
 -- ---------------------------------------------------------------- client
 
-create or modify rest client RestLab."GraphApi" (
+create or modify consumed rest service RestLab."GraphApi" (
   -- Real service: https://graph.microsoft.com/v1.0 -- point this at a constant
   -- so it can be swapped per environment. Prism mounts paths at the ROOT and
   -- ignores a base path in the spec's server URL, so no /v1.0 here.
@@ -36,14 +37,14 @@ create or modify rest client RestLab."GraphApi" (
    * The signed-in user. Single object at the root, so the mapping works --
    * including the "@odata.context" annotation.
    */
-  operation "GetMe" {
+  operation "GetMe" (
     method: get,
     path: '/me',
     headers: (
-      'Accept' = 'application/json',
+      'Accept': 'application/json',
       -- Static because the document cannot hold a dynamic value. The mock only
       -- checks that a bearer token is present.
-      'Authorization' = 'Bearer dev-token'
+      'Authorization': 'Bearer dev-token'
     ),
     timeout: 30,
     response: mapping RestLab."GraphUser" {
@@ -55,7 +56,7 @@ create or modify rest client RestLab."GraphApi" (
       "OfficeLocation" = "officeLocation",
       "UserPrincipalName" = "userPrincipalName"
     }
-  }
+  )
 };
 
 -- ---------------------------------------------------------------- transformer
@@ -87,6 +88,13 @@ source json '{"@odata.context":"https://graph.microsoft.com/v1.0/$metadata#users
 
 -- ---------------------------------------------------------------- microflows
 
+-- Dropped and re-created rather than modified in place: a loop or a
+-- decision in this flow cannot be spliced, and under `mdl 1;` an
+-- unspliceable change is a refusal rather than a whole-flow rebuild.
+-- Re-creating converges by construction; it remints element IDs, which
+-- costs nothing for a flow no one has laid out by hand. FINDINGS #65.
+drop microflow if exists RestLab.ACT_Graph_GetMe;
+
 /**
  * Single-object Graph endpoint, mapped by the REST client document.
  */
@@ -110,12 +118,17 @@ begin
 
   IF $User != empty THEN
     CHANGE $User (RestLab.GraphUser_CallLog = $Log);
-    COMMIT $User;
+    COMMIT $User WITHOUT EVENTS;
   END IF;
 
   RETURN $Log;
 end;
-/
+
+-- Dropped and re-created rather than modified in place: this flow holds a
+-- loop or a decision whose body the splice cannot edit, and under `mdl 1;`
+-- an unspliceable change is a refusal rather than a whole-flow rebuild.
+-- Re-creating converges by construction. FINDINGS #65.
+drop microflow if exists RestLab.ACT_Graph_ListUsers;
 
 /**
  * Graph COLLECTION. Called inline so the bearer token can be an expression,
@@ -134,7 +147,7 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = rest call get 'http://127.0.0.1:4020/users?$top=3'
+  $Raw = call rest service get 'http://127.0.0.1:4020/users?$top=3'
     header Accept = 'application/json'
     header 'Authorization' = 'Bearer ' + $Token
     timeout 30
@@ -160,9 +173,8 @@ begin
   IF $Raw != empty THEN
     $Shaped = transform $Raw with RestLab."DT_GraphUsers";
     CHANGE $Log ("TransformedBody" = $Shaped);
-    COMMIT $Log;
+    COMMIT $Log WITHOUT EVENTS;
   END IF;
 
   RETURN $Log;
 end;
-/

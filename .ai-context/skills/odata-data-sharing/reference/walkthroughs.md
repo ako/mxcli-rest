@@ -43,8 +43,7 @@ create view entity ProductApi.ProductWithPriceVE (
   where  p.IsActive
 );
 
-grant ProductApi.ApiUser on ProductApi.ProductWithPriceVE
-  (read *, write *);
+grant read *, write * on entity ProductApi.ProductWithPriceVE to ProductApi.ApiUser;
 ```
 
 For aggregated data:
@@ -67,8 +66,7 @@ create view entity ProductApi.CheapProductSalesVE (
   limit 1000
 );
 
-grant ProductApi.ApiUser on ProductApi.CheapProductSalesVE
-  (read *, write *);
+grant read *, write * on entity ProductApi.CheapProductSalesVE to ProductApi.ApiUser;
 ```
 
 For flattening across associations:
@@ -103,8 +101,7 @@ create view entity ProductApi.CustomerAddressVE (
     left outer join c/Shop.DeliveryAddress_Customer/Shop.Address as da
 );
 
-grant ProductApi.ApiUser on ProductApi.CustomerAddressVE
-  (read *, write *);
+grant read *, write * on entity ProductApi.CustomerAddressVE to ProductApi.ApiUser;
 ```
 
 ### Step 3: Publish the OData Service
@@ -114,7 +111,7 @@ grant ProductApi.ApiUser on ProductApi.CustomerAddressVE
  * Product and customer data API.
  * Exposes flattened views for external consumers.
  */
-create odata service ProductApi.ProductDataApi (
+create published odata service ProductApi.ProductDataApi (
   path: 'odata/productdataapi/v1/',
   version: '1.0.0',
   ODataVersion: OData4,
@@ -161,7 +158,7 @@ authentication basic
   );
 };
 
-grant access on odata service ProductApi.ProductDataApi
+grant access on published odata service ProductApi.ProductDataApi
   to ProductApi.ApiUser;
 ```
 
@@ -176,49 +173,51 @@ create module role ProductClient.User;
 
 -- Location constant (configure per environment)
 create constant ProductClient.ProductDataApiLocation
-  type string
-  default 'http://localhost:8080/odata/productdataapi/v1/';
+  ( Type: string, DefaultValue: 'http://localhost:8080/odata/productdataapi/v1/' );
 
 -- OData client connection
-create odata client ProductClient.ProductDataApiClient (
+create consumed odata service ProductClient.ProductDataApiClient (
   ODataVersion: OData4,
   MetadataUrl: 'http://localhost:8080/odata/productdataapi/v1/$metadata',
   timeout: 300,
-  ServiceUrl: '@ProductClient.ProductDataApiLocation',
+  ServiceUrl: ProductClient.ProductDataApiLocation,
   UseAuthentication: Yes,
+  -- HttpUsername/HttpPassword hold a Mendix expression, written as-is:
+  -- 'MxAdmin' is the string, @ProductClient.ApiPassword (no quotes) reads a
+  -- constant. The old doubled-quote form '''MxAdmin''' is refused under mdl 1 (MDL-ODATA07).
   HttpUsername: 'MxAdmin',
   HttpPassword: '1'
 );
 
 -- OData client with local file - relative path (offline development)
 -- Resolved relative to .mpr directory when project is loaded
-CREATE ODATA CLIENT ProductClient.ProductDataApiClient (
+CREATE CONSUMED ODATA SERVICE ProductClient.ProductDataApiClient (
   ODataVersion: OData4,
   MetadataUrl: './metadata/productdataapi.xml',
   Timeout: 300,
-  ServiceUrl: '@ProductClient.ProductDataApiLocation',
+  ServiceUrl: ProductClient.ProductDataApiLocation,
   UseAuthentication: Yes,
   HttpUsername: 'MxAdmin',
   HttpPassword: '1'
 );
 
 -- OData client with local file - relative path without ./
-CREATE ODATA CLIENT ProductClient.ProductDataApiClient (
+CREATE CONSUMED ODATA SERVICE ProductClient.ProductDataApiClient (
   ODataVersion: OData4,
   MetadataUrl: 'metadata/productdataapi.xml',
   Timeout: 300,
-  ServiceUrl: '@ProductClient.ProductDataApiLocation',
+  ServiceUrl: ProductClient.ProductDataApiLocation,
   UseAuthentication: Yes,
   HttpUsername: 'MxAdmin',
   HttpPassword: '1'
 );
 
 -- OData client with local file - absolute file:// URI
-CREATE ODATA CLIENT ProductClient.ProductDataApiClient (
+CREATE CONSUMED ODATA SERVICE ProductClient.ProductDataApiClient (
   ODataVersion: OData4,
   MetadataUrl: 'file:///Users/team/contracts/productdataapi.xml',
   Timeout: 300,
-  ServiceUrl: '@ProductClient.ProductDataApiLocation',
+  ServiceUrl: ProductClient.ProductDataApiLocation,
   UseAuthentication: Yes,
   HttpUsername: 'MxAdmin',
   HttpPassword: '1'
@@ -226,7 +225,7 @@ CREATE ODATA CLIENT ProductClient.ProductDataApiClient (
 
 -- External entities (mapped from published service)
 create external entity ProductClient.ProductsEE
-from odata client ProductClient.ProductDataApiClient
+from consumed odata service ProductClient.ProductDataApiClient
 (
   EntitySet: 'Product',
   RemoteName: 'Product',
@@ -239,10 +238,10 @@ from odata client ProductClient.ProductDataApiClient
   PriceInEuro: decimal
 );
 
-grant ProductClient.User on ProductClient.ProductsEE (read *);
+grant read * on entity ProductClient.ProductsEE to ProductClient.User;
 
 create external entity ProductClient.CustomerAddressesEE
-from odata client ProductClient.ProductDataApiClient
+from consumed odata service ProductClient.ProductDataApiClient
 (
   EntitySet: 'CustomerAddress',
   RemoteName: 'CustomerAddress',
@@ -260,7 +259,7 @@ from odata client ProductClient.ProductDataApiClient
   DeliveryCountry: string
 );
 
-grant ProductClient.User on ProductClient.CustomerAddressesEE (read *);
+grant read * on entity ProductClient.CustomerAddressesEE to ProductClient.User;
 ```
 
 **Bulk alternative:** Instead of creating external entities one by one, import all (or a subset) from the contract:
@@ -293,7 +292,7 @@ Without this flag, external entities are completely non-editable in the client: 
 -- AllowCreateChangeLocally lets users edit the object in the app
 -- and submit changes via a separate external action.
 create or modify external entity ShopClient.Product
-from odata client ShopClient.ShopApiClient
+from consumed odata service ShopClient.ShopApiClient
 (
   EntitySet: 'Products',
   Countable: Yes,
@@ -309,8 +308,8 @@ from odata client ShopClient.ShopApiClient
 );
 
 -- Toggle the flag without recreating the entity.
-alter entity ShopClient.Product set allow_create_change_locally = true;
-alter entity ShopClient.Product set allow_create_change_locally = false;
+alter entity ShopClient.Product set ( AllowCreateChangeLocally: true );
+alter entity ShopClient.Product set ( AllowCreateChangeLocally: false );
 ```
 ## Publishing a Non-Persistable Entity (no copy of the data)
 
@@ -336,7 +335,7 @@ BEGIN
   RETURN $Laps;
 END;
 
-create odata service Api.LapApi (
+create published odata service Api.LapApi (
   path: 'odata/laps/',
   version: '1.0.0',
   ODataVersion: OData4,
@@ -403,7 +402,7 @@ an invoice number, an ISIN, an employee number. Mendix requires a key to be
 unique, required and stable (the last is the point here), and the unique
 validation rule it makes you add is checking exactly that.
 
-That is also why the key needs `unique error '…'` on the attribute — see the
+That is also why the key needs `unique error message '…'` on the attribute — see the
 CE6624 note below. Both halves of the same idea: the value identifies one row,
 and keeps identifying it.
 
@@ -523,7 +522,7 @@ Measured on Mendix 11.13, each row a separate build:
 | shape | result |
 |---|---|
 | single key attribute, persistable, no `unique` rule | **CE6624** — add one |
-| single key attribute, persistable, `unique error '…'` | 0 errors |
+| single key attribute, persistable, `unique error message '…'` | 0 errors |
 | **single key attribute, VIEW entity, no `unique` rule** | **0 errors** |
 | **composite key, `OData3`** | **CE7238** "You can only have more than one key attribute when the OData version is 4" |
 | composite key, `OData4`, persistable, no `unique` rules | 0 errors |
@@ -554,7 +553,7 @@ create non-persistent entity Fin.VMonthCategory (
   Total:    decimal
 );
 
-create odata service Fin.ChartApi (
+create published odata service Fin.ChartApi (
   path: 'odata/charts/', ServiceName: 'ChartApi', Namespace: 'Fin.Charts',
   version: '1.0.0', ODataVersion: OData4   -- required: the key is composite
 ) {
@@ -580,7 +579,7 @@ error code, no element name and no line, which reads as a corrupt project. Use
 One boolean; the OData surface is untouched.
 
 ```sql
-create odata service Fin.ChartApi (
+create published odata service Fin.ChartApi (
   path: 'odata/charts/', ServiceName: 'ChartApi', Namespace: 'Fin.Charts',
   version: '1.0.0', ODataVersion: OData4,
   SupportsGraphQL: Yes
@@ -670,7 +669,7 @@ An entity set is a *read* surface. To let a client **invoke** something —
 Mendix exposes it in `$metadata` as an `ActionImport`.
 
 ```sql
-create odata service ProductApi.Actions ( ... )
+create published odata service ProductApi.Actions ( ... )
 authentication basic
 {
   publish microflow ProductApi.RecordNote as 'RecordNote'
@@ -812,8 +811,7 @@ Set `InsertMode`, `UpdateMode`, `DeleteMode` to `CallMicroflow`:
 On the consumer side, grant CREATE, WRITE, and DELETE rights:
 
 ```sql
-grant ProductClient.User on ProductClient.ProductsEE
-  (create, delete, read *, write *);
+grant create, delete, read *, write * on entity ProductClient.ProductsEE to ProductClient.User;
 ```
 
 The consumer can now create, update, and delete products through the OData API, and the producer's microflows handle the mapping to persistent entities.

@@ -1,6 +1,6 @@
 ---
 name: bulk-widget-updates
-description: "Discover and bulk-change widget properties across many pages with SHOW WIDGETS and UPDATE WIDGETS. Use when the same widget setting has to change on many pages at once. Experimental — always DRY RUN first and back the project up."
+description: "Discover and bulk-change widget properties across many pages with LIST WIDGETS and UPDATE WIDGETS. Use when the same widget setting has to change on many pages at once. Experimental — always DRY RUN first and back the project up."
 ---
 
 # Bulk Widget Property Updates
@@ -8,7 +8,7 @@ description: "Discover and bulk-change widget properties across many pages with 
 > **EXPERIMENTAL**: These commands are an untested proof-of-concept.
 > Always use `dry run` first and backup your project before applying changes.
 
-Use `show widgets` and `update widgets` to discover and modify widget properties across pages and snippets in bulk.
+Use `list widgets` and `update widgets` to discover and modify widget properties across pages and snippets in bulk.
 
 **When to use which tool:**
 
@@ -26,25 +26,25 @@ Widget commands require a full catalog build:
 refresh catalog full;
 ```
 
-## SHOW WIDGETS - Discover Widgets
+## LIST WIDGETS - Discover Widgets
 
 ### Basic Usage
 
 ```sql
 -- Show all widgets
-show widgets;
+list widgets;
 
 -- Filter by module
-show widgets in MyModule;
+list widgets in MyModule;
 
 -- Filter by widget type (case-insensitive LIKE)
-show widgets where widgettype like '%combobox%';
+list widgets where widgettype like '%combobox%';
 
 -- Filter by name
-show widgets where Name = 'myGrid';
+list widgets where Name = 'myGrid';
 
 -- Combine filters
-show widgets where widgettype like '%DataGrid%' and Name like '%Overview%' in MyModule;
+list widgets where widgettype like '%DataGrid%' and Name like '%Overview%' in MyModule;
 ```
 
 ### Output Columns
@@ -151,7 +151,7 @@ update widgets
 **UPDATE WIDGETS functionality is not fully implemented.**
 - The DRY RUN mode shows which widgets would be matched
 - Actual property updates require additional implementation work
-- Use SHOW WIDGETS for discovery, then manually update properties in Studio Pro
+- Use LIST WIDGETS for discovery, then manually update properties in Studio Pro
 
 ### After Making Changes
 
@@ -189,7 +189,7 @@ To find the correct property names:
 refresh catalog full;
 
 -- 2. Discover widgets
-show widgets where widgettype like '%combobox%';
+list widgets where widgettype like '%combobox%';
 
 -- 3. Preview changes
 update widgets set 'showLabel' = false where widgettype like '%combobox%' dry run;
@@ -201,5 +201,5 @@ update widgets set 'showLabel' = false where widgettype like '%combobox%';
 refresh catalog full force;
 
 -- 6. Verify
-show widgets where widgettype like '%combobox%';
+list widgets where widgettype like '%combobox%';
 ```

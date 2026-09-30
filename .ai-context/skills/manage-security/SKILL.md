@@ -33,27 +33,63 @@ constraint, not a detail: it decides what your screens can be, and finding it la
 means rebuilding them (ako/mxcli-maintenance-2 designed a technician picker, built
 it, tested it, and tore it out).
 
-Both consequences are **silent** — the page renders, the data is simply missing, and
-`mx check` and `mxcli lint` both pass:
+Every consequence is **silent** — the page renders, the data is simply missing, and
+`mx check`, `mxcli lint` and `mxcli report` all pass:
 
 | What you build | What a non-Administrator sees |
 |---|---|
 | A combo box over `System.User` (e.g. "pick a technician") | **The current user only** |
 | A grid over `System.Workflow` / `System.WorkflowUserTask` | **Empty** |
+| Either of those, re-sourced from a **microflow** | **Every row present, every field blank** |
 
-Three ways around it, in order of preference:
+### The rule: a microflow data source moves the ROWS, not the MEMBERS
 
-1. **Record, don't pick.** Target the task at a *role*, let whoever opens it do the
-   work, and stamp who acted on completion — a plain association plus a denormalised
-   name your own module owns, which every role can then read.
-2. **A microflow data source.** Microflows bypass entity access by default, so a page
-   can show data the role cannot read directly.
+Learn this as a rule rather than as a symptom, because the obvious workaround only
+*looks* like it worked, and the same trap is waiting on the next screen.
+
+A microflow does not apply entity access, so its retrieve returns every row. But the
+runtime **re-applies entity access when it serializes those objects to the client,
+XPath constraint included** — so a row the role may not read arrives with every
+member empty. The list comes out the right length and the cards come out blank.
+
+Measured in a browser on Mendix 11.14.0 — one page, two microflow-sourced lists over
+the *same* `System.User` retrieve, opened by two users:
+
+| list | as Administrator | as a plain User |
+|---|---|---|
+| A — the `System.User` objects themselves | `probe_admin`, `probe_viewer` | **(blank)**, `probe_viewer` |
+| B — a module-owned copy, `Name` read *inside* the microflow | `probe_admin`, `probe_viewer` | `probe_admin`, `probe_viewer` |
+
+Both lists hold two rows for both users, so the microflow really did carry the rows
+past entity access. Only A loses the values, and it loses them **per object**:
+`System.User`'s own rule grants read where `[id = '[%CurrentUser%]']`, which is why
+a user picker shows you yourself and nobody else rather than showing nothing.
+
+`System.WorkflowUserTask` has no such escape hatch for an ordinary role, so a
+workflow inbox built this way comes out *entirely* blank — the reported case
+(ako/mxcli#587): the inbox drew the right number of cards, every one of them empty,
+with `mxcli check`, `lint`, `report` and `docker check` all at 0 errors.
+
+### What to do instead
+
+1. **Record, don't pick.** Have the workflow stamp itself against a row your own
+   module owns — an `ON CREATED MICROFLOW` writing an association plus a plain status
+   string — and list *those* objects. Target a task at a *role*, let whoever opens it
+   do the work, and record who acted when they act.
+2. **Read it inside a microflow, return your OWN object.** Entity access does not
+   apply to the retrieve *or* to the member read, only to what crosses to the client
+   — so copy the values you need onto an entity your module owns (persistent or
+   non-persistent) and bind the page to that. This is list B above, and it is the
+   same shape the reporter arrived at independently for user pickers: `Engineer` is a
+   module-owned entity rather than `System.User`.
 3. **Split the page by role.** Keep raw System grids on an Administrator-only page.
    Mendix hides a button to a page the user may not view, so the link simply does not
    appear.
 
-Related: `grant … on System.User` is refused outright — the System module's domain
-model is not stored in the project, so it has no access rules to add to.
+Related: `grant … on System.User` is refused by `exec` — the System module's domain
+model is not stored in the project, so it has no access rules to add to. The refusal
+is at execution, not at `mxcli check`, so a script carrying one passes `check` and
+then stops part-way through.
 
 ## Syntax Reference
 
@@ -61,25 +97,25 @@ model is not stored in the project, so it has no access rules to add to.
 
 ```sql
 -- Project-wide security overview
-show project security;
+describe app security;
 
 -- Module roles (all or filtered)
-show module roles;
-show module roles in MyModule;
+list module roles;
+list module roles in MyModule;
 
 -- User roles and demo users
-show user roles;
-show demo users;
+list user roles;
+list demo users;
 
 -- Access on specific elements
-show access on microflow MyModule.ProcessOrder;
-show access on page MyModule.CustomerOverview;
-show access on entity MyModule.Customer;
-show access on MyModule.Customer;        -- a bare name means the entity
+list access on microflow MyModule.ProcessOrder;
+list access on page MyModule.CustomerOverview;
+list access on entity MyModule.Customer;
+list access on MyModule.Customer;        -- a bare name means the entity
 
 -- Full security matrix
-show security matrix;
-show security matrix in MyModule;
+describe security matrix;
+describe security matrix in MyModule;
 ```
 
 ### Describe Commands
@@ -90,6 +126,12 @@ describe module role MyModule.Admin;
 describe user role Administrator;
 describe demo user 'demo_admin';
 ```
+
+`describe demo user` never prints the password. It emits
+`create or modify demo user 'demo_admin' password '***' …`, where `'***'` means
+*keep the stored password*: replaying the output on the same project leaves the
+password as it is, and on a project without that user the statement is refused
+until you replace `'***'` with a real password.
 
 ### Catalog Queries (SQL)
 
@@ -136,8 +178,9 @@ create module role MyModule.Viewer description 'Read-only access';
 -- whole security script stays re-runnable rather than needing a run-once file.
 create or modify module role MyModule.ApiUser description 'API consumer';
 
--- Remove a module role
+-- Remove a module role (`if exists` makes it a no-op when the role is gone)
 drop module role MyModule.Viewer;
+drop module role if exists MyModule.Legacy;
 ```
 
 ### Microflow Access
@@ -160,7 +203,7 @@ grant execute on nanoflow MyModule.NF_ValidateCart to MyModule.User, MyModule.Ad
 revoke execute on nanoflow MyModule.NF_ValidateCart from MyModule.User;
 
 -- Show current access
-show access on nanoflow MyModule.NF_ValidateCart;
+list access on nanoflow MyModule.NF_ValidateCart;
 ```
 
 > **Note:** Security roles persist through DROP+CREATE of the same nanoflow name within a session (by design, for refactor-in-place workflows).
@@ -173,6 +216,19 @@ grant view on page MyModule.Customer_Overview to MyModule.User, MyModule.Admin;
 
 -- Revoke from specific roles
 revoke view on page MyModule.Customer_Overview from MyModule.User;
+```
+
+### Always Qualify a Module Role
+
+A module role is always `Module.Role`. The grammar makes the module part
+optional, so a bare `Admin` parses — and then either fails at exec (after every
+earlier statement has already been written) or, in `create user role`, is stored
+as `.Admin` and refused by MxBuild with **CE1613**. `mxcli check` reports it as
+**MDL-GRANT02** without needing a project.
+
+```sql
+grant read * on entity MyModule.Customer to Admin;            -- ✗ MDL-GRANT02
+grant read * on entity MyModule.Customer to MyModule.Admin;   -- ✓
 ```
 
 ### Entity Access (CRUD)
@@ -189,32 +245,50 @@ does not narrow the first.
 
 ```sql
 -- Full access (all CRUD + all members)
-grant MyModule.Admin on MyModule.Customer (create, delete, read *, write *);
+grant create, delete, read *, write * on entity MyModule.Customer to MyModule.Admin;
 
 -- Read-only (all members)
-grant MyModule.Viewer on MyModule.Customer (read *);
+grant read * on entity MyModule.Customer to MyModule.Viewer;
 
 -- Selective member access
-grant MyModule.User on MyModule.Customer (read (Name, Email), write (Email));
+grant read (Name, Email), write (Email) on entity MyModule.Customer to MyModule.User;
 
 -- Additive: adds Phone to existing read access (Name, Email preserved)
-grant MyModule.User on MyModule.Customer (read (Phone));
+grant read (Phone) on entity MyModule.Customer to MyModule.User;
 
--- With XPath constraint
-grant MyModule.User on MyModule.Order (read *, write *) where '[Status = ''Open'']';
+-- With XPath constraint: in [ ] like every XPath, quotes written once.
+-- The old `grant MyModule.User on MyModule.Order (…) where '[…]'` still parses
+-- but warns MDL-DEPR030; `mxcli fmt --upgrade` rewrites it.
+grant read *, write * on entity MyModule.Order to MyModule.User where [Status = 'Open'];
 
 -- Revoke entity access entirely
-revoke MyModule.Viewer on MyModule.Customer;
+revoke all on entity MyModule.Customer from MyModule.Viewer;
 
 -- Partial revoke: remove read on specific attribute
-revoke MyModule.User on MyModule.Customer (read (Phone));
+revoke read (Phone) on entity MyModule.Customer from MyModule.User;
 
 -- Partial revoke: downgrade write to read-only
-revoke MyModule.User on MyModule.Customer (write (Email));
+revoke write (Email) on entity MyModule.Customer from MyModule.User;
 
 -- Partial revoke: remove structural permission
-revoke MyModule.User on MyModule.Customer (delete);
+revoke delete on entity MyModule.Customer from MyModule.User;
 ```
+
+#### Members added later
+
+A rule also carries a default for members added **after** it was written, and MDL
+derives it from the grant: `write *` → ReadWrite, `read *` → ReadOnly, and a
+grant written **purely as member lists** leaves it at **None**.
+
+So `alter entity … add attribute` gives the new attribute None on a
+member-listed rule. Nothing is broken — every rule gets an entry, the build is
+clean — but the attribute renders blank for that role. `alter entity` warns and
+prints the grant that widens it.
+
+What decides this is the rule's default, **not** how narrow its member list is:
+`read *, write (Email)` is narrower than `read *, write *` and still picks up new
+members, because `read *` set its default to ReadOnly. Give a rule `read *` and
+narrow with `revoke` when the role should follow the entity as it grows.
 
 #### Inherited members
 
@@ -233,13 +307,13 @@ create persistent entity Docs.Contract extends Docs.DocumentBase (
 );
 
 -- DocName is inherited, ContractNumber is Contract's own — name both the same way
-grant Docs.Viewer on Docs.Contract (read (DocName, ContractNumber));
+grant read (DocName, ContractNumber) on entity Docs.Contract to Docs.Viewer;
 
 -- Attachment inherits the file members from System.FileDocument
 create persistent entity Docs.Attachment extends System.FileDocument (
   Category: String(50)
 );
-grant Docs.Viewer on Docs.Attachment (read (Category, "Name", Size));
+grant read (Category, "Name", Size) on entity Docs.Attachment to Docs.Viewer;
 ```
 
 An access rule must carry an entry for **every** member, own and inherited —
@@ -275,6 +349,18 @@ Three things worth knowing, each of which was a defect until
 A run that skipped something says so. `All entity access rules are up to date`
 means every module was looked at.
 
+The commonest source of a stale rule is a module that arrived from outside
+Studio Pro. `mxcli marketplace install` and `mxcli marketplace update` copy the
+incoming units in verbatim, so a package whose rules do not cover their entities'
+members used to land CE0066 in the project with nothing said about it
+([mendixlabs/mxcli#1085](https://github.com/mendixlabs/mxcli/issues/1085)); both
+now run this reconcile for the module they copy in and report the count. Run it
+by hand for a module installed some other way, or by an older mxcli:
+
+```bash
+mxcli -p app.mpr -c "update security UserCommons"
+```
+
 A member name that matches nothing is now an error rather than a silent skip:
 
 ```
@@ -292,21 +378,33 @@ automatically:
 create persistent entity Docs.Employee extends System.User (
   EmployeeNo: String(20)
 );
-grant Docs.Viewer on Docs.Employee (read (EmployeeNo));   -- not Name/Blocked
+grant read (EmployeeNo) on entity Docs.Employee to Docs.Viewer;   -- not Name/Blocked
 ```
 
 ### User Roles
 
 ```sql
 -- Create with module roles
-create user role RegularUser (MyModule.User, OtherModule.Reader);
+create user role RegularUser ( ModuleRoles: (MyModule.User, OtherModule.Reader) );
 
 -- Create with manage all roles permission
-create user role SuperAdmin (MyModule.Admin) manage all roles;
+create user role SuperAdmin ( ModuleRoles: (MyModule.Admin), ManageAllRoles: true );
 
--- Add/remove module roles
+-- Every property is optional: Description, CheckSecurity, ManageableRoles,
+-- ManageUsersWithoutRoles. `create user role Guest;` has no module roles.
+-- `create or modify` adds the listed module roles and sets only the stated
+-- properties. The positional `create user role R (M.A) manage all roles`
+-- is deprecated (MDL-DEPR710); `mxcli fmt --upgrade` rewrites it.
+create or modify user role Manager (
+  ModuleRoles: (MyModule.Manager),
+  Description: 'Approves orders',
+  ManageableRoles: (RegularUser),
+  CheckSecurity: true
+);
+
+-- Add/drop module roles
 alter user role RegularUser add module roles (MyModule.Viewer);
-alter user role RegularUser remove module roles (MyModule.Viewer);
+alter user role RegularUser drop module roles (MyModule.Viewer);
 
 -- Remove user role
 drop user role RegularUser;
@@ -316,13 +414,13 @@ drop user role RegularUser;
 
 ```sql
 -- Set security level
-alter project security level off;
-alter project security level prototype;
-alter project security level production;
+alter app security ( SecurityLevel: off );
+alter app security ( SecurityLevel: prototype );
+alter app security ( SecurityLevel: production );
 
 -- Enable/disable demo users
-alter project security demo users on;
-alter project security demo users off;
+alter app security ( EnableDemoUsers: true );
+alter app security ( EnableDemoUsers: false );
 ```
 
 ### Guest (Anonymous) Access
@@ -334,23 +432,23 @@ the important half: **whatever that role can read is the app's public surface.**
 ```sql
 -- The role anonymous visitors are given. System.User is what lets an
 -- unauthenticated session exist at all.
-create user role Anonymous (Shop.Viewer, System.User);
+create user role Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );
 
-alter project security guest access on role Anonymous;
+alter app security ( EnableGuestAccess: true, GuestUserRole: Anonymous );
 
 -- Now grant exactly what should be public — and nothing else.
-grant Anonymous on Shop.Product (read *);
+grant read * on entity Shop.Product to Anonymous;
 
 -- Re-enabling later does not need the role retyped; the stored one is used.
-alter project security guest access off;
-alter project security guest access on;
+alter app security ( EnableGuestAccess: false );
+alter app security ( EnableGuestAccess: true );
 ```
 
 Three things worth knowing:
 
 - **The role is mandatory.** Mendix fails the build with **CE0133** ("No user role
   for anonymous users selected even though the feature anonymous users is
-  enabled") when access is on with no role. `guest access on` is refused unless a
+  enabled") when access is on with no role. `EnableGuestAccess: true` is refused unless a
   role is given or one is already stored.
 - **Mendix does not check the role exists**, so mxcli does. A misspelled role
   would otherwise build with zero errors and leave anonymous visitors with no
@@ -366,10 +464,10 @@ internet (DIVD-2022-00019). Add an XPath constraint or do not grant it.
 
 ```sql
 -- Create demo user (auto-detects entity that generalizes System.User)
-create demo user 'demo_admin' password 'Admin123!' (Administrator, SuperAdmin);
+create demo user 'demo_admin' ( Password: 'Admin123!', UserRoles: (Administrator, SuperAdmin) );
 
 -- Create demo user with explicit entity
-create demo user 'demo_admin' password 'Admin123!' entity Administration.Account (Administrator, SuperAdmin);
+create demo user 'demo_admin' ( Password: 'Admin123!', Entity: Administration.Account, UserRoles: (Administrator, SuperAdmin) );
 
 -- Remove demo user
 drop demo user 'demo_admin';
@@ -403,9 +501,9 @@ create module role Shop.Admin description 'Administrative access';
 create module role Shop.Viewer description 'Read-only access';
 
 -- 2. Grant entity access
-grant Shop.Admin on Shop.Customer (create, delete, read *, write *);
-grant Shop.User on Shop.Customer (read (Name, Email), write (Email));
-grant Shop.Viewer on Shop.Customer (read *);
+grant create, delete, read *, write * on entity Shop.Customer to Shop.Admin;
+grant read (Name, Email), write (Email) on entity Shop.Customer to Shop.User;
+grant read * on entity Shop.Customer to Shop.Viewer;
 
 -- 3. Grant microflow access
 grant execute on microflow Shop.ACT_Customer_Create to Shop.User, Shop.Admin;
@@ -416,11 +514,11 @@ grant view on page Shop.Customer_Overview to Shop.User, Shop.Admin, Shop.Viewer;
 grant view on page Shop.Customer_Edit to Shop.User, Shop.Admin;
 
 -- 5. Create user roles (project-level)
-create user role AppUser (Shop.User);
-create user role AppAdmin (Shop.Admin) manage all roles;
+create user role AppUser ( ModuleRoles: (Shop.User) );
+create user role AppAdmin ( ModuleRoles: (Shop.Admin), ManageAllRoles: true );
 
 -- 6. Verify
-show security matrix in Shop;
+describe security matrix in Shop;
 describe user role AppAdmin;
 ```
 
@@ -440,7 +538,7 @@ ones that are easy to overlook:
 | `owner` / `changedBy` | — | emitted automatically as `System.owner` / `System.changedBy` |
 
 Audit members are the one case where naming a member cannot change its rights:
-`grant R on M.E (write *, read (createdDate))` is refused, because Mendix has no
+`grant write *, read (createdDate) on entity M.E to R` is refused, because Mendix has no
 member access to write for it and a rule that carries one fails CE0066. Let the
 rule's default cover it, or change the default.
 
@@ -457,7 +555,7 @@ rule's default cover it, or change the default.
 After setting up security, verify with:
 ```bash
 # check security matrix
-mxcli -p app.mpr -c "show security matrix in MyModule"
+mxcli -p app.mpr -c "describe security matrix in MyModule"
 
 # Validate with Mendix
 mxcli docker check -p app.mpr

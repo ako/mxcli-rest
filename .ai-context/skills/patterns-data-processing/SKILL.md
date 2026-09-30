@@ -232,6 +232,37 @@ $MaxPrice = maximum($Products.Price);
 
 ## List Operations
 
+### One statement per operation — they do not nest
+
+Every list operation and aggregate is a separate **activity** in Mendix, and an
+activity stores its list as a **variable reference**. There is no slot for a
+nested computation, so this is not a shorter spelling — it is a list argument the
+model cannot hold:
+
+```mdl
+-- WRONG. mxcli check refuses this as MDL-LISTOP02.
+$n = count(filter($Requests, $currentObject/Status = Module.ENUM_Status.Approved));
+```
+
+Before the rule existed it parsed, passed `check`, and execed with
+`Created microflow` — then dropped the inner call entirely and wrote an activity
+with an empty list, which mxbuild rejected with **CE0012** (`The 'List' property
+is required.`) for an aggregate or **CE0096** for a list operation. The
+`sort(filter(…), Attr)` shape was worse still: with the list gone the sort
+attribute has no entity to resolve against, and mxbuild aborts rather than
+reporting an error.
+
+Give the inner operation its own statement and pass the variable:
+
+```mdl
+-- RIGHT
+$Approved = filter($Requests, $currentObject/Status = Module.ENUM_Status.Approved);
+$n        = count($Approved);
+```
+
+The same applies to both operands of `union`/`intersect`/`subtract`, and to any
+non-variable list argument — `count('nonsense')` fails the same way.
+
 ### Add to List
 
 ```mdl

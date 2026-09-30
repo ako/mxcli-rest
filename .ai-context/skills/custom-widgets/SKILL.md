@@ -25,7 +25,7 @@ the **properties** (the widget's own spelling — `tagName`, not `TagName`), and
 the **body containers** — `attribute` is an object list (one entry per
 repetition), `tagcontentcontainer` a child slot (holds widgets).
 
-**Ask the widget rather than guessing.** `describe widget <name>` lists every
+**Ask the widget rather than guessing.** `describe widget type <name>` lists every
 property with its type, default and enumeration members; every body container
 and whether MDL can express it; and a complete example that parses AND checks as
 written:
@@ -48,12 +48,79 @@ Use it only when two installed packages ship the same MDL name, or when you have
 the id and not the name. Everything below that still shows the id form works
 unchanged — the short form is simply the better default.
 
+### Repeated entries are BLOCKS, never a property value
+
+A widget's repeatable property — FileUploader `allowedFileFormats`, HTML Element
+`attributes`, a chart's `series` — is written as container blocks in the body:
+
+```sql
+htmlelement frame ( tagName: 'div' ) {
+  attribute a1 (attributeName: 'data-testid', attributeValueType: 'expression')
+}
+```
+
+**Not** as a property value:
+
+```sql
+htmlelement frame ( attributes: [(attributeName: 'data-testid')] )   -- MDL-WIDGET27
+```
+
+That form is an error (`mendixlabs/mxcli#999`). It used to be worse than an
+error: the single-key shape checked clean, exec'd successfully and the property
+vanished from storage, while the multi-key shape died as `missing ')' at ','`.
+The error now names the container keyword and rewrites your entry into the form
+that works.
+
+The same rule covers the two spellings that carry no entry to key on
+(`mendixlabs/mxcli#1056`):
+
+```sql
+selectionhelper sh (renderStyle: 'custom', customAllSelected: [])          -- MDL-WIDGET27
+selectionhelper sh (renderStyle: 'custom', customAllSelected: 'something') -- MDL-WIDGET27
+```
+
+A **widgets**-typed property such as `customAllSelected` holds child widgets, so
+it is written as a block with widgets in it rather than entries:
+
+```sql
+selectionhelper sh (renderStyle: 'custom') {
+  customallselected s1 { dynamictext d1 (Content: 'All') }
+}
+```
+
+The empty form is reported from its shape, with no project needed. The scalar
+form is reported only when the widget resolves, because without a definition
+`p: 'x'` is the ordinary property form and flagging it would be a guess. Both
+matter because a required slot left empty is not a silent no-op at build time —
+it is `CE0642 "Property '…' is required."`, one per slot.
+
+`describe widget type <name> -p <project.mpr>` lists a widget's container keywords
+under **Body containers**, and — for an object list — the widgets-typed **slots
+inside one item**, with the widget types that route into each:
+
+```
+column        object list  -> columns  authorable
+                items: showContentAs, attribute, dynamicText, …
+                slot content -> content: any other widget in the item body
+                slot filter  -> filter: textfilter | numberfilter | datefilter | dropdownfilter
+```
+
+Read that last line before guessing where something goes. It says a Data Grid 2
+column filter is written directly in the **column's** braces — not in
+`controlbar`, which is the grid-wide filter bar and renders "Unable to get
+filter store" if you put a column filter there.
+
 ### When the name is not found
 
 A name resolving to no installed definition is an **error** (MDL-WIDGET25, with
 near-miss suggestions), and a container the parent does not declare is
 MDL-WIDGET26. Both need `-p`: without a project, mxcli knows only its embedded
 widgets, so it stays quiet rather than reporting every real widget as unknown.
+
+MDL-WIDGET29 needs no project: `statictext` writes `Forms$Text`, a type Mendix
+does not have, and the project that comes out cannot be *loaded* at all (`mx
+check` and Studio Pro both stop at `TypeCacheUnknownTypeException` before
+validation). Use `dynamictext` with a literal `Content:`.
 If a widget you have installed is not found, extract its definition:
 
 ```bash
@@ -74,11 +141,11 @@ gallery galleryName (
   TabletColumns: 2,
   PhoneColumns: 1
 ) {
-  template template1 {
-    dynamictext title (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-    dynamictext info  (content: '{1}', contentparams: [{1} = Email])
+  template {
+    dynamictext title (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+    dynamictext info  (content: '{1}', contentparams: ({1} = Email))
   }
-  filter filter1 {
+  filter {
     textfilter   searchName  (attribute: Name)
     numberfilter searchScore (attribute: Score)
     dropdownfilter searchStatus (attribute: status)
@@ -113,6 +180,54 @@ combobox cmbCustomer (
 - Engine detects association mode when `datasource` is present (`hasDataSource` condition)
 - `CaptionAttribute` is the display attribute on the **target** entity
 - In association mode, mapping order matters: DataSource must resolve before Association (sets entityContext)
+
+### Naming a datasource by its schema key
+
+A widget may expose several datasources. Address one by its own property key
+(or a registered alias) instead of the generic `datasource:` clause:
+
+```sql
+combobox cmbCustomer (
+  Association: Order_Customer,
+  optionsSourceAssociationDataSource: database from Module.Customer,
+  CaptionAttribute: Name
+)
+```
+
+The value has to be a **datasource**, not an entity name. `optionsSourceAssociationDataSource: Module.Customer`
+is **MDL-WIDGET05**: it names an entity, cannot be stored as a datasource, and
+before mxcli rejected it, it passed `check` and `exec` and then failed the build
+with CE0642 against a property nobody had mentioned (mendixlabs/mxcli#643).
+
+**A `isLinked` datasource is not yours to set.** A widget.xml
+`isLinked="true"` datasource is filled from the CONTAINING widget — a Data Grid 2
+supplies its column filter's `linkedDs` ("Datasource to Filter"). A `.def.json`
+mapping one is refused at build time. Measured on 11.6.6: five Studio
+Pro-authored drop-down filters store it empty, a filter written without it passes
+`mx check` at 0 errors, and a filter written WITH it still fails CE0642
+"Property 'Datasource to Filter' is required" — mxbuild resolves the property
+from the parent rather than reading what is stored, so writing it is not merely
+useless. Across every widget package in `testdata/expr-checker`, `linkedDs` is
+the only linked datasource among the eight multi-datasource widgets, which is why
+DROPDOWNFILTER is single-source from MDL's side while COMBOBOX and the charts are
+not.
+
+The generic `datasource:` clause stays the convenience form for a
+single-datasource widget. On one exposing several it names nothing in
+particular and is **refused**, with the keys to use instead -- neither guess is
+defensible: feeding it to every mapping duplicates one binding across unrelated
+slots, and feeding it to the first leaves the others unset (CE0642 again).
+
+**An unqualified attribute binds where the widget says.** A property widget.xml
+links to a datasource (`dataSource="parts"`) binds to its items; one linked to
+none binds to the enclosing data container's object, not the widget's own data.
+A name of another entity in scope is refused, naming the candidates (#647).
+
+`describe page` emits the named keys back when a widget has several configured
+sources, so describe -> exec keeps each binding on its own mapping. A widget with
+ONE source keeps the generic `DataSource:` clause it has always been described
+with. A source whose schema key cannot be resolved falls back to the generic
+spelling rather than being dropped.
 
 ## Charts (Mendix Charts.mpk)
 
@@ -258,8 +373,8 @@ object-list item mappings use:
 overlap with `dataSourceExprV3` and the datasource alternative has to win, or a
 chart series' `staticDataSource: microflow M.X` would become an action. The
 executor converts them, because the widget definition is the only layer that
-knows the slot is action-typed. Every other action form (`show_page`,
-`save_changes`, …) reaches the AST as an action directly.
+knows the slot is action-typed. Every other action form (`show page`,
+`save changes`, …) reaches the AST as an action directly.
 
 **A slot may be conditional, and writing into a pruned one is CE0463.** DataGrid 2's
 `onSelectionChange` is *hidden when `itemSelection` = None*, so it needs
@@ -346,7 +461,7 @@ Set `"templateFile": "mywidget.json"` in the .def.json. Project definitions over
 ```sql
 MYWIDGET myWidget1 (datasource: database Module.Entity, attribute: Name) {
   template content1 {
-    dynamictext label1 (content: '{1}', contentparams: [{1}=Name])
+    dynamictext label1 (content: '{1}', contentparams: ({1}=Name))
   }
 }
 ```
@@ -365,8 +480,9 @@ widgets take a different, simpler path than the MPR writer:
   whitelist.
 - **Supported property operations**: attribute, association, primitive,
   selection, datasource, widgets (child slots), object lists, expression,
-  texttemplate (including `{AttrName}` placeholders -> template parameters),
-  and action (`microflow Module.Flow`, `show_page Module.Page`, or none).
+  texttemplate (including `{AttrName}` placeholders and `<Name>Params` /
+  `contentparams` bindings -> template parameters),
+  and action (`microflow Module.Flow`, `show page Module.Page`, or none).
 - **Rejected loudly** (widget refused, nothing sent): actions *with argument
   mappings*, other action kinds (save/cancel/close/delete/create/open-link/
   nanoflow), and any operation the MCP builder does not translate. The error
@@ -416,11 +532,21 @@ widgets take a different, simpler path than the MPR writer:
 
 | Condition | Checks |
 |-----------|--------|
-| `hasDataSource` | AST widget has a `datasource` property |
+| `hasDataSource` | the generic `datasource:` clause is set, OR any of THIS mode's datasource mappings was given by name |
+| `hasDataSource:KEY` | the datasource property `KEY` was given (by its key or an alias) |
 | `hasAttribute` | AST widget has an `attribute` property |
 | `hasProp:XYZ` | AST widget has a property named `XYZ` |
 
 Modes are evaluated in definition order -- first match wins. A mode with no `condition` is the default fallback.
+
+Use `hasDataSource:KEY` when several modes are told apart by WHICH datasource is
+set -- a ComboBox's association vs database mode. Bare `hasDataSource` cannot
+distinguish them, so with two such modes the one listed first always wins.
+
+Bare `hasDataSource` only consults the mode's own **datasource** mappings, never
+every datasource-shaped property on the widget: a microflow action and a
+microflow datasource parse to the same AST shape, so a widget's `OnChange:` would
+otherwise select a datasource mode.
 
 ### 6 Built-in Operations
 
@@ -433,12 +559,30 @@ Modes are evaluated in definition order -- first match wins. A mode with no `con
 | `selection` | Sets `Value.Selection` (mode string) | `selection` |
 | `widgets` | Replaces `Value.Widgets` array with child widget BSON | child slot |
 | `texttemplate` | Sets text in `Value.TextTemplate` (Forms$ClientTemplate) | property name (resolved as string) |
+
+A `texttemplate` takes **text**, so a bare value renders the same string on every
+row. Bind it with the property's own `<Name>Params` companion, named for
+whichever spelling the template used (`ImageUrl:` pairs with `ImageUrlParams:`)
+and taking the same `format (...)` block a `dynamictext` does — e.g.
+`headerCaption: '{1}', headerCaptionParams: ({1} = Name)`, or a Timeline's
+`title` / `description` bound separately. `contentparams:` is ONE list shared by
+every template on the widget, so it only disambiguates a widget with a single
+one; `'{AttrName}'` is the short form for one attribute. A companion whose
+template has no `{N}` is **MDL-WIDGET21**, not a silent drop (ako/mxcli#575).
 | `action` | Sets `Value.Action` with serialized client action BSON | `onclick` (resolved from AST Action) |
 
 ### Mapping Order Constraints
 
 - **`association` source must come AFTER `datasource` source** in the mappings array. The association operation depends on `entityContext` set by a prior DataSource mapping. The registry validates this at load time.
 - **`value` takes priority over `source`**: if both are set, the static `value` is used.
+
+Order is NOT how a dependent property finds its entity on a multi-datasource
+widget. The widget's own package states that per property (`widget.xml`'s
+`dataSource="..."`), and mxcli reads it: a DropdownFilter's `refCaption` binds
+against `refOptions`' entity and its `attr` against `linkedDs`', whatever order
+the mappings are in. A property that declares no `dataSource` falls back to the
+shared entity context, which is every property of every single-datasource
+widget -- so the ordering rule above still describes what happens there.
 
 ### Source Resolution
 

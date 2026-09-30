@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * RestLab consumed REST services
  *
@@ -15,16 +16,16 @@
  * api.restful-api.dev — the one public demo API whose writes really persist,
  * so this lane can show a full create/read/delete lifecycle.
  */
-create or modify rest client RestLab."CrudApi" (
+create or modify consumed rest service RestLab."CrudApi" (
   BaseUrl: 'https://api.restful-api.dev',
   authentication: none
 )
 {
   /** All objects. Demonstrates nested-object mapping onto a child entity. */
-  operation "ListObjects" {
+  operation "ListObjects" (
     method: get,
     path: '/objects',
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: mapping RestLab."RestObject" {
       "ExternalId" = "id",
@@ -35,13 +36,13 @@ create or modify rest client RestLab."CrudApi" (
         "InStock" = "inStock"
       }
     }
-  }
+  )
 
-  operation "GetObject" {
+  operation "GetObject" (
     method: get,
     path: '/objects/{objectId}',
     parameters: ($objectId: String),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: mapping RestLab."RestObject" {
       "ExternalId" = "id",
@@ -52,27 +53,27 @@ create or modify rest client RestLab."CrudApi" (
         "InStock" = "inStock"
       }
     }
-  }
+  )
 
   /** Export mapping the other way: entity -> JSON request body. */
-  operation "CreateObject" {
+  operation "CreateObject" (
     method: post,
     path: '/objects',
-    headers: ('Content-Type' = 'application/json'),
+    headers: ('Content-Type': 'application/json'),
     body: mapping RestLab."RestObject" {
       "name" = "Name"
     },
     timeout: 30,
     response: json as $Created
-  }
+  )
 
-  operation "DeleteObject" {
+  operation "DeleteObject" (
     method: delete,
     path: '/objects/{objectId}',
     parameters: ($objectId: String),
     timeout: 30,
     response: status as $StatusCode
-  }
+  )
 };
 
 -- ---------------------------------------------------------------- catalog lane
@@ -80,28 +81,28 @@ create or modify rest client RestLab."CrudApi" (
  * dummyjson.com — JWT auth and a paged list envelope. The list mapping is the
  * showcase here: {"products": [...], "total":…} onto ProductList + Product.
  */
-create or modify rest client RestLab."CatalogApi" (
+create or modify consumed rest service RestLab."CatalogApi" (
   BaseUrl: 'https://dummyjson.com',
   authentication: none
 )
 {
   /** Returns accessToken + refreshToken; kept raw so the page can show the JWT. */
-  operation "Login" {
+  operation "Login" (
     method: post,
     path: '/auth/login',
     parameters: ($username: String, $password: String),
-    headers: ('Content-Type' = 'application/json'),
+    headers: ('Content-Type': 'application/json'),
     body: template '{"username": "{username}", "password": "{password}"}',
     timeout: 30,
     response: json as $Token
-  }
+  )
 
   /** Paged product list. limit/skip/total drive the pager on the demo page. */
-  operation "GetProducts" {
+  operation "GetProducts" (
     method: get,
     path: '/products',
     query: ($limit: String, $skip: String),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: mapping RestLab."ProductList" {
       "Total" = "total",
@@ -116,21 +117,21 @@ create or modify rest client RestLab."CatalogApi" (
         "Rating" = "rating"
       }
     }
-  }
+  )
 
   /**
    * Mendix consumed REST services cannot store a dynamic header VALUE — only the
    * static prefix is kept ('Bearer '), and the token itself must be supplied by
    * the calling microflow. Written as $bearer alone, this silently stores ''.
    */
-  operation "GetCurrentUser" {
+  operation "GetCurrentUser" (
     method: get,
     path: '/auth/me',
     parameters: ($bearer: String),
-    headers: ('Authorization' = 'Bearer ' + $bearer, 'Accept' = 'application/json'),
+    headers: ('Authorization': 'Bearer {bearer}', 'Accept': 'application/json'),
     timeout: 30,
     response: json as $Me
-  }
+  )
 };
 
 -- ---------------------------------------------------------------- mapping lane
@@ -141,27 +142,27 @@ create or modify rest client RestLab."CatalogApi" (
  * Writes here are FAKED: POST returns 201 with your body echoed and nothing
  * persists, so this lane is read-only on purpose.
  */
-create or modify rest client RestLab."BlogApi" (
+create or modify consumed rest service RestLab."BlogApi" (
   BaseUrl: 'https://jsonplaceholder.typicode.com',
   authentication: none
 )
 {
-  operation "GetPosts" {
+  operation "GetPosts" (
     method: get,
     path: '/posts',
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: mapping RestLab."Post" {
       "ExternalId" = "id",
       "Title" = "title",
       "Body" = "body"
     }
-  }
+  )
 
-  operation "GetAuthors" {
+  operation "GetAuthors" (
     method: get,
     path: '/users',
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: mapping RestLab."Author" {
       "ExternalId" = "id",
@@ -169,7 +170,7 @@ create or modify rest client RestLab."BlogApi" (
       "Username" = "username",
       "Email" = "email"
     }
-  }
+  )
 };
 
 -- ---------------------------------------------------------------- edge-case lane
@@ -178,48 +179,48 @@ create or modify rest client RestLab."BlogApi" (
  * what happens when a call does NOT go well: chosen status codes, auth
  * challenges, and a delay that outlives the timeout.
  */
-create or modify rest client RestLab."EdgeCaseApi" (
+create or modify consumed rest service RestLab."EdgeCaseApi" (
   BaseUrl: 'https://httpbingo.org',
   authentication: none
 )
 {
   /** Ask for any status code and see how the runtime reports it. */
-  operation "GetStatus" {
+  operation "GetStatus" (
     method: get,
     path: '/status/{code}',
     parameters: ($code: String),
     timeout: 30,
     response: status as $StatusCode
-  }
+  )
 
   /** Deliberately exceeds its own timeout, to exercise the error handler. */
-  operation "GetDelayed" {
+  operation "GetDelayed" (
     method: get,
     path: '/delay/{seconds}',
     parameters: ($seconds: String),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 5,
     response: json as $Data
-  }
+  )
 
   /** Bearer auth echoed back, so the page can prove the header arrived. */
-  operation "GetBearer" {
+  operation "GetBearer" (
     method: get,
     path: '/bearer',
     parameters: ($bearer: String),
-    headers: ('Authorization' = 'Bearer ' + $bearer),
+    headers: ('Authorization': 'Bearer {bearer}'),
     timeout: 30,
     response: json as $Data
-  }
+  )
 
   /** Header echo — useful for showing exactly what Mendix sent. */
-  operation "GetHeaders" {
+  operation "GetHeaders" (
     method: get,
     path: '/headers',
-    headers: ('Accept' = 'application/json', 'X-RestLab-Demo' = 'true'),
+    headers: ('Accept': 'application/json', 'X-RestLab-Demo': 'true'),
     timeout: 30,
     response: json as $Data
-  }
+  )
 };
 
 -- ---------------------------------------------------------------- weather lane
@@ -232,16 +233,16 @@ create or modify rest client RestLab."EdgeCaseApi" (
  * below it, and QUERY parameters rather than path parameters. Arrays map to
  * nothing and path parameters corrupt the .mpr, so this is the shape to copy.
  */
-create or modify rest client RestLab."WeatherApi" (
+create or modify consumed rest service RestLab."WeatherApi" (
   BaseUrl: 'https://api.open-meteo.com/v1',
   authentication: none
 )
 {
-  operation "GetForecast" {
+  operation "GetForecast" (
     method: get,
     path: '/forecast',
     query: ($latitude: String, $longitude: String, $current: String),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: mapping RestLab."WeatherReading" {
       "Latitude" = "latitude",
@@ -254,5 +255,5 @@ create or modify rest client RestLab."WeatherApi" (
         "Temperature" = "temperature_2m"
       }
     }
-  }
+  )
 };

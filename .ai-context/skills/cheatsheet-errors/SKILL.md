@@ -51,7 +51,7 @@ declare $Products list of Module.Product = empty;
 
 ```mdl
 -- object: a microflow parameter, a retrieve, a create, or a loop iterator
-retrieve $Product from Module.Product where Code = $Code limit 1;  -- retrieve
+retrieve $Product from Module.Product where Code = $Code first;  -- retrieve
 $Product = create Module.Product (Name = $Name);                   -- create
 -- or: create microflow M.Save ($Product: Module.Product) ... / loop $Product in $Products ...
 
@@ -204,14 +204,14 @@ set $count = 1;
 
 **Problem**: Using non-existent module name.
 
-**Fix**: Check module exists with `show modules`.
+**Fix**: Check module exists with `list modules`.
 
 ### "Entity not found"
 
 **Problem**: Using non-existent entity name.
 
 **Fix**:
-1. Check entity exists: `show entities in ModuleName`
+1. Check entity exists: `list entities in ModuleName`
 2. Use fully qualified name: `Module.EntityName`
 
 ### "Microflow not found"
@@ -219,7 +219,7 @@ set $count = 1;
 **Problem**: Calling non-existent microflow.
 
 **Fix**:
-1. Check microflow exists: `show microflows in ModuleName`
+1. Check microflow exists: `list microflows in ModuleName`
 2. Use fully qualified name: `Module.MicroflowName`
 
 ### "page not found" for a page the script creates further down (MDL-PAGE01)
@@ -265,9 +265,11 @@ Run with `-p` for the fullest coverage.
 | CE0104 | Action activity is unreachable | Code after RETURN |
 | CE0105 | Must end with end event | Missing RETURN |
 | CE0117 | Error in expression | Unqualified association path |
-| CE1571 | No argument selected for parameter | `$currentObject` in a control-bar button (not row-scoped) — `check` flags MDL-BUTTON01 |
+| CE1571 | No argument selected for parameter | A microflow/nanoflow call with a parameter nothing fills — as a `datasource:` **or** an `action:`. Give it an argument (`action: call nanoflow M.NF(P = $value)`), or nest the widget in a data container of the parameter's type. `check -p` reports both |
+| CE1571 | …in a control bar | A control bar is **not** row-scoped, so the grid's row does not fill it: pass the grid's selection (`$dgOrders`, with `Selection:` set) or move the widget into a column. `$currentObject` there is MDL-BUTTON01 |
 | CE1834 | The 'Page' property is required | Workflow user task without a `page` — `check` flags MDL-WF01 |
 | CE1876 | Single outcome must not contain activities | Single-outcome user task with a nested activity flow — `check` flags MDL-WF02 |
+| CE6686 | Outcomes do not match the configured expression/microflow | An enumeration decision or call-microflow activity missing the empty outcome (`'' -> { }`) or an enumeration value — `check` flags the missing empty one as MDL-WF06 |
 | CW0094 | Variable never used | Unused parameter/variable |
 
 ## Quick Validation Checklist

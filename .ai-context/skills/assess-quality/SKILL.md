@@ -40,7 +40,7 @@ Use catalog queries to understand the project's shape:
 
 ```sql
 -- Overview of project size and structure
-show structure depth 2
+describe structure depth 2
 
 -- Key metrics
 select module_name, count(*) from CATALOG.entities GROUP by module_name

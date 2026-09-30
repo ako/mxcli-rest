@@ -20,7 +20,7 @@ beside it, and is worth opening when you hit one of these:
   association and list; XPath navigation.
 - [`reference/integration.md`](reference/integration.md) — `rest call` and
   `send rest request`, legacy SOAP, calling Java actions (including the `empty`
-  argument and microflow-typed parameters), and file downloads.
+  argument and microflow-typed parameters), `execute database query`, file downloads.
 - [`reference/pitfalls.md`](reference/pitfalls.md) — **read this when
   `mxcli check` rejects something you believe is correct.** The anti-patterns, the
   CE0111 duplicate-variable trap, the syntax that looks plausible and does not
@@ -35,6 +35,20 @@ Use this skill when:
 - Understanding microflow control flow and structure
 
 If you're not sure whether the logic belongs in a microflow or a nanoflow, read the next section first. The mirror lives in [write-nanoflows](../write-nanoflows/SKILL.md) — keep both copies in sync.
+
+## Changing an Existing Microflow
+
+Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mode/SKILL.md)):
+
+- **Created by your MDL scripts, and not edited in Studio Pro since:** edit the script
+  (or fresh `describe` output) and re-run `create or modify`.
+- **Authored in Studio Pro:** prefer `alter microflow X { insert/replace/drop … }`
+  (targets from `describe microflow X with handles`). `create or modify` of `describe`
+  output patches too: unchanged writes nothing; a statement, `return` value, header clause,
+  parameter (added/retyped; removed only if unused) or stated `@position`/`@start` change is
+  patched in place (a move keeps the node's flows). A redrawn `@anchor`/`@curve`, loop body,
+  error handler or `return` added/taken away rebuilds under mdl 0 (`MDL-V1-REBUILD`: IDs
+  renumbered, merges and curves lost) and is refused under `mdl 1;`.
 
 ## When to Use a Microflow vs a Nanoflow
 
@@ -66,7 +80,7 @@ If you're not sure whether the logic belongs in a microflow or a nanoflow, read 
 | **JavaScript actions** | Not supported | Supported |
 | **SYNCHRONIZE** | Not available | Available (offline sync) |
 | **File downloads** | Supported | Not supported |
-| **Error handling** | Full `ON ERROR` blocks + `RAISE ERROR` | Per-action `ON ERROR` supported; `RAISE ERROR` / `ErrorEvent` forbidden |
+| **Error handling** | Full `ON ERROR` blocks; `RAISE ERROR` **inside a handler only** (main flow = MDL084 / CE0710) | Per-action `ON ERROR` supported; `RAISE ERROR` / `ErrorEvent` forbidden |
 | **Offline** | Not available | Available |
 | **Binary return type** | Supported | Not supported |
 
@@ -149,7 +163,7 @@ alternative. Java and JavaScript actions have one entry each and use the shorter
 
 `@excluded` before a `create microflow` marks the document **"Exclude from project"**
 (the same checkbox Studio Pro offers). The document stays in the `.mpr`, does not
-build, and `show microflows` reports it in the `Excluded` column.
+build, and `list microflows` reports it in the `Excluded` column.
 
 ```mdl
 @excluded
@@ -159,6 +173,8 @@ begin
   return 7;
 end;
 ```
+
+The sibling document annotation is **`@applyentityaccess`** — runs the flow under the current user's entity access rules rather than with full access, with the same absent-preserves rule and an explicit `(false)` to turn it off ([pitfalls](reference/pitfalls.md#apply-entity-access)).
 
 Two rules follow, and both are enforced rather than documented-and-hoped:
 
@@ -242,7 +258,7 @@ declare $status Enumeration(Module.OrderStatus) = Module.OrderStatus.Open;
 > not you give it an initializer. `mxcli check` now flags it as **MDL043**. There
 > is **no** "empty object variable" activity. Get objects from one of these:
 > - a microflow **parameter**: `create microflow M.Save ($Product: Test.Product) ...`
-> - a **retrieve**: `retrieve $Product from Test.Product where Code = $c limit 1;`
+> - a **retrieve**: `retrieve $Product from Test.Product where Code = $c first;`
 > - a **create object**: `$Product = create Test.Product (Name = $n);`
 > - a **loop iterator**: `loop $Product in $Products ...`
 
@@ -267,6 +283,14 @@ declare $status Enumeration(Module.OrderStatus) = Module.OrderStatus.Open;
 > ```
 > The `calendar*Between` functions (`calendarMonthsBetween`, `calendarYearsBetween`)
 > return whole units (Integer) and are fine to assign directly.
+
+### Changing a variable: always `set`
+
+`set $Counter = $Counter + 1;` changes a variable. `$x = …` without `set` is an
+activity that creates `$x` — required under `mdl 1;` (`MDL-V1-SET` otherwise).
+List operations and aggregates are one statement per activity and never nest:
+`$Open = filter $Orders by Status = M.Status.Open;` then `$N = count $Open;` —
+see [`reference/data-operations.md`](reference/data-operations.md#one-statement-per-activity).
 
 ### ❌ INCORRECT Syntax
 
@@ -386,8 +410,8 @@ toString($value)           -- Convert to string
 >
 > **MDL044 also blocks `mxcli exec`**, not just `check`: a call to a name Mendix
 > has no built-in for is CE0117 at build time, so exec refuses to write the
-> microflow rather than leaving you to find out from mxbuild. Two names that
-> look plausible and are not real: `currentDeviceType()` and `trunc()` (use
+> microflow or nanoflow (log messages included). Not real: `currentDeviceType()`,
+> `[%CurrentDeviceType%]` (a CE0117 `check` misses) and `trunc()` (use
 > `round`/`floor`/`ceil`). If exec rejects a function you believe IS a Mendix
 > built-in, build it once and — if mxbuild accepts it — add it to `funcTable` in
 > `mdl/exprcheck/func_checker.go`; that table is the rule's only allow-list.
@@ -459,9 +483,10 @@ call microflow Module.ACT_Refresh() in queue Module.RefreshQueue;
 call java action Module.RefreshData(Url = $Url) in queue Module.RefreshQueue;
 ```
 
-**Queued calls** — the queue must already exist (`create queue Module.RefreshQueue
-(Parallelism: 2)`), and a queued **Java action must `returns void`** or the build
-fails with CE7038. Rewriting a microflow that has a queued call must restate the
+**Queued calls** — the queue must already exist (`create task queue Module.RefreshQueue
+(Parallelism: 2)`), and the called flow must return nothing: a queued
+**microflow with a `returns` clause** fails the build with CE7033 (`mxcli check`:
+MDL088), a queued **Java action must `returns void`** or it fails with CE7038. Rewriting a microflow that has a queued call must restate the
 `in queue` clause; a rewrite that omits it is refused rather than silently
 dropping the binding. See `.claude/skills/mendix/scheduled-events-and-queues`.
 
@@ -500,14 +525,15 @@ When calling microflows, always check the target's parameter list. Use `describe
 ### SHOW PAGE
 
 ```mdl
--- Open page with parameter (canonical syntax)
-show page Module.EditPage($Product = $Product);
-
--- Widget-style syntax also accepted in microflows
-show page Module.EditPage(Product: $Product);
+-- Open page with parameter
+show page Module.EditPage(Product = $Product);
 ```
 
-Both `($Param = $value)` and `(Param: $value)` syntaxes are accepted in microflow SHOW PAGE statements. Similarly, widget Action: properties accept both `show_page Module.Page(Param: $value)` and `show_page Module.Page($Param = $value)`.
+Every call site binds an argument as `Param = expression`, with no `$` on the
+parameter name: `call microflow`, `show page`, and widget actions
+(`action: show page Module.Page(Param = $value)`) alike. `$Param = $value` and
+`Param: $value` still parse but are deprecated (MDL-DEPR006/007); `mxcli fmt
+--upgrade` rewrites them.
 
 ### CLOSE PAGE
 
@@ -563,7 +589,7 @@ Before executing a microflow script, verify:
 ```mdl
 declare $primitive type = value;              -- Primitives (String/Integer/Decimal/Boolean/DateTime)
 declare $status Enumeration(Module.Enum) = …; -- Enumerations are primitives too
--- Objects: never declare. Use a parameter, retrieve (limit 1), `$obj = create Module.Entity(...)`, or a loop iterator.
+-- Objects: never declare. Use a parameter, retrieve (… first), `$obj = create Module.Entity(...)`, or a loop iterator.
 -- Lists:   never declare. Use a parameter, retrieve, or `$list = create list of Module.Entity;`
 ```
 
@@ -590,39 +616,39 @@ $var/Module.AssociationName/attribute   -- Chained
 
 ### Annotation Pattern
 ```mdl
-@position(200, 200)
+@position(200, 200)          -- optional: omit it and mxcli lays the flow out; to re-arrange an existing flow run `mxcli layout flows`
 @caption 'Persist order'
 @color Green
 @annotation 'Note about the next activity'
 commit $Order;                                          -- Annotations apply here
 ```
 
-### Execute Database Query Pattern
+### Annotations Are Notes, and a Note Can Be Shared
+
+A note is a node with edges in Mendix, not a property of the activity it
+documents. So `@annotation` is **repeatable** — one activity can carry several,
+each its own note — and one note can be attached to several activities:
+
 ```mdl
--- Static query (3-part name: Module.Connection.Query)
-$Results = execute database query Module.Conn.QueryName;
-
--- Dynamic SQL override
-$Results = execute database query Module.Conn.QueryName
-  dynamic 'SELECT * FROM table LIMIT 10';
-
--- Parameterized query (names must match query PARAMETER definitions)
-$Results = execute database query Module.Conn.QueryName
-  (paramName = $Variable);
-
--- Runtime connection override
-$Results = execute database query Module.Conn.QueryName
-  connection (DBSource = $url, DBUsername = $user, DBPassword = $Pass);
-
--- Fire-and-forget (no output variable)
-execute database query Module.Conn.QueryName;
+@annotation(id: n1, text: 'both of these touch the same record')
+commit $Order;
+@annotation(id: n1)                     -- attaches THAT note, does not copy it
+commit $Invoice;
 ```
-**Note:** Only `on error rollback` is supported (the default). `on error continue` is not available for this action.
+
+`id:` is scoped to the flow you are writing and is not stored in the model; it
+exists only so a second mention can point at the first. **Without it, two lines
+with identical text are two separate notes** — mxcli never merges on text.
+
+A note's own canvas geometry is `position: (x, y)` and `size: (w, h)`, e.g.
+`@annotation(text: 'note', position: (175, -40), size: (260, 70))`. Omit them
+and the note goes 100px above the activity at 200×50, stacking 60px per extra
+note; DESCRIBE omits them again whenever they match, so an ordinary note keeps
+the short `@annotation 'text'` form.
 
 ### Page Navigation Pattern
 ```mdl
-show page Module.Page($Param = $value);               -- Canonical
-show page Module.Page(Param: $value);                  -- Widget-style (also valid)
+show page Module.Page(Param = $value);
 close page;
 show home page;
 ```
@@ -631,6 +657,44 @@ show home page;
 ```mdl
 call microflow ... on error continue;                  -- Ignore error
 call microflow ... on error rollback;                  -- Rollback on error
-call microflow ... on error { log ...; return ...; };  -- Custom handler
-call microflow ... on error without rollback { ... };  -- No rollback
+call microflow ... on error begin log ...; return ...; end error;  -- Custom handler
+call microflow ... on error without rollback begin ... end error;  -- No rollback
 ```
+
+The clause goes on whichever activity may fail, not only on calls:
+
+```mdl
+declare $Name String = 'default' on error begin return 'could not initialise'; end error;
+$Name = $Other/Name on error begin return 'lookup failed'; end error;
+change $Order (Status = Shipped) on error begin log error 'could not ship'; return; end error;
+log info node 'App' 'starting' on error begin return; end error;
+show message 'saved' on error begin return; end error;
+
+-- BLOCKING halts the client until dismissed; after `objects`, before `on error`.
+show message 'Hello {1}' type Warning with ({1} = $Name) blocking;
+validation feedback $Order/Total message 'must be positive' on error begin return; end error;
+show page Module.Page on error begin return; end error;
+close page on error begin return; end error;
+```
+
+**Two limits, both reported rather than silently ignored:**
+
+- **`on error continue` is rejected by Mendix** (CE6035) on `create`, `change`,
+  `commit`, `log`, `show page`, `close page`, `show message` and
+  `validation feedback` — **MDL076**. A custom `{ handler }` is accepted on all
+  of them; `continue` is fine on `declare`, `set`, `retrieve`, `delete` and
+  `call microflow`. Measured on 11.14.0 — note that create-*variable* and
+  change-*variable* accept `continue` while change-*object* does not.
+- **List operations and aggregates** (`$x = head $l;`, `$n = count $l;`)
+  have no error handling in Mendix at all — **MDL077**.
+
+**In a nanoflow, almost none of them take a clause at all.** `change`, `log`,
+`show page`, `close page`, `show message` and `validation feedback` are CE6035
+there whichever form is written; only `declare` and `set` accept one. See
+`write-nanoflows`.
+
+**End the handler.** A handler body that does not finish with `return` or `throw`
+merges back into the main flow, so a variable created *after* the merge point is
+out of scope on the error path — CE0108, which Studio Pro reports for the same
+model. Ending the handler (as Studio Pro does when you wire it to an end event)
+avoids this entirely.

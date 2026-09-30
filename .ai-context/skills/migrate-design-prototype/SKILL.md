@@ -53,11 +53,11 @@ gives you *before* hand-writing custom SCSS. In order of preference:
 
 1. **An Atlas building block** — `use building block Atlas_Web_Content.Card` / `Pageheader`
    / `List_Cards` etc. gives you the whole component's markup + styling for free. Discover
-   with `show building blocks`, inspect with `describe building block`.
+   with `list building blocks`, inspect with `describe building block`.
 2. **Atlas utility classes and typed design properties** — `class:'card'`, `class:'btn btn-primary'`,
    `spacing-inner-*`/`spacing-outer-*` for padding/margin, `flex-row`/`flex-column` +
    `align-x-*`/`align-y-*` for layout (no `layoutgrid` needed); or the typed equivalents
-   `designproperties: ['Card style': on]`, `['Background color': 'Brand Primary']`,
+   `designproperties: ('Card style': on)`, `['Background color': 'Brand Primary']`,
    `['Spacing': ['margin-bottom': 'L']]`. `mxcli check -p` validates design-property keys
    and values (MDL-WIDGET11/12) and lists the allowed values.
 3. **Brand-token retune** — build the palette with `mxcli theme create --from`
@@ -194,7 +194,7 @@ bespoke is an Atlas building block or utility class.
 
 For each repeated element in the prototype (panel, stat tile, chip, card, table row,
 progress bar…), **first check whether Atlas already provides it** (Atlas-first, above):
-is there a building block (`show building blocks`) or an Atlas class / design property
+is there a building block (`list building blocks`) or an Atlas class / design property
 (`card`, `btn-*`, `spacing-*`, `flex-*`+`align-*`, `['Card style': on]`) that gets you
 most of the way? If so, use it and add a thin `.ss-*` class only for the brand delta
 (colour, radius, font). Re-implementing `card`/`panel`/`btn` from scratch is the mistake
@@ -385,8 +385,8 @@ its menu grows by adding navigation items — never by editing pages.
 ### Add a screen to the menu
 
 ```bash
-mxcli -p baedemo.mpr -c "SHOW NAVIGATION"              # profiles, home page, item count
-mxcli -p baedemo.mpr -c "SHOW NAVIGATION MENU Responsive"   # the menu tree
+mxcli -p baedemo.mpr -c "LIST NAVIGATION"              # profiles, home page, item count
+mxcli -p baedemo.mpr -c "LIST NAVIGATION MENU Responsive"   # the menu tree
 ```
 
 Add or reorder items with `CREATE OR REPLACE NAVIGATION <Profile> …` (full-replacement — dump
@@ -485,7 +485,7 @@ create or replace page ResourceScheduling.ResourceHeatmap (
       Class: 'ss-panel ss-heat-lv'
     ) {
       container heatRow (Class: 'ss-heat-row') {
-        dynamictext hc01 (Content: '{1}', ContentParams: [{1} = M01], Class: 'ss-heat-cell')
+        dynamictext hc01 (Content: '{1}', ContentParams: ({1} = M01), Class: 'ss-heat-cell')
       }
     }
   }
@@ -501,13 +501,13 @@ top of** `Class:`.
 ```sql
 container heatCell (
   Class: 'ss-heat-cell',
-  DynamicClasses: 'if $currentObject/M01 >= 100 then ''ss-heat--over''
-                   else if $currentObject/M01 >= 80 then ''ss-heat--warn''
-                   else ''ss-heat--ok'''
+  DynamicClasses: if $currentObject/M01 >= 100 then 'ss-heat--over'
+                   else if $currentObject/M01 >= 80 then 'ss-heat--warn'
+                   else 'ss-heat--ok'
 )
 ```
 
-(Note the doubled single-quotes for string literals inside an MDL expression.)
+(Written as-is: plain single quotes inside, no outer quotes around the expression.)
 
 ### Computed dimensions — the bucket-class idiom
 
@@ -526,7 +526,7 @@ bucket and generate one class per bucket**:
 ```
 
 3. Select the class from the bucket:
-   `DynamicClasses: '''ss-pb-'' + toString($currentObject/PctBucket)'`.
+   `DynamicClasses: 'ss-pb-' + toString($currentObject/PctBucket)`.
 
 Trade-off worth noting: this adds one bucket attribute per animated dimension to the
 domain model. Pick a bucket count that matches the visual precision you need (20 → 5%
@@ -538,7 +538,7 @@ Use `alter page` to attach a class without rewriting the page (see `alter-page`)
 
 ```sql
 alter page ResourceScheduling.Approvals {
-  set Class = 'ss-appr-card ss-appr-card--conflict' on queueCard;
+  set (Class: 'ss-appr-card ss-appr-card--conflict') on queueCard;
 }
 ```
 
@@ -646,10 +646,10 @@ the fast index so a design migration doesn't rediscover them.
     children bind to the related entity:
     ```
     dataview dvEmp (datasource: $currentObject/Module.Entity_Related) {
-      dynamictext n (content: 'By {1}', contentparams: [{1} = Name])   -- own attr of the related entity
+      dynamictext n (content: 'By {1}', contentparams: ({1} = Name))   -- own attr of the related entity
     }
     ```
-  - An **association path** for a single inline value: `contentparams: [{1} = Entity_Related/Name]`
+  - An **association path** for a single inline value: `contentparams: ({1} = Entity_Related/Name)`
     in a `dynamictext`, or `attribute: Entity_Related/Name` on a DataGrid2 column — both persist as
     an AttributeRef over the association (use a **bare** association name; a module-qualified one is
     rejected on a column).
@@ -690,7 +690,7 @@ the fast index so a design migration doesn't rediscover them.
 - [ ] Persistent sidebar/topbar built as **navigation profile + layout + CSS**, not per-page widgets; new screens added via `CREATE OR REPLACE NAVIGATION`
 - [ ] Shell **restructured** to the design (full-height sidebar via `position:fixed` + `margin-left` offset; region sizes forced with `flex-basis`; collapse toggle hidden if unused)
 - [ ] Multi-part chrome (brand block, user chip) rendered as **inline-SVG backgrounds**; single-style chrome (labels, dots, footer) as plain `::before`/`::after`
-- [ ] Related (to-one) object attributes shown via a **nested "data from context" DataView** (full read view) or an **association path** (`contentparams: [{1} = Assoc/Attr]` / column `attribute: Assoc/Attr`) for a single inline value — both persist
+- [ ] Related (to-one) object attributes shown via a **nested "data from context" DataView** (full read view) or an **association path** (`contentparams: ({1} = Assoc/Attr)` / column `attribute: Assoc/Attr`) for a single inline value — both persist
 - [ ] A real **`docker build`** run after each slice (not just `mxcli check`) before screenshotting
 - [ ] Widgets styled with `Class:`; data-driven state via `DynamicClasses:`
 - [ ] No inline `Style:` on any DYNAMICTEXT

@@ -40,7 +40,11 @@ and mxcli's own rules; it does not validate the Mendix model. Run
 
 `mxcli check script.mdl` alone checks syntax and the semantic rules that need no
 model. **Pass `-p` and it also resolves every reference** — modules, entities,
-pages, microflows and icons — against that project:
+pages, microflows and icons — against that project. It reaches inside stored
+documents where a name can only be answered there: an `ALTER PAGE … SET` is
+dry-run against the page it edits, so a widget the page does not have, or a
+property the stored widget does not declare, is reported here rather than
+stopping the script partway through `exec`.
 
 ```bash
 mxcli check script.mdl                 # syntax + model-free rules
@@ -53,6 +57,92 @@ printed an unqualified `Check passed!` having resolved nothing — a misspelled
 icon or entity sailed through a command that had been handed the project. A run
 without a project now says what it did not check, so a pass is never read as
 more than it is.
+
+**An excluded document's dangling references are warnings, not errors.** Mendix
+does not validate excluded documents (Feedback v4.0.2 ships an excluded page bound
+to nanoflows it lacks, and the project checks at 0 errors), so `check` and `exec`
+print them as `Reference warning` lines for excluded microflows, nanoflows, rules,
+and pages/snippets exec will write excluded (`@excluded`, or a stored namesake that
+is). **A missing data-source flow is a warning only when the bindings inside it are
+qualified** (`Attribute: Module.Entity.Attr`, `{1} = Module.Entity.Attr`,
+`Visible: Module.Entity.Attr in (…)`) — the form `describe` writes there. The
+widgets inside bind against the entity that flow returns, so with the flow missing
+a bare binding cannot be resolved; it is refused, naming the widget, because on
+11.13.0 a bare attribute reference left a project `mx` could not load. A missing
+entity still blocks.
+
+### It also reports a name the PROJECT already has
+
+A plain `create` of a document the project already carries is a `check` error,
+not something to discover at exec time:
+
+```
+statement 4: association already exists in project: Sales.Order_Customer — use CREATE OR MODIFY to update it
+```
+
+The reason it belongs in `check` is that **`exec` stops at the first one having
+already written everything before it**. A script whose fourth statement
+conflicts leaves three statements' worth of changes in the project and no
+fourth — so "run it and see" is not a free experiment. `check` reports every
+conflict in the script before anything is written.
+
+Three spellings say "fine if it already exists", and none is reported:
+`create or modify`, `create or replace`, and `create <kind> if not exists <name>`
+(which leaves the stored element untouched rather than rewriting it; every
+`create` that names one element takes it, e.g. `create page if not exists M.P …`
+— `mxcli syntax create-if-not-exists`). `create module M;`
+is never reported either — it is a no-op when the module exists, which is what
+lets it open every script.
+
+The types covered are the ones `exec` refuses: entity, enumeration, constant,
+association, microflow, nanoflow, rule, page, snippet, java action, javascript
+action, workflow, and the integration/agent document types. If you find one that
+`exec` refuses and `check` does not, that is a bug of exactly the shape
+`TestEveryCreateDocTypeIsProjectChecked` exists to prevent.
+
+### It reports what the script REMOVES from the project
+
+`create or modify entity` is on the list above — it is never a conflict, because
+"fine if it already exists" is exactly what it says. What it does **not** say is
+that it rebuilds the entity from the statement, so every member the statement
+omits is deleted. Slice an app into ordered scripts and that becomes a real
+hazard: an attribute added by a later `alter entity` — a calculated one whose
+microflow does not exist until then is the usual reason — is gone the moment the
+earlier script is re-run on its own. **Script order is load-bearing, even though
+each script is individually idempotent.**
+
+`check` now says so before anything is written, as **MDL087**:
+
+```
+⚠ applying this script to the project removes 1 member(s) from entity
+  ServiceCore.LithoSystem that it does not restate: OpenRequestCount
+  — anything still bound to them (widgets, microflows) fails the build with CE1613
+    at ServiceCore.LithoSystem
+    → … or add them incrementally with 'alter entity ServiceCore.LithoSystem
+      add attribute <name>: <type>;' in this script; if they are meant to go,
+      say so with 'alter entity … drop attribute <name>;'
+```
+
+`exec` prints the same list — but as it applies the statement, by which point the
+attribute is gone. Left unreported entirely, the loss surfaces slices later as
+`CE1613` on whatever still binds it, naming the *page*, not the script that
+removed the attribute (ako/mxcli#562).
+
+Two properties of the rule are worth knowing, because they are what keep it from
+becoming noise you learn to scroll past:
+
+- **It is the NET effect of the whole script, not one statement's.** A script
+  that rebuilds an entity and then adds the members back with `alter entity …
+  add attribute` loses nothing and is silent. So the *combined* slices check
+  clean and slice 01 alone does not, which is precisely the difference that bit.
+- **An explicit removal is not reported.** `drop attribute`, `rename attribute`
+  and `drop entity` say what they do. Only a member the project holds, that the
+  script neither restates nor asks to remove, is a warning.
+
+It is a **warning**: "modify to this shape" is a legitimate intent and `check`
+still exits 0. The defect was the silence, not the behaviour. It also covers the
+members that are not attributes — the four audit system fields and an omitted
+`extends` — because those drop the same way.
 
 ### It resolves MEMBER names too, where it can establish the entity
 
@@ -151,7 +241,7 @@ Before writing any MDL, verify these requirements:
 
 **Supported in Microflows:**
 - `declare $Var type = value;` (primitives only: String/Integer/Long/Decimal/Boolean/DateTime/Enumeration)
-- `$entity = create Module.Entity (...);` / `retrieve $entity from ... limit 1;` (objects — **never** `declare` an object; that fails CE0053/CE0038 and is flagged MDL043)
+- `$entity = create Module.Entity (...);` / `retrieve $entity from ... first;` (objects — **never** `declare` an object; that fails CE0053/CE0038 and is flagged MDL043)
 - `$list = create list of Module.Entity;` (lists — **never** `declare` a list; that fails CE0053/CE0038 and is flagged MDL040)
 - `set $Var = expression;`
 - `$Var = create Module.Entity (attr = value);`
@@ -161,18 +251,18 @@ Before writing any MDL, verify these requirements:
 - `retrieve $Var from Module.Entity [where condition];`
 - `$Result = call microflow Module.Name (Param = $value);` (NOT `set $Result = ...`)
 - `$Result = call nanoflow Module.Name (Param = $value);`
-- `show page Module.PageName ($Param = $value);`
+- `show page Module.PageName (Param = $value);`
 - `close page;`
 - `validation feedback $entity/attribute message 'message';`
 - `log info|warning|error [node 'name'] 'message';`
 - `if condition then ... [else ...] end if;`
 - `loop $item in $list begin ... end loop;`
 - `return $value;`
-- `on error continue|rollback|{ handler };`
+- `on error continue|rollback|[without rollback] begin handler end error;`
 
 **Now Supported (previously not):**
 - `rollback $entity [refresh];` - Reverts uncommitted changes
-- `retrieve ... limit n` - Returns single entity when `limit 1`
+- `retrieve ... first` - Returns a single entity; `limit n [offset n]` returns a list (a bare `limit 1` is the object only without the `mdl 1;` header, and warns MDL-V1-LIMIT1)
 - `boolean` without `default` - Auto-defaults to `false`
 - `buttonstyle: warning` and `buttonstyle: info` - Now parse correctly
 - Keywords as attribute names - `caption`, `label`, `title`, `text`, `content`, `format`, `range`, `source`, `check`, etc. all work unquoted
@@ -223,7 +313,7 @@ Before writing any MDL, verify these requirements:
 > **Exception — never quote `$`-prefixed variable/parameter references.** The quote
 > rule is for *bare* names (entities, attributes, associations, declared parameter
 > names). Variable and parameter **references** in expressions and widget bindings
-> stay **unquoted**: `datasource: $X`, `params: { $X: MES."Order" }`, `$currentObject`.
+> stay **unquoted**: `datasource: $X`, `params: ( $X: MES."Order" )`, `$currentObject`.
 > Quoting them (`"$X"`) breaks resolution ("parameter … references '$X' but no such
 > parameter is declared").
 >
@@ -285,7 +375,7 @@ cleanly, and `mx check` then reported them:
 does. Measured on Mendix 11.13: the same role is **CE0156 at security level
 Prototype and no error at all at level Off**, where roles are stored but not
 validated. A blank project ships `Off`. So the rule warns by default and is an
-error only when the script itself contains `ALTER PROJECT SECURITY LEVEL` set to
+error only when the script itself contains `ALTER APP SECURITY LEVEL` set to
 something other than `Off` — at which point the author has said which world they
 are in.
 

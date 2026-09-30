@@ -139,8 +139,8 @@ instantiate** them, so the workflow is:
 
 **1. Discover what your project ships.**
 ```bash
-mxcli -p app.mpr -c "show building blocks"
-mxcli -p app.mpr -c "show building blocks in Atlas_Web_Content"
+mxcli -p app.mpr -c "list building blocks"
+mxcli -p app.mpr -c "list building blocks in Atlas_Web_Content"
 mxcli -p app.mpr -c "select QualifiedName, Category from CATALOG.building_blocks"
 ```
 
@@ -151,9 +151,9 @@ mxcli -p app.mpr -c "describe building block Atlas_Web_Content.Card"
 ```
 ```
 {
-  container container2 (DesignProperties: ['Card style': on]) {
+  container container2 (DesignProperties: ('Card style': on)) {
     dynamictext text22 (Content: 'Card title', RenderMode: H4, Class: 'card-title',
-      DesignProperties: ['Spacing': ['margin-bottom': 'L']])
+      DesignProperties: ('Spacing': ('margin-bottom': 'L')))
   }
 }
 ```
@@ -185,14 +185,11 @@ alter page Sales.CustomerOverview set cust_text22 (content: 'Customers');
 > `CATALOG.building_blocks`) **and** instantiation (`USE BUILDING BLOCK`) both work
 > today. `use building block` v1 is **deep-copy + optional `as <prefix>`**; configure
 > the copy afterwards with `alter page` (an inline override block is a proposed v1.1).
-> It runs on `MXCLI_ENGINE=legacy` today; modelsdk-engine support lands with that
-> engine's `ListBuildingBlocks`.
 
 **When to *mirror* instead.** *Mirroring* — reproducing a block's tree by hand with
 `create page`/`alter page` + the same classes and design properties (see below) — is
-the fallback: reach for it only to hand-tune a shape Atlas doesn't quite give you, or
-on the modelsdk engine before its building-block support lands. Otherwise prefer the
-one-line `use building block`.
+the fallback: reach for it only to hand-tune a shape Atlas doesn't quite give you.
+Otherwise prefer the one-line `use building block`.
 
 ---
 
@@ -453,7 +450,7 @@ row before opening files.
 
 - [ ] **Atlas-first** — reached for `class:`/design properties (Layer 0) and brand
       tokens (Layer 1) before any custom CSS
-- [ ] **Discovered** the project's building blocks (`show building blocks`) and
+- [ ] **Discovered** the project's building blocks (`list building blocks`) and
       **inspected** the target block (`describe building block …`) before using it
 - [ ] **Instantiated** with `use building block Mod.Name [as prefix_]` (the one-liner),
       then configured the copied widgets with `alter page` — mirrored by hand only as a

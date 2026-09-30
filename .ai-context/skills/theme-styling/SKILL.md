@@ -20,7 +20,7 @@ project owns and seeds its palette from `--mxt-*` declarations. See "A theme of
 your own" below. Hand-editing inside a generated block works exactly once — the
 digest fence refuses it on the next apply.
 
-For **MDL styling commands** (`show design properties`, `describe styling`, `alter styling`, inline `designproperties:`, `update widgets`), see:
+For **MDL styling commands** (`list design properties`, `describe styling`, `alter styling`, inline `designproperties:`, `update widgets`), see:
 - Existing proposal: `docs/11-proposals/page-styling-support.md`
 - Working examples: `mdl-examples/doctype-tests/12-styling-examples.mdl` (595 lines)
 - Implementation: `mdl/executor/cmd_styling.go`, `mdl/executor/theme_reader.go`
@@ -367,10 +367,10 @@ Two surprises when styling a **DataGrid2** matrix/pivot (ledger finding #46):
 Keys must match the `name` field in `design-properties.json` exactly:
 ```sql
 -- CORRECT
-designproperties: ['Spacing top': 'Large']
+designproperties: ('Spacing top': 'Large')
 
 -- WRONG (case mismatch — silently ignored)
-designproperties: ['spacing top': 'Large']
+designproperties: ('spacing top': 'Large')
 ```
 
 ### Compound (Nested) Design Properties
@@ -381,11 +381,11 @@ one whose value is itself a set of sub-properties (e.g. Atlas's `Spacing` →
 `margin-top`, `margin-bottom`, …). A compound value is written as a nested list:
 
 ```sql
-designproperties: [
+designproperties: (
   'Column gap': 'Medium',                                       -- flat option
   'Cards style': ON,                                            -- flat toggle
-  'Spacing': ['margin-top': 'Large', 'margin-bottom': 'Medium'] -- compound
-]
+  'Spacing': ('margin-top': 'Large', 'margin-bottom': 'Medium') -- compound
+)
 ```
 
 Supported on the **modelsdk** (`.mpr`) and **MCP** (live Studio Pro) backends.
@@ -406,7 +406,7 @@ validated against the project's theme registry (`themesource/*/web/design-proper
   allowed values** (case-sensitive), which is the fastest way to fix a casing typo.
 
 Both are warnings (a newer theme may add keys/values), so they inform without blocking.
-`show design properties <widget>` lists the same allowed keys/values up front. On the
+`list design properties <widget>` lists the same allowed keys/values up front. On the
 write side, the value's BSON type is taken from the registry (a `ColorPicker` /
 `ToggleButtonGroup` property serializes as a custom value, not a plain option).
 
@@ -418,3 +418,7 @@ write side, the value's BSON type is taken from the registry (a `ColorPicker` /
 - [ ] For CSS changes, run `docker build` then `docker reload --css`
 - [ ] Use `describe styling` to verify changes after modification
 - [ ] Check `docs/11-proposals/page-styling-support.md` for BSON format details
+
+## Default styling + runtime theme switching (`mxcli theme list/show/create/apply/remove/switcher`, `mxcli new --theme`)
+
+three embedded themes (**signal** light-first, **ledger** light-first, **console** dark-first), each a palette in `theme/web/custom-variables.scss` + a shared Atlas wiring partial + a theme partial imported from `theme/web/main.scss` (which compiles last), plus vendored fonts. **No model changes**, so it hot-applies under `run --local --watch` and cannot affect a build. Generated regions are digest-fenced: a block carrying local edits is refused rather than overwritten. Applying a theme removes the previous one. `--variant auto` (default) ships both palettes — the app follows `prefers-color-scheme` before first paint and honours a `theme-light`/`theme-dark` class on `<html>`; `light`/`dark` bakes one. `theme switcher install` is the only part that writes to the model (JS actions + a nanoflow for a toggle button). A project can add its own themes under `theme/mxcli-themes/<name>/` (committed, not compiled); `theme create <name> [--from <theme|design-file>]` scaffolds one from an existing theme, renaming the identifiers built from the name and optionally seeding the palette from `--mxt-*` declarations in a design artifact. A local theme shadows a built-in of the same name. Package: `cmd/mxcli/theme/`. See `docs/11-proposals/PROPOSAL_default_styling.md`

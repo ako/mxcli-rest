@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * Binary download and upload over REST
  *
@@ -43,8 +44,8 @@ create or modify persistent entity RestLab."DownloadedFile" extends System.FileD
   "ContentKind": String(60)
 );
 
-grant RestLab."Developer" on RestLab."DownloadedFile" (create, read *, write *);
-grant RestLab."Administrator" on RestLab."DownloadedFile" (create, delete, read *, write *);
+grant create, read *, write * on entity RestLab."DownloadedFile" to RestLab."Developer";
+grant create, delete, read *, write * on entity RestLab."DownloadedFile" to RestLab."Administrator";
 
 create or modify association RestLab."DownloadedFile_CallLog"
   from RestLab."DownloadedFile" to RestLab."CallLog" type reference;
@@ -75,9 +76,8 @@ begin
     "Name" = $FileName,
     RestLab.DownloadedFile_CallLog = $Log
   );
-  COMMIT $Doc;
+  COMMIT $Doc WITHOUT EVENTS;
 end;
-/
 
 /**
  * DOWNLOAD. The mapped result is the file document itself; Size and
@@ -90,7 +90,7 @@ begin
   declare $Start DateTime = [%CurrentDateTime%];
 
   -- Inline, because only this form names the target file-document entity.
-  $Doc = rest call get 'https://httpbingo.org/image/png'
+  $Doc = call rest service get 'https://httpbingo.org/image/png'
     header Accept = 'image/png'
     timeout 60
     returns RestLab.DownloadedFile;
@@ -117,7 +117,6 @@ begin
 
   RETURN $Doc;
 end;
-/
 
 /**
  * UPLOAD, for real: `body binary` sends the document's Contents.
@@ -140,7 +139,7 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Echo = rest call post 'https://httpbingo.org/post'
+  $Echo = call rest service post 'https://httpbingo.org/post'
     header 'Content-Type' = 'application/octet-stream'
     body binary $Doc/Contents
     timeout 60
@@ -165,7 +164,6 @@ begin
 
   RETURN $Log;
 end;
-/
 
 /** Download then upload the same bytes -- the round trip in one click. */
 create or modify microflow RestLab."ACT_Binary_RoundTrip" ()
@@ -176,4 +174,3 @@ begin
     CALL MICROFLOW RestLab."ACT_Binary_Upload" (Doc = $Doc);
   END IF;
 end;
-/

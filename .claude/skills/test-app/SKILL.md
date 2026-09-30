@@ -105,7 +105,7 @@ Mendix renders each widget's `name` property as a CSS class on the DOM element:
 This maps directly to MDL widget names. When you generate a widget in MDL:
 
 ```sql
-actionbutton submitButton (caption: 'Submit', action: save_changes)
+actionbutton submitButton (caption: 'Submit', action: save changes)
 ```
 
 The stable CSS selector is `.mx-name-submitButton`. Use this with `eval` for reliable assertions:
@@ -379,7 +379,7 @@ playwright-cli show
 
 ```sql
 -- MDL: names you define become test hooks
-actionbutton btnDrivers (caption: 'Drivers', action: show_page Module.Drivers_Overview)
+actionbutton btnDrivers (caption: 'Drivers', action: show page Module.Drivers_Overview)
 datagrid dgOrders (datasource: database Module.Order) { ... }
 ```
 

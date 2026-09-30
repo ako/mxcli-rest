@@ -22,7 +22,7 @@ declare $Product as Test.Product;          -- AS keyword also not supported
 create microflow Test.Save ($Product: Test.Product) returns boolean as $ok ...
 
 -- from a retrieve (single object)
-retrieve $Product from Test.Product where Code = $Code limit 1;
+retrieve $Product from Test.Product where Code = $Code first;
 
 -- from a create object
 $Product = create Test.Product (Name = $Name);
@@ -361,16 +361,20 @@ rollback $Order refresh;
 
 **Use Case**: Revert uncommitted changes to an object. Useful when validation fails and you want to restore the object to its database state.
 
-### RETRIEVE with LIMIT (Supported!)
+### RETRIEVE: `first` for an object, `limit` for a list
 
 ```mdl
--- CORRECT: LIMIT is supported
-retrieve $Product from Module.Product where IsActive = true limit 1;
+-- FIRST binds a single object (Mendix's "First object" range)
+retrieve $Product from Module.Product where IsActive = true first;
 
--- LIMIT 1 returns a single entity (not a list)
--- Without LIMIT, returns a list
+-- Without a range, or with LIMIT/OFFSET, it binds a list
 retrieve $ProductList from Module.Product where IsActive = true;
+retrieve $Page from Module.Product sort by Name asc limit 20 offset 40;
 ```
+
+`limit 1` without `offset` changes meaning with the language version: a list of
+one under `mdl 1;`, but in a script without the header the object, with warning
+`MDL-V1-LIMIT1`. Write `first` whenever you mean the object.
 
 ### WHILE Loop
 
@@ -394,7 +398,7 @@ end loop;
 above for the correct form. What is not supported is the SQL-flavoured spelling of
 it: quoted values, an `else` fallback, and an `AS` alias all fail.
 
-```mdl
+```text
 -- WRONG: case values are not string literals (parse error)
 case $Order/Status
   when 'Active' then set $Result = 1;
@@ -410,12 +414,14 @@ case $Order/Status as s
   when Active then set $Result = 1;
 end case;
 
--- WRONG: no else branch (MDL008 → mxbuild CE0079 + CE0773)
+-- WRONG: no else branch — an enumeration split has no default flow (parse error)
 case $Order/Status
   when Active then set $Result = 1;
   else set $Result = 0;
 end case;
+```
 
+```mdl
 -- CORRECT: bare enum values, one branch per value, including (empty)
 case $Order/Status
   when Active then set $Result = 1;
@@ -439,9 +445,9 @@ CATCH
 end TRY;
 
 -- CORRECT: Use ON ERROR on specific activities
-commit $Order on error {
+commit $Order on error begin
   log error 'Commit failed';
-};
+end error;
 ```
 
 ### BREAK/CONTINUE in Loops
@@ -507,3 +513,104 @@ end;
 | CE0008 | No action defined | Define action for activity |
 | CW0094 | Variable never used | Remove unused variables or use them |
 | MDL | Variable not declared | Use `declare $var type = value;` before SET |
+
+## Apply entity access
+
+`@applyentityaccess` before a `create microflow` (or `create rule`) sets Studio
+Pro's **"Apply entity access"** checkbox: the flow runs under the **current
+user's** entity access rules instead of with full access.
+
+```mdl
+@applyentityaccess
+create microflow MyModule.ReadOwnOrders ()
+returns list of MyModule.Order
+begin
+  retrieve $Orders from MyModule.Order;
+  return $Orders;
+end;
+```
+
+It is a **security** setting and it only ever narrows, so the rules mirror
+`@excluded`:
+
+- **An absent `@applyentityaccess` never turns it off.** It means "the script does
+  not say", so a `create or modify` that omits it preserves whatever is stored.
+  Before this was carried, every rewrite cleared the flag — *widening* what the
+  microflow could read and write, with `mxcli check`, mxbuild and the model all
+  perfectly happy. Measured across 342 microflows in 4 projects: every microflow
+  storing the flag came back without it, and nothing anywhere reported it.
+- **Turning it off is explicit**: `@applyentityaccess(false)`.
+- **Not available on a nanoflow.** A nanoflow runs in the client and Mendix stores
+  no such property. Writing it there is **MDL059**, not a silent no-op —
+  the same rule that catches `@applyentityacces` and any other annotation the
+  document does not read. The message names what that document does accept.
+
+## Document properties: authorable, and omitted still preserves
+
+Four microflow properties live in the header rather than the body:
+
+```mdl
+create or modify microflow Shop.ACT_ShowOrder ($Order: Shop.Order, $Tab: String)
+url 'order/{Order}'
+url search parameters ($Tab)
+export level api
+disallow concurrent execution error message 'This order is already being processed'
+begin
+  ...
+end;
+```
+
+- **`url`** is the deep link (Mendix **10.6+**), Studio Pro's URL field. `url search
+  parameters (...)` names the parameters passed as query arguments; `drop url`
+  removes both.
+- **`export level api | hidden`** decides whether the microflow is part of the
+  module's public surface when the module is exported.
+- **`disallow concurrent execution`** takes `error message 'text'` or
+  `error microflow Mod.Name`; `allow concurrent execution` is the default.
+
+**An omitted clause preserves what is stored.** Same rule as `@excluded`,
+`@applyentityaccess` and `EXPOSED AS`: a `create or modify` that only edits the
+body leaves all of them alone. That is the fix for #1120, and the clauses are the
+way to opt out of it deliberately — `drop url`, `export level hidden`,
+`allow concurrent execution`.
+
+### Four rules that used to surface only at build time
+
+| | Rule | Mendix reports |
+|---|---|---|
+| **MDL-MF01** | every `{Name}` must name a parameter of this microflow | — |
+| **MDL-MF02** | a parameter in the PATH may **not** also be a search parameter | CE5612 |
+| **MDL-MF03** | `disallow` needs an error message or microflow | CE4899 |
+| — | a URL another microflow already owns (needs `-p`) | CE0570 |
+
+MF02 is the one to remember: path parameters and query parameters are disjoint
+sets. `url 'item/{Key}'` with `url search parameters ($Key)` is rejected — use a
+different parameter for the query argument.
+
+A segment may carry an attribute path — `{Customer/Name}` binds the **Customer**
+parameter by one of its attributes — so the leading identifier is what must match.
+
+### Two things that do NOT get cleared
+
+- **`allow concurrent execution` leaves a stored error message.** Studio Pro greys
+  those fields rather than erasing them, so re-disallowing restores the message —
+  and `canon.CarryTranslations` would put it back regardless, because a rebuild
+  cannot distinguish "cleared on purpose" from "the statement could not say it".
+  An inert stored message breaks nothing: Mendix reads it only when execution is
+  disallowed.
+- **Other languages of an error message.** MDL states one string, but a rewrite
+  keeps the rest: measured, restating an English message left its Dutch
+  translation untouched. `describe` flags the languages a **copy** would not carry.
+
+### `Mark as used` still has no clause
+
+It is carried across a rewrite like the others were, and there is no way to set
+it from MDL. Nothing is lost by that — it only suppresses an editor warning.
+
+## `drop` + `create` is still a new document
+
+`drop microflow` followed by `create microflow` starts from nothing, so it keeps
+none of these unless the script restates them. Use `create or modify` to edit a
+microflow that carries any of them — and note that `describe` now emits all
+four clauses, so **describe → rename → exec copies them faithfully**. Give the
+copy a different `url`, though: two microflows may not share one (CE0570).

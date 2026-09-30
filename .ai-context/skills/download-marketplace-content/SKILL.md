@@ -217,6 +217,20 @@ an mxcli defect**:
   design properties an older Atlas spelled differently. Project-level: the location in the
   check output is empty, so the message alone does not say which module caused it.
 
+A third, **CE0066** "Entity access is out of date", is *not* left to you. The install and
+the update copy the incoming module's units in verbatim, so a package whose access rules do
+not cover every member of their entities used to land that error with nothing said about it
+([mendixlabs/mxcli#1085](https://github.com/mendixlabs/mxcli/issues/1085)). Both now
+reconcile the module's rules for themselves and report the count; nothing is written when
+the rules already match. When the line does appear, the module's domain model now differs
+from the package, so `marketplace diff` reads it as a local edit — the same consequence
+Studio Pro's **Update security** button has. Repair it by hand, on a project updated by an
+older mxcli, with:
+
+```bash
+mxcli -p app.mpr -c "update security UserCommons"
+```
+
 Measured end to end on a vanilla 11.12.1 app carrying the agent-editor stack: `mx check`
 reported **203 errors** (202 × CE0463 + 1 × CE6087) and **0** after the two commands, with
 the project still MPR v2 — 1,868 `.mxunit` files, a 249,856-byte index, before and after.
@@ -286,7 +300,7 @@ DESCRIBE renders imperfectly — a snippet whose body comes out `{ }`, a buildin
 block under "Building blocks are read-only; they cannot be created via MDL" — and
 two imperfect renderings can differ for reasons that have nothing to do with you.
 Those are reported `unknown`, never `changed`, and `--save-edits` refuses to write
-them: replaying `create or modify snippet X (Folder: 'Web') { }` would **empty**
+them: replaying `create or modify snippet X folder 'Web' { }` would **empty**
 the snippet.
 
 **Read `verified`, not just `locallyModified`.** An element that cannot be described is
@@ -388,8 +402,8 @@ mxcli docker check -p MyAgentApp.mpr        # read the errors; they name what is
 # ...repeat per row...
 ```
 
-Then authoring works — `create constant` + `create model` + `create agent` executed and
-added 3 units, with `show features in agent_documents` reporting all four document types
+Then authoring works — `create constant` + `create ai model` + `create agent` executed and
+added 3 units, with `list features in agent_documents` reporting all four document types
 available on 11.12.1.
 
 Four things this run established, none of them obvious from the command list:
@@ -414,3 +428,17 @@ trusting them from memory, and note that the listing name never matches the modu
   error with a login hint.
 - Marketplace CDN TLS handshakes time out occasionally. Retry once before reporting a
   failure.
+
+## Platform authentication (`mxcli auth login/logout/status/list`) with PAT scheme for marketplace-api
+
+Platform authentication (`mxcli auth login/logout/status/list`) with PAT scheme for marketplace-api.mendix.com, marketplace.mendix.com, and catalog.mendix.com; credentials stored at ~/.mxcli/auth.json (mode 0600), MENDIX_PAT env override
+
+## Marketplace download/install (`mxcli marketplace download/install`) — the content API now exposes a per-version downloadUrl (303→public CDN); install is type-aware (widget→widgets/, new module→`mx module-import`); existing-module updates are reported, not applied (entity-ID/local-edit safety — see PROPOSAL_marketplace_modules
+
+Marketplace download/install (`mxcli marketplace download/install`) — the content API now exposes a per-version downloadUrl (303→public CDN); install is type-aware (widget→widgets/, new module→`mx module-import`); existing-module updates are reported, not applied (entity-ID/local-edit safety — see PROPOSAL_marketplace_modules.md)
+
+## Marketplace drift detection (`mxcli marketplace diff <content-id> -p app.mpr [--to VERSION] [--json]`)
+
+reports **which elements of an installed marketplace module have been edited locally** — the question Studio Pro's Marketplace update never asks before replacing the module. The version's `.mpk` is downloaded and imported into a throwaway reference project built **at the consuming project's Mendix version** (a mismatch is refused, not warned about: Mendix's own conversions would read as user edits), then every element is described on both sides and the **DESCRIBE output** compared — not BSON, in which an *untouched* module differs from its own package in ~15,000 paths. `--to` adds what an upgrade would touch and which of those collide with local edits. Honesty rule: an element that cannot be described is reported **unknown, never unchanged**, and `verified:false` in the JSON means "no modifications found" is not a conclusion. Module + version are identified from the module's `AppStoreGuid`, which is the marketplace **version UUID** — matching on the version *number* is ambiguous (a blank project has Atlas_Web_Content 4.1.0 and Administration's content also published a 4.1.0). Measured on real content: Administration 4.3.2 in a blank 11.12.1 app → 21/21 unchanged; one added attribute → exactly `ENTITY Account`; `--to 4.3.2` (the installed version) touches nothing, which is the control for `--to 4.5.0`'s five. Package: `cmd/mxcli/marketplace/`. See `docs/11-proposals/PROPOSAL_marketplace_module_upgrade.md`
+
+**Not Yet Implemented:**

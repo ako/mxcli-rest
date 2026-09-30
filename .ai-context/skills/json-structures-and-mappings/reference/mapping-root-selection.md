@@ -13,7 +13,7 @@ many items cannot collapse into one value, and mxbuild reports CE0256.)
 
 ```sql
 create json structure RootDemo.JSON_Completion
-  snippet $${
+  sample $${
     "requestId": "r-1",
     "response": {
       "model": "gpt-x",

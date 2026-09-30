@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * RestLab pages
  *
@@ -6,20 +7,19 @@
  * every lane reports there, with the raw response one click away.
  */
 
-create or replace page RestLab."CallLog_Detail"
+create or modify page RestLab."CallLog_Detail" folder 'Shared'
 (
-  params: { $CallLog: RestLab."CallLog" },
+  params: ( $CallLog: RestLab."CallLog" ),
   title: 'Call detail',
   layout: Atlas_Core.PopupLayout,
   PopupWidth: 900,
   PopupHeight: 640,
-  PopupResizable: true,
-  folder: 'Shared'
+  PopupResizable: true
 )
 {
   layoutgrid lgDetail {
-    row rowDetail {
-      column colDetail (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
   dataview dvLog (datasource: $CallLog) {
     textbox tbUrl (label: 'URL', attribute: Url, editable: false)
     textbox tbMethod (label: 'Method', attribute: Method, editable: false)
@@ -29,14 +29,14 @@ create or replace page RestLab."CallLog_Detail"
     textbox tbError (label: 'Error', attribute: ErrorMessage, editable: false)
     textarea taBody (label: 'Raw response', attribute: ResponseBody, editable: false)
     textarea taShaped (label: 'After data transformer', attribute: TransformedBody, editable: false)
-    actionbutton btnClose (caption: 'Close', action: close_page)
+    actionbutton btnClose (caption: 'Close', action: close page)
   }
       }
     }
   }
-}
+};
 
-create or replace page RestLab."Home_Web"
+create or modify page RestLab."Home_Web"
 (
   title: 'RestLab',
   layout: Atlas_Core.Atlas_Default
@@ -51,143 +51,143 @@ create or replace page RestLab."Home_Web"
   }
 
   layoutgrid lgLanes {
-    row rowA {
-      column colCrud (desktopwidth: 4) {
+    row {
+      column (desktopwidth: 4) {
         container cCrud (class: 'card') {
           container cdtCrudTitle { dynamictext dtCrudTitle (Content: 'CRUD - api.restful-api.dev', class: 'h4') }
           container cdtCrudBody (class: 'mx-spacing-bottom-medium') { dynamictext dtCrudBody (Content: 'The one public demo API whose writes really persist. List maps a nested data object onto a child entity.') }
           actionbutton btnCrudList (
             caption: 'List objects',
-            action: microflow RestLab."ACT_Demo_CrudList",
+            action: call microflow RestLab."ACT_Demo_CrudList",
             buttonstyle: primary
           )
           actionbutton btnCrudGet (
             caption: 'Get object 7',
-            action: microflow RestLab."ACT_Demo_CrudGet"
+            action: call microflow RestLab."ACT_Demo_CrudGet"
           )
           actionbutton btnCrudCreate (
             caption: 'Create object',
-            action: microflow RestLab."ACT_Demo_CrudCreate",
+            action: call microflow RestLab."ACT_Demo_CrudCreate",
             buttonstyle: success
           )
         }
       }
-      column colCatalog (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         container cCatalog (class: 'card') {
           container cdtCatTitle { dynamictext dtCatTitle (Content: 'Auth + pagination - dummyjson.com', class: 'h4') }
           container cdtCatBody (class: 'mx-spacing-bottom-medium') { dynamictext dtCatBody (Content: 'A paged envelope mapped onto ProductList + Product, showing the nested LIST mapping and the String-to-Decimal conversion.') }
           actionbutton btnCatalog (
             caption: 'Get 10 products',
-            action: microflow RestLab."ACT_Demo_Catalog",
+            action: call microflow RestLab."ACT_Demo_Catalog",
             buttonstyle: primary
           )
         }
       }
-      column colBlog (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         container cBlog (class: 'card') {
           container cdtBlogTitle { dynamictext dtBlogTitle (Content: 'Response mapping - jsonplaceholder', class: 'h4') }
           container cdtBlogBody (class: 'mx-spacing-bottom-medium') { dynamictext dtBlogBody (Content: 'Flat, predictable JSON. Read-only on purpose: writes here are faked and never persist.') }
           actionbutton btnBlog (
             caption: 'Get posts',
-            action: microflow RestLab."ACT_Demo_Blog",
+            action: call microflow RestLab."ACT_Demo_Blog",
             buttonstyle: primary
           )
         }
       }
     }
-    row rowB {
-      column colEdge (desktopwidth: 6) {
+    row {
+      column (desktopwidth: 6) {
         container cEdge (class: 'card') {
           container cdtEdgeTitle { dynamictext dtEdgeTitle (Content: 'Errors + auth - httpbingo.org', class: 'h4') }
           container cdtEdgeBody (class: 'mx-spacing-bottom-medium') { dynamictext dtEdgeBody (Content: 'Called inline rather than through the REST client document, because SEND REST REQUEST aborts on a non-2xx response and cannot show a failure.') }
           actionbutton btnEdge404 (
             caption: 'Force a 404',
-            action: microflow RestLab."ACT_Demo_EdgeCase404",
+            action: call microflow RestLab."ACT_Demo_EdgeCase404",
             buttonstyle: warning
           )
           actionbutton btnEdge503 (
             caption: 'Force a 503',
-            action: microflow RestLab."ACT_Demo_EdgeCase503",
+            action: call microflow RestLab."ACT_Demo_EdgeCase503",
             buttonstyle: danger
           )
         }
       }
-      column colWeather (desktopwidth: 6) {
+      column (desktopwidth: 6) {
         container cWeather (class: 'card') {
           container cdtWxTitle { dynamictext dtWxTitle (Content: 'Raw JSON - open-meteo', class: 'h4') }
           container cdtWxBody (class: 'mx-spacing-bottom-medium') { dynamictext dtWxBody (Content: 'The only lane whose document response mapping really populates entities: object root, nested object, query parameters. Compare it with the raw-JSON call beside it.') }
           actionbutton btnWeatherMapped (
             caption: 'Get forecast (mapped)',
-            action: microflow RestLab."ACT_Demo_WeatherMapped",
+            action: call microflow RestLab."ACT_Demo_WeatherMapped",
             buttonstyle: primary
           )
           actionbutton btnWeather (
             caption: 'Get forecast (raw JSON)',
-            action: microflow RestLab."ACT_Demo_Weather"
+            action: call microflow RestLab."ACT_Demo_Weather"
           )
         }
       }
     }
-    row rowBin {
-      column colBin (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container cBin (class: 'card') {
           container cdtBinTitle { dynamictext dtBinTitle (Content: 'Binary download / upload - httpbingo.org', class: 'h4') }
           container cdtBinBody (class: 'mx-spacing-bottom-medium') { dynamictext dtBinBody (Content: 'Both directions are inline REST CALL activities, because a consumed REST service document can express neither. Download stores a real 8 KB PNG in a file document; the round trip posts those same bytes back with body binary. Open the POST row in the call log and read Content-Length - it is 8090, the whole file.') }
-          actionbutton btnBinDown (caption: 'Download PNG', action: microflow RestLab."ACT_Demo_BinaryDownload", buttonstyle: primary)
-          actionbutton btnBinRound (caption: 'Round trip (download + upload)', action: microflow RestLab."ACT_Demo_BinaryRoundTrip", buttonstyle: warning)
+          actionbutton btnBinDown (caption: 'Download PNG', action: call microflow RestLab."ACT_Demo_BinaryDownload", buttonstyle: primary)
+          actionbutton btnBinRound (caption: 'Round trip (download + upload)', action: call microflow RestLab."ACT_Demo_BinaryRoundTrip", buttonstyle: warning)
         }
       }
     }
-    row rowSP {
-      column colSP (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container cSP (class: 'card') {
           container cdtSPTitle { dynamictext dtSPTitle (Content: 'SharePoint read + write - local Prism mock', class: 'h4') }
           container cdtSPBody (class: 'mx-spacing-bottom-medium') { dynamictext dtSPBody (Content: 'Needs: prism mock -p 4025 -h 127.0.0.1 specs/sharepoint.json. Read one item maps the nested fields object onto a child entity, including the _x0020_ encoded column names. The list is transformed instead. The writes are inline calls, and the mock validates the body against the contract - so a 201 or 200 in the log means the JSON Mendix sent was actually correct.') }
-          actionbutton btnSPGet (caption: 'Read item 12 (mapped)', action: microflow RestLab."ACT_Demo_SPGet", buttonstyle: primary)
-          actionbutton btnSPList (caption: 'Read list (transformed)', action: microflow RestLab."ACT_Demo_SPList")
-          actionbutton btnSPCreate (caption: 'Create item (POST)', action: microflow RestLab."ACT_Demo_SPCreate", buttonstyle: success)
-          actionbutton btnSPUpdate (caption: 'Update status (PATCH)', action: microflow RestLab."ACT_Demo_SPUpdate", buttonstyle: warning)
+          actionbutton btnSPGet (caption: 'Read item 12 (mapped)', action: call microflow RestLab."ACT_Demo_SPGet", buttonstyle: primary)
+          actionbutton btnSPList (caption: 'Read list (transformed)', action: call microflow RestLab."ACT_Demo_SPList")
+          actionbutton btnSPCreate (caption: 'Create item (POST)', action: call microflow RestLab."ACT_Demo_SPCreate", buttonstyle: success)
+          actionbutton btnSPUpdate (caption: 'Update status (PATCH)', action: call microflow RestLab."ACT_Demo_SPUpdate", buttonstyle: warning)
         }
       }
     }
-    row rowGraph {
-      column colGraph (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container cGraph (class: 'card') {
           container cdtGraphTitle { dynamictext dtGraphTitle (Content: 'Microsoft Graph - local Prism mock', class: 'h4') }
           container cdtGraphBody (class: 'mx-spacing-bottom-medium') { dynamictext dtGraphBody (Content: 'Needs the mock running: prism mock -p 4020 -h 127.0.0.1 specs/msgraph.json. GET /me is a single object, so the response mapping populates GraphUser - including the @odata.context annotation. GET /users is an OData collection whose value array cannot be mapped, so it is called inline with a bearer token and reshaped by a JSLT transformer instead.') }
           actionbutton btnGraphMe (
             caption: 'GET /me (mapped)',
-            action: microflow RestLab."ACT_Demo_GraphMe",
+            action: call microflow RestLab."ACT_Demo_GraphMe",
             buttonstyle: primary
           )
           actionbutton btnGraphUsers (
             caption: 'GET /users (transformed)',
-            action: microflow RestLab."ACT_Demo_GraphUsers"
+            action: call microflow RestLab."ACT_Demo_GraphUsers"
           )
         }
       }
     }
-    row rowC {
-      column colRates (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container cRates (class: 'card') {
           container cdtRatesTitle { dynamictext dtRatesTitle (Content: 'Data transformer - frankfurter.dev', class: 'h4') }
           container cdtRatesBody (class: 'mx-spacing-bottom-medium') { dynamictext dtRatesBody (Content: 'The rates arrive keyed BY CURRENCY CODE, so the property names are really data and no mapping can address them. A JSLT transformer rewrites the object into an array of code/value pairs, which IS a shape a mapping can address, and an import mapping document then turns it into one row per currency - with Decimal values, which the inline REST mapping cannot do. Open the call log row to see the payload before and after.') }
           actionbutton btnRates (
             caption: 'Get EUR rates (transformed)',
-            action: microflow RestLab."ACT_Demo_Rates",
+            action: call microflow RestLab."ACT_Demo_Rates",
             buttonstyle: primary
           )
         }
       }
     }
-    row rowPub {
-      column colPub (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         container cPub (class: 'card') {
           container cdtPubTitle { dynamictext dtPubTitle (Content: 'Message definition export - httpbingo.org', class: 'h4') }
           container cdtPubBody (class: 'mx-spacing-bottom-medium') { dynamictext dtPubBody (Content: 'The only lane that EXPORTS, and the only contract taken FROM the domain model rather than matched against it. A message definition selects entities, attributes and associations; the export mapping binds to that and turns a rate snapshot into JSON. Fetch rates first, then publish - the call log row shows the generated JSON beside httpbingo echo of what was actually sent.') }
           actionbutton btnPub (
             caption: 'Publish rate snapshots',
-            action: microflow RestLab."ACT_Demo_PublishSnapshot",
+            action: call microflow RestLab."ACT_Demo_PublishSnapshot",
             buttonstyle: primary
           )
         }
@@ -201,27 +201,27 @@ create or replace page RestLab."Home_Web"
       datasource: database from RestLab."CallLog" sort by Timestamp desc,
       selection: Single
     ) {
-      column colWhen (attribute: Timestamp, caption: 'When')
-      column colLane (attribute: Lane, caption: 'Lane')
-      column colMethod (attribute: Method, caption: 'Method')
-      column colUrl (attribute: Url, caption: 'URL', WrapText: true)
-      column colStatus (attribute: StatusCode, caption: 'Status', Alignment: right)
-      column colMs (attribute: DurationMs, caption: 'ms', Alignment: right)
-      column colOk (attribute: Success, caption: 'OK')
-      column colOpen (
+      column (attribute: Timestamp, caption: 'When')
+      column (attribute: Lane, caption: 'Lane')
+      column (attribute: Method, caption: 'Method')
+      column (attribute: Url, caption: 'URL', WrapText: true)
+      column (attribute: StatusCode, caption: 'Status', Alignment: right)
+      column (attribute: DurationMs, caption: 'ms', Alignment: right)
+      column (attribute: Success, caption: 'OK')
+      column (
         Caption: 'Open',
         ShowContentAs: customContent
       ) {
         actionbutton btnOpen (
           caption: 'Detail',
-          action: show_page RestLab."CallLog_Detail"(CallLog: $currentObject)
+          action: show page RestLab."CallLog_Detail"(CallLog = $currentObject)
         )
       }
     }
   }
-}
+};
 
-create or replace page RestLab."Mapped_Overview"
+create or modify page RestLab."Mapped_Overview"
 (
   title: 'Mapped data',
   layout: Atlas_Core.Atlas_Default
@@ -230,74 +230,74 @@ create or replace page RestLab."Mapped_Overview"
   container cObjects {
     dynamictext dtObjects (Content: 'RestObject - from api.restful-api.dev')
     datagrid dgObjects (datasource: database from RestLab."RestObject") {
-      column colExtId (attribute: ExternalId, caption: 'External id')
-      column colName (attribute: Name, caption: 'Name')
+      column (attribute: ExternalId, caption: 'External id')
+      column (attribute: Name, caption: 'Name')
     }
   }
   container cProducts (class: 'mx-spacing-top-large') {
     dynamictext dtProducts (Content: 'Product - from dummyjson.com')
     datagrid dgProducts (datasource: database from RestLab."Product") {
-      column colPExtId (attribute: ExternalId, caption: 'External id')
-      column colTitle (attribute: Title, caption: 'Title')
-      column colBrand (attribute: Brand, caption: 'Brand')
-      column colPriceRaw (attribute: Price, caption: 'Price (mapped String)')
-      column colPriceVal (attribute: PriceValue, caption: 'PriceValue (Decimal)', Alignment: right)
+      column (attribute: ExternalId, caption: 'External id')
+      column (attribute: Title, caption: 'Title')
+      column (attribute: Brand, caption: 'Brand')
+      column (attribute: Price, caption: 'Price (mapped String)')
+      column (attribute: PriceValue, caption: 'PriceValue (Decimal)', Alignment: right)
     }
   }
   container cWeather (class: 'mx-spacing-top-large') {
     dynamictext dtWeather (Content: 'WeatherReading + WeatherCurrent - the mapping that works end to end')
     datagrid dgWeather (datasource: database from RestLab."WeatherReading") {
-      column colLat (attribute: Latitude, caption: 'Latitude')
-      column colLon (attribute: Longitude, caption: 'Longitude')
-      column colTz (attribute: Timezone, caption: 'Timezone')
-      column colElev (attribute: Elevation, caption: 'Elevation')
+      column (attribute: Latitude, caption: 'Latitude')
+      column (attribute: Longitude, caption: 'Longitude')
+      column (attribute: Timezone, caption: 'Timezone')
+      column (attribute: Elevation, caption: 'Elevation')
     }
     datagrid dgCurrent (datasource: database from RestLab."WeatherCurrent") {
-      column colTime (attribute: "Time", caption: 'Time')
-      column colInterval (attribute: "Interval", caption: 'Interval (s)')
-      column colTemp (attribute: Temperature, caption: 'Temperature')
+      column (attribute: "Time", caption: 'Time')
+      column (attribute: "Interval", caption: 'Interval (s)')
+      column (attribute: Temperature, caption: 'Temperature')
     }
   }
   container cBinGrid (class: 'mx-spacing-top-large') {
     dynamictext dtBinGrid (Content: 'DownloadedFile - binary stored in a System.FileDocument specialization')
     datagrid dgBin (datasource: database from RestLab."DownloadedFile") {
-      column colBinName (attribute: "Name", caption: 'File name')
-      column colBinSize (attribute: "Size", caption: 'Bytes', Alignment: right)
-      column colBinHas (attribute: HasContents, caption: 'Has contents')
-      column colBinKind (attribute: ContentKind, caption: 'Content type')
+      column (attribute: "Name", caption: 'File name')
+      column (attribute: "Size", caption: 'Bytes', Alignment: right)
+      column (attribute: HasContents, caption: 'Has contents')
+      column (attribute: ContentKind, caption: 'Content type')
     }
   }
   container cSPGrid (class: 'mx-spacing-top-large') {
     dynamictext dtSPGrid (Content: 'SPTaskFields - the nested SharePoint fields object, mapped onto a child entity')
     datagrid dgSP (datasource: database from RestLab."SPTaskFields") {
-      column colSPTitle (attribute: Title, caption: 'Title')
-      column colSPStatus (attribute: "Status", caption: 'Status')
-      column colSPWho (attribute: AssignedTo, caption: 'Assigned to')
-      column colSPDue (attribute: DueDate, caption: 'Due (Due_x0020_Date)')
-      column colSPPrio (attribute: PriorityLevel, caption: 'Priority (Priority_x0020_Level)')
+      column (attribute: Title, caption: 'Title')
+      column (attribute: "Status", caption: 'Status')
+      column (attribute: AssignedTo, caption: 'Assigned to')
+      column (attribute: DueDate, caption: 'Due (Due_x0020_Date)')
+      column (attribute: PriorityLevel, caption: 'Priority (Priority_x0020_Level)')
     }
   }
   container cRatesGrid (class: 'mx-spacing-top-large') {
     dynamictext dtRatesGrid (Content: 'ExchangeRate - one row per currency, from a JSLT-reshaped payload via an import mapping')
     datagrid dgRates (datasource: database from RestLab."ExchangeRate") {
-      column colCode (attribute: Code, caption: 'Currency')
-      column colValue (attribute: "Value", caption: 'Rate per EUR', Alignment: right)
+      column (attribute: Code, caption: 'Currency')
+      column (attribute: "Value", caption: 'Rate per EUR', Alignment: right)
     }
   }
   container cGraphGrid (class: 'mx-spacing-top-large') {
     dynamictext dtGraphGrid (Content: 'GraphUser - mapped from GET /me, @odata.context included')
     datagrid dgGraph (datasource: database from RestLab."GraphUser") {
-      column colGName (attribute: DisplayName, caption: 'Display name')
-      column colGMail (attribute: Mail, caption: 'Mail')
-      column colGJob (attribute: JobTitle, caption: 'Job title')
-      column colGCtx (attribute: ODataContext, caption: '@odata.context', WrapText: true)
+      column (attribute: DisplayName, caption: 'Display name')
+      column (attribute: Mail, caption: 'Mail')
+      column (attribute: JobTitle, caption: 'Job title')
+      column (attribute: ODataContext, caption: '@odata.context', WrapText: true)
     }
   }
   container cPosts (class: 'mx-spacing-top-large') {
     dynamictext dtPosts (Content: 'Post - from jsonplaceholder')
     datagrid dgPosts (datasource: database from RestLab."Post") {
-      column colPoExtId (attribute: ExternalId, caption: 'External id')
-      column colPoTitle (attribute: Title, caption: 'Title', WrapText: true)
+      column (attribute: ExternalId, caption: 'External id')
+      column (attribute: Title, caption: 'Title', WrapText: true)
     }
   }
-}
+};

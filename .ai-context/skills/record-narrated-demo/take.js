@@ -11,7 +11,11 @@
 // Usage, from the per-project walkthrough script:
 //
 //   const { openTake } = require('./take.js');
+//   const narrate = require('./narrate.js');
 //   const take = await openTake(browser, { url: 'http://127.0.0.1:8080/', zoom: 1.68 });
+//   narrate.configure({ zoom: 1.68 });        // THE SAME ZOOM — see narrate.js:
+//                                             // every overlay number is in video
+//                                             // pixels and divided by this one.
 //   await take.goto();                       // navigates, settles, starts the clock
 //   take.mark('home');
 //   await take.click('.sd-key >> nth=0');    // paced, dialog-guarded
@@ -50,6 +54,24 @@ const DEFAULTS = {
   // failure mode is to keep going and hand you a plausible-looking film with a
   // dead beat in it; fail loudly instead.
   strict: true,
+  // Anything else Playwright's newContext() takes — merged in below. The mobile
+  // pass this skill MANDATES needs `userAgent`, and needs it here rather than in
+  // `viewport`, because MENDIX PICKS ITS NAVIGATION PROFILE FROM THE USER AGENT
+  // AND NOT FROM THE VIEWPORT. Without this passthrough a "mobile" take films
+  // the DESKTOP app in a narrow window: the phone profile is never routed to, so
+  // the recording cannot show the thing the pass exists to find, and it looks
+  // plausible while doing it.
+  //
+  //   contextOptions: {
+  //     userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) …',
+  //     isMobile: true,
+  //     hasTouch: true,
+  //     deviceScaleFactor: 3,
+  //   }
+  //
+  // Reported by ako/ChipCoV1, which shipped an app whose phone walk was
+  // impossible while seven browser tests stayed green.
+  contextOptions: {},
 };
 
 async function openTake(browser, opts = {}) {
@@ -63,7 +85,13 @@ async function openTake(browser, opts = {}) {
   // gap between this instant and the first mark is the offset the cut must
   // subtract. Capture it before newContext so it is never an underestimate.
   const videoT0 = Date.now();
+  // contextOptions is spread FIRST so viewport and recordVideo still win: those
+  // two are load-bearing for the cut (see the size/viewport note above), and a
+  // device preset that carried its own viewport would silently letterbox every
+  // take. Everything else a device needs — userAgent, isMobile, hasTouch,
+  // deviceScaleFactor — passes straight through.
   const context = await browser.newContext({
+    ...o.contextOptions,
     viewport: o.viewport,
     recordVideo: { dir: o.videoDir, size: o.size },
   });

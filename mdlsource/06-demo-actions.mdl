@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * One-click wrappers
  *
@@ -10,93 +11,78 @@ create or modify microflow RestLab."ACT_Demo_CrudList" ()
 begin
   CALL MICROFLOW RestLab."ACT_Crud_ListObjects" ();
 end;
-/
 
 /** restful-api.dev ships fixed sample objects with ids 1..13. */
 create or modify microflow RestLab."ACT_Demo_CrudGet" ()
 begin
   CALL MICROFLOW RestLab."ACT_Crud_GetObject" (ObjectId = '7');
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_CrudCreate" ()
 begin
   CALL MICROFLOW RestLab."ACT_Crud_CreateObject" (Name = 'RestLab demo object');
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_Catalog" ()
 begin
   CALL MICROFLOW RestLab."ACT_Catalog_GetProducts" (Limit = '10', Skip = '0');
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_Blog" ()
 begin
   CALL MICROFLOW RestLab."ACT_Blog_GetPosts" ();
 end;
-/
 
 /** A 404 the runtime must report rather than crash on. */
 create or modify microflow RestLab."ACT_Demo_EdgeCase404" ()
 begin
   CALL MICROFLOW RestLab."ACT_EdgeCase_Status" (Code = '404');
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_EdgeCase503" ()
 begin
   CALL MICROFLOW RestLab."ACT_EdgeCase_Status" (Code = '503');
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_Weather" ()
 begin
   CALL MICROFLOW RestLab."ACT_Weather_GetForecast" ();
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_WeatherMapped" ()
 begin
   CALL MICROFLOW RestLab."ACT_Weather_GetMapped" ();
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_Rates" ()
 begin
   CALL MICROFLOW RestLab."ACT_Rates_GetLatest" ();
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_GraphMe" ()
 begin
   CALL MICROFLOW RestLab."ACT_Graph_GetMe" ();
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_GraphUsers" ()
 begin
   CALL MICROFLOW RestLab."ACT_Graph_ListUsers" (Token = 'dev-token');
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_SPGet" ()
 begin
   CALL MICROFLOW RestLab."ACT_SP_GetTask" ();
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_SPList" ()
 begin
   CALL MICROFLOW RestLab."ACT_SP_ListTasks" ();
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_SPCreate" ()
 begin
   CALL MICROFLOW RestLab."ACT_SP_CreateTask" (Title = 'New task from Mendix', Status = 'Not started');
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_SPUpdate" ()
 begin
@@ -106,20 +92,17 @@ begin
     Etag = '"c4f3b8a1-0000-0200-0000-66c1a2b30000,3"'
   );
 end;
-/
 
 create or modify microflow RestLab."ACT_Demo_BinaryDownload" ()
 begin
   CALL MICROFLOW RestLab."ACT_Binary_Download" ();
 end;
-/
 
 /** Known broken: sends the text '$Doc', not the file. Regression test. */
 create or modify microflow RestLab."ACT_Demo_BinaryRoundTrip" ()
 begin
   CALL MICROFLOW RestLab."ACT_Binary_RoundTrip" ();
 end;
-/
 
 /**
  * Publish every stored rate snapshot as JSON (lane 14).
@@ -136,4 +119,3 @@ begin
     CALL MICROFLOW RestLab."ACT_Publish_RateSnapshot" (Snapshot = $S);
   END LOOP;
 end;
-/

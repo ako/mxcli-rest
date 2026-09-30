@@ -29,17 +29,17 @@ If the API has an OpenAPI 3.0 spec (JSON or YAML), generate the REST client in o
 
 ```sql
 -- From a local file (relative to the .mpr file)
-create or modify rest client CapitalModule.CapitalAPI (
+create or modify consumed rest service CapitalModule.CapitalAPI (
   OpenAPI: 'specs/capital.json'
 );
 
 -- From a URL
-create or modify rest client PetStoreModule.PetStoreAPI (
+create or modify consumed rest service PetStoreModule.PetStoreAPI (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json'
 );
 
 -- Override the base URL (replaces servers[0].url from the spec)
-create or modify rest client PetStoreModule.PetStoreStaging (
+create or modify consumed rest service PetStoreModule.PetStoreStaging (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json',
   BaseUrl: 'https://staging.petstore.example.com/api/v3'
 );
@@ -76,29 +76,40 @@ Define the API once as a REST client document, then call its operations from mic
 ### Step 1 — Create the REST Client
 
 ```sql
-create rest client Module.OpenMeteoAPI (
+create consumed rest service Module.OpenMeteoAPI (
   BaseUrl: 'https://api.open-meteo.com/v1',
   authentication: none
 )
 {
-  operation GetForecast {
+  operation GetForecast (
     method: get,
     path: '/forecast',
     query: ($latitude: decimal, $longitude: decimal, $current: string),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     timeout: 30,
     response: json as $WeatherJson
-  }
+  )
 
-  operation PostData {
+  operation PostData (
     method: post,
     path: '/submit',
-    headers: ('Content-Type' = 'application/json'),
+    headers: ('Content-Type': 'application/json'),
     body: json from $JsonPayload,
     response: none
-  }
+  )
 };
 ```
+
+A header value is a template, like the path: `{Name}` is the operation
+parameter `Name`, which must be declared in `Parameters:` (CE7056 otherwise).
+
+```text
+parameters: ($Token: string),
+headers: ('Authorization': 'Bearer {Token}')
+```
+
+`'Bearer ' + $Token` is the old spelling of the same header (MDL-DEPR711);
+`mxcli fmt --upgrade` rewrites it. It used to store only `Bearer `.
 
 ### Authentication
 
@@ -135,7 +146,7 @@ returns HTTP 200 with a 4-byte payload.
 Upload binary from a **microflow** instead, which does have a binary body:
 
 ```sql
-rest call post 'https://api.example.com/upload'
+call rest service post 'https://api.example.com/upload'
   header 'ContentType' = 'application/pdf'
   body binary $Doc/Contents
   returns response;
@@ -246,10 +257,10 @@ end;
 ### Show / Describe / Drop
 
 ```sql
-show rest clients [in module];
-describe rest client Module.ClientName;
-drop rest client Module.ClientName;
-create or modify rest client Module.ClientName ...  -- idempotent
+list consumed rest services [in module];
+describe consumed rest service Module.ClientName;
+drop consumed rest service Module.ClientName;
+create or modify consumed rest service Module.ClientName ...  -- idempotent
 ```
 
 ---
@@ -260,40 +271,40 @@ Call an HTTP endpoint directly from a microflow — no REST client document need
 
 ```sql
 -- Simple GET returning a string
-$response = rest call get 'https://api.example.com/data'
+$response = call rest service get 'https://api.example.com/data'
   header Accept = 'application/json'
   timeout 30
   returns string;
 
 -- GET with URL template parameters
-$response = rest call get 'https://api.example.com/users/{1}' with (
+$response = call rest service get 'https://api.example.com/users/{1}' with (
   {1} = toString($UserId)
 )
   header Accept = 'application/json'
   returns string;
 
 -- POST with body
-$response = rest call post 'https://api.example.com/items'
+$response = call rest service post 'https://api.example.com/items'
   header 'Content-Type' = 'application/json'
   body '{"name": "test"}'
   returns string;
 
 -- With basic auth
-$response = rest call get 'https://api.example.com/secure'
+$response = call rest service get 'https://api.example.com/secure'
   auth basic 'username' password 'password'
   returns string;
 
 -- With import mapping (JSON → entity)
-$item = rest call get 'https://api.example.com/item/1'
+$item = call rest service get 'https://api.example.com/item/1'
   header Accept = 'application/json'
   returns mapping Module.IMM_Item as Module.Item;
 
 -- Fire and forget
-rest call delete 'https://api.example.com/item/1'
+call rest service delete 'https://api.example.com/item/1'
   returns nothing;
 
 -- Error handling
-$response = rest call get 'https://api.example.com/data'
+$response = call rest service get 'https://api.example.com/data'
   returns string
   on error continue;
 ```
@@ -340,7 +351,7 @@ See [json-structures-and-mappings](../json-structures-and-mappings/SKILL.md) for
 ```sql
 -- JSON structure from snippet
 create json structure Module.JSON_Weather
-snippet '{"temp": 12.8, "wind": 18.3, "lat": 52.52}';
+sample '{"temp": 12.8, "wind": 18.3, "lat": 52.52}';
 
 -- Non-persistent entity
 create non-persistent entity Module.WeatherInfo (
@@ -398,7 +409,7 @@ source json '{"latitude":52.52,"current":{"time":"2024-01-15T14:00","temperature
 
 -- 3. JSON Structure + Import Mapping (for transformed output)
 create json structure Module.JSON_Weather
-snippet '{"temperature":12.8,"windSpeed":18.3,"latitude":52.52,"observationTime":"2024-01-15T14:00"}';
+sample '{"temperature":12.8,"windSpeed":18.3,"latitude":52.52,"observationTime":"2024-01-15T14:00"}';
 
 create import mapping Module.IMM_Weather
   with json structure Module.JSON_Weather
@@ -412,18 +423,18 @@ create import mapping Module.IMM_Weather
 };
 
 -- 4. REST Client
-create rest client Module.WeatherAPI (
+create consumed rest service Module.WeatherAPI (
   BaseUrl: 'https://api.open-meteo.com/v1',
   authentication: none
 )
 {
-  operation GetCurrent {
+  operation GetCurrent (
     method: get,
     path: '/forecast',
     query: ($latitude: decimal, $longitude: decimal, $current: string),
-    headers: ('Accept' = 'application/json'),
+    headers: ('Accept': 'application/json'),
     response: json as $Result
-  }
+  )
 };
 
 -- 5. Microflow (REST Client → Transform → Import)

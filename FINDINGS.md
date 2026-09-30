@@ -2159,3 +2159,271 @@ warning that a re-run deletes access rules and that 02 must follow it.
 containing `create or modify entity`, re-run the security script. And the lint
 is worth running as a diff, not a number — the 276 → 197 drop looked like an
 improvement and was a hole.
+
+## 62. PR 403 fixes the access-rule loss — and corrects my report
+
+`320a3042 fix(entities): modify an entity in place instead of rebuilding it`,
+one commit, built as `nightly-557-g320a3042`. #61's repro, re-run verbatim:
+
+```
+$ mxcli exec grant.mdl        # create or modify entity + grant
+$ mxcli -c 'SHOW ACCESS ON ENTITY RestLab.AccProbe'
+Rule 1: RestLab.Developer   Rights: create, read, write
+
+$ mxcli exec modify.mdl        # create or modify THE SAME entity, no grant
+Modified entity: RestLab.AccProbe
+$ mxcli -c 'SHOW ACCESS ON ENTITY RestLab.AccProbe'
+Rule 1: RestLab.Developer   Rights: create, read, write     <- survives
+```
+
+And on the script that actually did the damage here — `01-domain-model.mdl`,
+15 entities modified in one run:
+
+| | before | after |
+| --- | --- | --- |
+| `DomainModels$AccessRule` | 32 | **32** |
+| `DomainModels$MemberAccess` | 172 | **172** |
+
+Under the previous binary that same run left 2 rules and 18 members.
+
+### It corrects #61 on one point
+
+#61 said the loss passes every static gate, including `mx check`. The commit
+measured otherwise on a larger project — 0 errors became **288, every one
+CE2729** — and states the rule precisely:
+
+> The loss is silent exactly where nothing depends on the access, and surfaces
+> later on someone else's change.
+
+Both are true and mine was the narrower case: this project's entities are read
+through microflows and datasources that had not yet bound the missing members,
+so `mx check` stayed at 0. I generalised from one project's state to "every
+static gate passes" without testing a project where something was bound. The
+accurate claim is that **`mx check` is not a reliable detector of the loss**,
+which is worse than "it never catches it" — a gate that catches the problem
+sometimes is the kind you learn to trust.
+
+### The fix is structural, which is the interesting part
+
+The modify branch built a fresh entity from the AST and swapped it in, so every
+field MDL has no words for went with it. Documentation and indexes had each been
+carried back individually after their own defect report; access rules would have
+been the third, the view/external-source fields and OData remote properties the
+next. Instead the direction is inverted — start from what is stored and overwrite
+only what the statement declares — and **a reflection test now fails on any
+Entity field in neither group**, naming all 19 the wholesale replace was
+discarding.
+
+That closes the class rather than the instance. Worth remembering as a shape:
+three individually-reported carry-back defects were one structural defect.
+
+### Regression
+
+All 14 scripts pass; `mx check` 0 errors; lint 281, unchanged; the runtime suite
+is **6/6** — the five standing repros plus the publish lane's nested array.
+`SHOW ACCESS` answers for every granted entity.
+
+`./mxcli` promoted to this build. It is a PR head, not main, so re-running a
+domain-model script with an older binary still strips the rules; #61's warning in
+`01-domain-model.mdl` stays until 403 merges.
+
+## 63. `737840b` (0.23.0) and PR 650: `describe` was calling a single-object import a list
+
+Two and a half weeks and **678 commits** since the v0.21.0 verification, across
+releases 0.22.0 and 0.23.0. PR 403's access-rule fix (#62) is merged into main.
+
+### Regression pass on main: clean
+
+All 14 `mdlsource/*.mdl` pass, `mx check` 0 errors, `SHOW ACCESS` answering for
+every granted entity, lint 278 (from 281 — three fewer info findings, no rule
+newly firing). The rates lane still imports at runtime.
+
+### PR 650 — and this project is its case
+
+`1b5f5593 fix: describe leaves 'all' off an import that returns one object`.
+Lane 09 is exactly the shape: `IMM_Rates` is object-rooted and the activity is
+written bare.
+
+```sql
+-- 09-transformer-lane.mdl, as authored
+$Snapshot = import from mapping RestLab."IMM_Rates" ($Shaped);
+
+-- main 737840b describes it as
+$Snapshot = import from mapping RestLab.IMM_Rates($Shaped) all;
+
+-- PR 650 describes it as
+$Snapshot = import from mapping RestLab.IMM_Rates($Shaped);
+```
+
+**Nothing is corrupted, and that is the point.** Both spellings exec to
+`Unchanged microflow` on both binaries — measured here, not assumed — because
+#192's runtime fix made a missing keyword store All explicitly, so the bare form
+and `all` build the identical activity. What was wrong was the *reading*: the
+printed `all` says "this imports a list" about an activity that binds one object.
+
+That matters more in this repo than a formatting nit normally would. `describe`
+is how FINDINGS reads the model back — #36's stored path, #53's flag pair, #60's
+cardinality were all settled by describing and looking. A describe that is
+faithful in bytes but misleading in meaning is the one failure mode that
+verification method cannot catch by round-tripping, which is precisely what it
+did here: both texts re-exec clean.
+
+The commit's history is the interesting part. #881 deliberately always printed
+`all`, because at the time a missing keyword stored *First* — printing it was
+correct then. The runtime fix removed that hazard and nobody revisited the
+formatter, so a guard outlived the thing it guarded against. Worth watching for:
+the fixes in this file that took the form "always write X to be safe" have the
+same shape.
+
+The skill text is corrected with it — `json-structures-and-mappings` now says
+omitting the keyword means All, that the cardinality comes from the mapping's
+root, and that the two spellings store the same activity.
+
+### Not re-run this session
+
+The container is new, so the five-probe harness from #56–#62 (mock servers,
+`MapProbe` module, binary and path-parameter repros) went with the old
+scratchpad. Only the rates lane was rebuilt and run. The static gates above
+cover the rest; a full runtime re-verification would need the harness rebuilt.
+
+## 64. MDL v1: the corpus migrates cleanly, and three scripts stop executing
+
+`nightly-663-gdfccef55`, 588 commits and release 0.24.0 since #63. The
+refactoring is a **language version**: `mdl 1;` is an opt-in header, everything
+without it is `mdl 0`, and `mxcli fmt --upgrade [--header]` migrates a script.
+Nothing in this project broke — and adopting the header would break three lanes.
+
+### Where the corpus stands on main
+
+All 14 scripts still pass `check --references`, `mx check` is 0 errors, lint 278,
+access rules intact, the rates lane still imports at runtime. Backwards
+compatibility holds exactly as the changelog claims.
+
+Twelve of the fourteen now carry deprecation warnings — **24 distinct codes**:
+
+| Script | codes |
+| --- | --- |
+| 02-security | DEPR030 ×30, DEPR133, DEPR137, DEPR554, DEPR710 |
+| 03-rest-clients | DEPR070 ×5, DEPR120 ×5, DEPR550 ×5, DEPR711 ×2 |
+| 07-pages | DEPR001 ×3, **DEPR005 ×58**, DEPR007, DEPR020 ×21, DEPR105, DEPR123 |
+| 05, 06, 09–11, 13, 14 | DEPR006/070/073/094/120/132/550, V1-SLASH |
+
+`grant Role on Entity (rights)` → `grant rights on entity E to Role` (DEPR030),
+`rest client` → `consumed rest service` (DEPR550), invented widget names dropped
+(DEPR005), `$Param =` → `Param =` (DEPR006), `/` as a terminator (V1-SLASH).
+
+### `fmt --upgrade --header` migrates all 14, and reports success on three it broke
+
+Every file took the header: **0 warnings, nothing blocked**, ~155 rewrites. Then
+executing them against the real model:
+
+| | result |
+| --- | --- |
+| 11 scripts | applied |
+| **05-microflows, 10-graph-lane, 11-sharepoint-lane** | **refused, nothing written** |
+
+```
+Error: create or modify microflow RestLab.ACT_Catalog_GetProducts: this change
+cannot be spliced into the stored flow: the Loop at (1210, 200) changes inside
+its body … Nothing was written: rebuilding the whole flow instead would reset
+what Studio Pro drew (curves, merges, element IDs).
+```
+
+**The migration did not cause it — the header did.** Narrowed to one token: take
+the original script and change only `with ($limit = …)` to `with (limit = …)`,
+the DEPR006 rewrite, and the same flow is refused. Under mdl 0 the identical
+situation is
+
+```
+Warning [MDL-V1-REBUILD]: microflow RestLab.ACT_Catalog_GetProducts is rebuilt
+as a whole: the Loop at (1210, 200) changes …
+```
+
+— a warning, and the flow is rebuilt. `mdl 1;` turns that warning into a refusal.
+Any script whose microflow cannot be spliced therefore stops being re-runnable
+the moment it takes the header, and these three cannot be spliced because
+`create or modify` re-renders a flow the script never states positions for.
+
+**`check` does not see it.** All 14 migrated scripts check clean with zero
+warnings; the refusal appears only at `exec`. So `fmt --upgrade --header` writes
+a script it calls fully upgraded, `check` agrees, and three of them write nothing
+when run. That is the check/exec split this file keeps recording (#60's
+`ALTER PAGE`, #61's access rules), now in the migration path — where it matters
+more, because the tool's whole promise is that it moves a working script to a
+working script.
+
+### Not migrated here
+
+The corpus stays on mdl 0. It costs 24 deprecation warnings and nothing else;
+the header would cost three lanes their `exec`. The route for those three, per
+the error's own advice, is `alter microflow` for the changed activities or an
+explicit drop-and-create — a rewrite of three scripts, not a formatting pass.
+Worth doing deliberately, with the runtime suite rebuilt first.
+
+Also on this release: 73 skill files refreshed, and the 0.24.0 headline is a
+storage-GUID guard — *"28 attributes emptied across 607 rows by a single edit"* —
+the same silent-loss family as #61's access rules, caught at the write choke
+point rather than by a linter noticing afterwards.
+
+## 65. Migrating the corpus to `mdl 1;` — six flows, and a loss the lint caught
+
+#64 left the corpus on mdl 0 because three scripts refused at `exec` under the
+header. It is now fully on `mdl 1;`: 14 scripts, 0 deprecations, `exec` clean
+three passes running, `mx check` 0 errors, lint back to its 278 baseline, the
+rates lane still importing at runtime.
+
+Two things had to change, and neither was a formatting pass.
+
+### 1. Every `commit` states its events
+
+The blocker was not the header. It was `#895`: a bare `commit $X;` used to mean
+events OFF and now means ON, so the script's meaning moved while the stored flow
+stayed put — a real change, inside a loop, which the splice cannot edit.
+
+The corpus had **15 bare commits, and they were not all the same**:
+
+| stored | count |
+| --- | --- |
+| `without events` | 12 (scripts 05, 10, 11, 13) |
+| `with events` | 3 (scripts 09, 14) |
+
+Identical source text, two different stored behaviours in one project, and
+nothing in the source said which — established by writing each spelling and
+watching the diff go to zero. Every commit now states it. That is the durable
+half of this change: the scripts no longer depend on a default, and the twelve
+that would have silently flipped to events-ON on the next `exec` no longer can.
+
+### 2. Six microflows are dropped and re-created
+
+With the commits explicit, the remaining refusals are pure splice limits — a
+loop body, a decision, a re-scoped fragment. `create or modify microflow` cannot
+reach a fixed point on them: after a **clean create**, the very next `exec`
+reports the same flow as needing a whole-flow rebuild, while `mxcli diff` reports
+it unchanged. Under mdl 0 that is a warning and a rebuild every run; under
+`mdl 1;` it is a permanent refusal, so the script can never be re-run.
+
+So those six carry an explicit `drop microflow if exists` before their `create`,
+which is the route the error message itself names. It converges by construction
+and remints element IDs — which costs nothing for a flow no one has laid out by
+hand, and is stated in each script.
+
+**mdl 0 hid half of them.** Three refused first; the other three
+(`ACT_Rates_GetLatest`, `ACT_Graph_ListUsers`, `ACT_SP_ListTasks`) only appeared
+once the first error stopped the script. A warning that lets execution continue
+reports one problem per run, so the count you get from mdl 0 is a lower bound —
+worth knowing before estimating a migration from its warnings.
+
+### The loss, and what caught it
+
+The first attempt put the `drop` between each flow's `/** … */` doc comment and
+its `create`, so the comment no longer attached to the statement. Every one of
+the six lost its documentation. `mx check` was 0 errors, `exec` was clean, and
+`describe` round-tripped — **the only thing that noticed was `mxcli lint`,
+QUAL002 going 19 → 22**, which is why the 278 → 284 total was worth reading
+rather than shrugging at.
+
+Moving the `drop` above the doc comment restored all six and lint returned to
+278 exactly. The `choose-edit-mode` skill's instruction — *"after `exec`,
+describe the document again and diff it… anything else that changed is a loss,
+not your edit"* — is the step that pays for itself here, and a lint total is a
+cheap standing version of it.

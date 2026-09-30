@@ -10,14 +10,14 @@ external: it is a **selection over the domain model**.
 ```sql
 create message definition collection Sales.MD_Order
   folder 'Messages'
-(
-  definition OrderMessage for Sales.Order as 'Orders' (
+{
+  definition OrderMessage for Sales.Order as 'Orders' {
     OrderId,
     Total as 'GrandTotal',
-    Sales.OrderLine_Order/Sales.OrderLine as 'Lines' ( Sku, Quantity ),
-    Sales.Order_Customer/Sales.Customer ( FirstName, Address example 'Kerstraat 5' )
-  )
-);
+    Sales.OrderLine_Order/Sales.OrderLine as 'Lines' { Sku, Quantity },
+    Sales.Order_Customer/Sales.Customer { FirstName, Address example 'Kerstraat 5' }
+  }
+};
 ```
 
 A **bare name is an attribute**; `Assoc/Module.Entity` is an **association** with
@@ -62,7 +62,7 @@ alter message definition Sales.MD_Order.OrderMessage add member LastName in Cust
 alter message definition Sales.MD_Order.OrderMessage set member Total as 'GrandTotal';
 alter message definition Sales.MD_Order.OrderMessage drop member Sku in Lines;
 
-alter message definition collection Sales.MD_Order add definition Line for Sales.Line ( Sku );
+alter message definition collection Sales.MD_Order add definition Line for Sales.Line { Sku };
 alter message definition collection Sales.MD_Order rename definition Line to OrderLine;
 alter message definition collection Sales.MD_Order drop definition if exists OrderLine;
 ```
@@ -101,7 +101,7 @@ otherwise — reproducing English inflection needs `-y → -ies` and an
 already-plural detector, and a name the author writes beats one a heuristic
 guesses. Everything else is derived from the domain model.
 
-`show message definition collections [in Module]` lists them; `describe` emits
+`list message definition collections [in Module]` lists them; `describe` emits
 re-executable MDL.
 
 ### SOAP-sourced mappings are refused, not rewritten

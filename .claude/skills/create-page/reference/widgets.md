@@ -17,13 +17,13 @@ dynamictext heading (content: 'Heading Text', rendermode: H2)
 dynamictext productName (content: '$Product.Name', rendermode: H3)
 
 -- Explicit template with page parameter binding
-dynamictext greeting (content: 'Welcome, {1}!', contentparams: [{1} = $Customer.Name])
+dynamictext greeting (content: 'Welcome, {1}!', contentparams: ({1} = $Customer.Name))
 
 -- Template with attribute from current DataView context (simple attribute name)
-dynamictext email (content: 'Email: {1}', contentparams: [{1} = Email])
+dynamictext email (content: 'Email: {1}', contentparams: ({1} = Email))
 
 -- Bind directly to an attribute of the surrounding DataView/ListView/Gallery
--- entity. `Attribute: X` is shorthand for `content: '{1}', contentparams: [{1} = X]`.
+-- entity. `Attribute: X` is shorthand for `content: '{1}', contentparams: ({1} = X)`.
 dynamictext title (Attribute: Title)
 ```
 
@@ -40,11 +40,11 @@ default (e.g. `5068.38000000`).
 
 ```sql
 -- Decimal: 2 decimals + thousands separator  ->  "5,068.38"
-dynamictext amt (content: '{1}', contentparams: [{1} = Amount format (decimalPrecision: 2, groupDigits: true)])
+dynamictext amt (content: '{1}', contentparams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true)))
 
 -- DateTime: date + time, or a custom pattern
-dynamictext due  (content: '{1}', contentparams: [{1} = DueOn format (dateFormat: DateTime)])
-dynamictext day  (content: '{1}', contentparams: [{1} = DueOn format (dateFormat: Custom, customDateFormat: 'dd-MM-yyyy')])
+dynamictext due  (content: '{1}', contentparams: ({1} = DueOn format (dateFormat: DateTime)))
+dynamictext day  (content: '{1}', contentparams: ({1} = DueOn format (dateFormat: Custom, customDateFormat: 'dd-MM-yyyy')))
 ```
 
 | Format key | Applies to | Values |
@@ -66,6 +66,19 @@ dynamictext day  (content: '{1}', contentparams: [{1} = DueOn format (dateFormat
 > NullReferenceException when the widget is opened. Bind every placeholder, or use
 > a plain static `content: 'text'`.
 
+### LABEL Widget
+
+Studio Pro's Label widget (`Forms$Label`) — a fixed caption. Stock marketplace
+modules still carry it (Administration's `Account_Edit`, the Feedback module), so
+`describe page` emits it; for new text prefer `dynamictext`.
+
+```sql
+label label4 (content: 'Attachment', class: 'text-semibold')
+```
+
+Do not write `statictext`: it stores `Forms$Text`, a type Mendix 11 cannot load
+(MDL-WIDGET29).
+
 ### ACTIONBUTTON Widget
 
 Create a button with action binding:
@@ -76,7 +89,7 @@ actionbutton widgetName (caption: 'Caption', action: ACTION_TYPE [, buttonstyle:
 
 `icon:` names an icon inside an icon collection — `Module.Collection.IconName`,
 e.g. `'Atlas_Core.Atlas_Filled.pencil'`. Browse what a project has with
-`show icon collection` and `describe icon collection Atlas_Core.Atlas_Filled`.
+`list icon collections` and `describe icon collection Atlas_Core.Atlas_Filled`.
 
 A wrong icon name is a **build error** (CE1613, *"The selected custom icon … no
 longer exists"*), so check it before building:
@@ -98,31 +111,56 @@ must exist in the icon collection or MxBuild rejects it (CE1613).
 `add`, not `plus`). List them:
 
 ```
-show icon collections                              -- the project's icon sets
+list icon collections                              -- the project's icon sets
 describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference form
 ```
 
 **Action Bindings:**
-- `action: save_changes` - Save changes to object
-- `action: save_changes close_page` - Save and close page
-- `action: cancel_changes` - Cancel changes
-- `action: close_page` - Close the page
+- `action: nothing` - Deliberately no action (a decorative button, a card that is not clickable)
+- `action: save changes` - Save changes to object
+- `action: save changes close page` - Save and close page
+- `action: cancel changes` - Cancel changes
+- `action: close page` - Close the page
 - `action: delete` - Delete object
-- `action: microflow Module.MicroflowName` - Call microflow
-- `action: microflow Module.MicroflowName(Param: $value)` - Call microflow with parameters
-- `action: nanoflow Module.NanoflowName` - Call nanoflow (client-side)
-- `action: nanoflow Module.NanoflowName(Param: $value)` - Call nanoflow with parameters
-- `action: show_page Module.PageName` - Navigate to page
-- `action: show_page Module.PageName(Param: $value)` - Navigate with parameters
-- `action: show_page Module.PageName($Param = $value)` - Also accepted (microflow-style)
-- `action: create_object Module.Entity then show_page Module.PageName` - Create and navigate
-- **A `show_page` argument must be the context object.** Mendix takes the page
-  argument from the enclosing data widget, so the only spellings that mean
-  anything are `$currentObject` or the name of the variable that widget is bound
-  to (`datasource: $Customer` → `(Customer: $Customer)` is fine). Naming any other
-  variable is refused as **MDL-PAGEARG01** — it used to be accepted and silently
-  opened the page with the context object anyway. To open a page with something
-  else, call a microflow that shows it.
+- `action: call microflow Module.MicroflowName` - Call microflow
+- `action: call microflow Module.MicroflowName(Param = $value)` - Call microflow with parameters
+- `action: call nanoflow Module.NanoflowName` - Call nanoflow (client-side)
+- `action: call nanoflow Module.NanoflowName(Param = $value)` - Call nanoflow with parameters
+- `action: call microflow Module.Delete(Obj = $currentObject) with (Confirmation: 'Delete this?', ProgressBar: Blocking)` - Ask for confirmation and show a progress bar. The `with ( … )` settings: `DisabledDuringExecution` (any action, default `true`), `ProgressBar` (`None`/`NonBlocking`/`Blocking`), `ProgressMessage`, `Confirmation`, `ProceedCaption`, `CancelCaption` (flow calls), `Asynchronous`, `FormValidations` (`All`/`Widget`/`None`, microflow calls only)
+- `action: open link 'https://example.com'` - Open a fixed web address
+- `action: open link $currentObject/URL` - Open the address held in an attribute of the enclosing data container's object (inside a data container only; not over an association)
+- **Every parameter needs an argument, or an enclosing data container of its
+  type.** A flow called with a parameter nothing fills is **CE1571**; `mxcli
+  check -p` reports it. This is the same on every widget that takes an action,
+  a clickable `container` included.
+- `action: show page Module.PageName` - Navigate to page
+- `action: show page Module.PageName(Param = $value)` - Navigate with parameters
+- `action: create object Module.Entity then show page Module.PageName` - Create and navigate
+- **A `show page` argument must be the context object, and there has to BE one.**
+  Mendix takes the page argument from the enclosing data widget, so the only
+  spellings that mean anything are `$currentObject` or the name of the variable
+  that widget is bound to (`datasource: $Customer` → `(Customer = $Customer)` is
+  fine). Naming any other variable is refused as **MDL-PAGEARG01** — it used to be
+  accepted and silently opened the page with the context object anyway.
+- **Outside a data widget the same rule leaves nothing at all**, so a button sitting
+  on the page itself (or in a plain `container`/`layoutgrid`) may pass **no**
+  argument — not a page parameter, not `$currentObject`, not a literal. There is no
+  context object there for Mendix to infer, and the page opens with nothing:
+  mxbuild reports **CE1571** per parameter of the target page, and a page whose
+  parameters are optional would simply show the wrong data. MDL-PAGEARG01 refuses
+  that too (mendixlabs/mxcli#1029). To open a parameterised page from such a
+  button, call a microflow that does `show page Module.Page(Param = $value)` —
+  that path wires the arguments properly.
+- **The list above is the whole vocabulary, and a keyword without its argument is
+  not in it.** `action: open link` with no URL, `action: show page` with no page,
+  `action: call microflow` with no name — each is **MDL-WIDGET28**. Until
+  mendixlabs/mxcli#1062 these were written as a widget with *no action at all*:
+  it rendered, carried its caption, and did nothing, while `mxcli check`, `exec`
+  and mxbuild all reported success, because a no-action widget is legal Mendix.
+  An invented keyword (`action: totally_made_up`) did the same. Use
+  `action: nothing` when a control really is meant to be inert, so a dead one
+  always means a mistake.
+- The same forms serve `onclick:` (an alias of `action:`) and `onchange:`.
 
 **Button Styles:** `default`, `primary`, `success`, `info`, `warning`, `danger`, `inverse`
 - Case-insensitive (`primary` and `Primary` both work).
@@ -131,22 +169,22 @@ describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference
 **Examples:**
 ```sql
 -- Save with style
-actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
+actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
 
 -- Navigate with parameter (inside DATAVIEW)
-actionbutton btnEdit (caption: 'Edit', action: show_page Module.EditPage(Product: $Product))
+actionbutton btnEdit (caption: 'Edit', action: show page Module.EditPage(Product = $Product))
 
 -- Navigate with $currentObject (inside DATAGRID column)
-actionbutton btnEdit (caption: 'Edit', action: show_page Module.EditPage(Product: $currentObject))
+actionbutton btnEdit (caption: 'Edit', action: show page Module.EditPage(Product = $currentObject))
 
 -- Call microflow with page/dataview parameter
-actionbutton btnProcess (caption: 'Process', action: microflow Module.ACT_Process(Order: $Order), buttonstyle: success)
+actionbutton btnProcess (caption: 'Process', action: call microflow Module.ACT_Process(Order = $Order), buttonstyle: success)
 
 -- Call microflow with $currentObject (inside DATAGRID/LISTVIEW column)
-actionbutton btnDelete (caption: 'Delete', action: microflow Module.ACT_Delete(Target: $currentObject), buttonstyle: danger)
+actionbutton btnDelete (caption: 'Delete', action: call microflow Module.ACT_Delete(Target = $currentObject), buttonstyle: danger)
 
 -- Create object and show page
-actionbutton btnNew (caption: 'New', action: create_object Module.Product then show_page Module.Product_Edit, buttonstyle: primary)
+actionbutton btnNew (caption: 'New', action: create object Module.Product then show page Module.Product_Edit, buttonstyle: primary)
 ```
 
 **Using `$currentObject`:**
@@ -161,13 +199,13 @@ name, which is why the keyword takes `for` and a qualified entity:
 ```sql
 listview vehicleListView (datasource: database from Pages.Vehicle) {
   -- the default body: used for an object no template matches
-  dynamictext defaultVehicle (content: '{1} {2}', contentparams: [{1} = Brand, {2} = Model])
+  dynamictext defaultVehicle (content: '{1} {2}', contentparams: ({1} = Brand, {2} = Model))
 
   template for Pages.Bus {
-    dynamictext busLabel (content: 'Bus, capacity {1}', contentparams: [{1} = PassengerCapacity])
+    dynamictext busLabel (content: 'Bus, capacity {1}', contentparams: ({1} = PassengerCapacity))
   }
   template for Pages.Truck {
-    dynamictext truckLabel (content: 'Truck, max load {1} kg', contentparams: [{1} = MaxLoadKg])
+    dynamictext truckLabel (content: 'Truck, max load {1} kg', contentparams: ({1} = MaxLoadKg))
   }
 }
 ```
@@ -200,11 +238,11 @@ Create responsive grid layout:
 
 ```sql
 layoutgrid gridName {
-  row rowName {
-    column colName (desktopwidth: 8) {
+  row {
+    column (desktopwidth: 8) {
       -- Nested widgets
     }
-    column col2 (desktopwidth: 4) {
+    column (desktopwidth: 4) {
       -- Nested widgets
     }
   }
@@ -220,17 +258,17 @@ layoutgrid gridName {
 | `phonewidth` | 1-12 or `autofill` | auto | Phone column width |
 
 ```sql
-column col1 (desktopwidth: 8, tabletwidth: 6, phonewidth: 12) { ... }
+column (desktopwidth: 8, tabletwidth: 6, phonewidth: 12) { ... }
 ```
 
 Example:
 ```sql
 layoutgrid mainGrid {
-  row row1 {
-    column colMain (desktopwidth: 8) {
+  row {
+    column (desktopwidth: 8) {
       dynamictext heading (content: 'Main Content', rendermode: H3)
     }
-    column colSide (desktopwidth: 4) {
+    column (desktopwidth: 4) {
       dynamictext sideHeading (content: 'Sidebar', rendermode: H3)
     }
   }
@@ -246,16 +284,15 @@ datagrid gridName (
   datasource: database from Module.Entity where [condition] sort by attributename asc|desc,
   selection: Multi
 ) {
-  column colName (attribute: attributename, caption: 'Label')
+  column (attribute: attributename, caption: 'Label')
 }
 ```
 
-> **Reserved keyword column names:** If the attribute name is an MDL reserved keyword (e.g. `Status`, `Type`), you must quote the attribute value and use a distinct widget name for the column:
+> **Reserved keyword attribute names:** If the attribute name is a reserved MDL keyword (e.g. `Status`, `Type`), quote it. A column takes no name (Mendix stores none), so there is no widget name to choose:
 > ```sql
-> column colStatus (attribute: "Status", caption: 'Status')
-> column colType   (attribute: "Type",   caption: 'Type')
+> column (attribute: "Status", caption: 'Status')
+> column (attribute: "Type", caption: 'Type')
 > ```
-> Writing `COLUMN Status (attribute: Status)` fails silently — `Status` and `Type` are parsed as keywords. Always use a `col`-prefixed widget name when the attribute name is reserved.
 
 **Column Properties:**
 
@@ -286,22 +323,22 @@ datagrid gridName (datasource: database from Module.Entity) {
     Caption: 'Amount',
     ShowContentAs: dynamicText,
     Content: 'Amt: {1}',
-    ContentParams: [{1} = Amount format (decimalPrecision: 2, groupDigits: true)]
+    ContentParams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true))
   )
   column due (attribute: DueOn, caption: 'Due')
 }
 ```
 
-The `format (...)` block accepts `decimalPrecision`, `groupDigits`, `dateFormat` (`Date` / `DateTime` / `Time` / `Custom`), `customDateFormat`, and `enumFormat` (`Text` / `Image`). Formatting is applied by Mendix only to **attribute-bound** parameters — bind the bare attribute (`Amount`), not `toString(...)`.
+The `format (...)` block accepts `decimalPrecision`, `groupDigits`, `dateFormat` (`Date` / `DateTime` / `Time` / `Custom`), `customDateFormat`, and `enumFormat` (`Text` / `Image`). Formatting is applied by Mendix only to **attribute-bound** parameters — bind the bare attribute (`Amount`), not `toString(...)`. A parameter or data view attribute (`{1} = $Order.Total`) binds the same way. mxcli releases before #823 stored it as `toString($Order/Total)`, and an mdl 0 script warns MDL-V1-TEMPLATEATTR where the output changed. Write `{1} = toString($Order/Total)` to keep the unformatted text: any expression is stored as written.
 
 ```sql
-column colPrice (
+column (
   attribute: Price, caption: 'Unit Price',
   Alignment: right, WrapText: true,
   Sortable: false, Resizable: false,
   Hidable: hidden,
   ColumnWidth: manual, Size: 150,
-  DynamicCellClass: 'if($currentObject/Price > 100) then ''highlight'' else '''' ',
+  DynamicCellClass: if($currentObject/Price > 100) then 'highlight' else '' ,
   tooltip: 'Price in USD'
 )
 ```
@@ -313,8 +350,8 @@ attribute — use a bare association path `Assoc/Attr`:
 
 ```sql
 datagrid dgOrders (datasource: database from Sales.Order) {
-  column colNumber   (attribute: Number, caption: 'Order #')
-  column colCustomer (attribute: Order_Customer/Name, caption: 'Customer')  -- associated attr
+  column (attribute: Number, caption: 'Order #')
+  column (attribute: Order_Customer/Name, caption: 'Customer')  -- associated attr
 }
 ```
 
@@ -329,8 +366,8 @@ correctly on the default engine (mxbuild-verified, 0 errors) — an earlier CE04
 (column property ordering) was fixed:
 
 ```sql
-column colActions (caption: 'Actions') {
-  actionbutton btnView (caption: 'View', action: close_page)
+column (caption: 'Actions') {
+  actionbutton btnView (caption: 'View', action: close page)
 }
 ```
 
@@ -340,19 +377,21 @@ column colActions (caption: 'Actions') {
 |--------|-------------|
 | `datasource: database from Module.Entity` | Direct database query |
 | `datasource: $Variable` | Variable bound (requires DATAVIEW parent with entity) |
-| `datasource: microflow Module.GetData` | Microflow datasource — no `()`, the name alone |
-| `datasource: nanoflow Module.GetData` | Nanoflow datasource (client-side, no server roundtrip) — no `()` |
+| `datasource: microflow Module.GetData` | Microflow datasource with **no parameters** — the name alone |
+| `datasource: microflow Module.GetData($Param)` | Microflow datasource **with** parameters — one argument per parameter, required. Mendix does not auto-map an object in scope, so leaving it out is **CE1571** |
+| `datasource: nanoflow Module.GetData` | Nanoflow datasource (client-side, no server roundtrip) — same rule: the name alone only when it takes no parameters |
 | `datasource: selection widgetName` | Listen to selection from another widget |
 | `datasource: association path` | Retrieve by association from context (ByAssociation) |
 | `datasource: $currentObject/Module.Assoc` | Sugar for `association` — same semantics, reads more naturally |
+| `datasource: database from $Ctx/Module.Assoc/Module.Entity [where …] [sort by …] [search by …]` | **List view only.** A *database* retrieve of what the association reaches — keeps XPath, sort and search, which the association source above does not have. Name the entity after each association (it may be a specialization of the association's end) |
 
 **With WHERE and SORT BY (inline in DataSource):**
 ```sql
 datagrid dgActive (
   datasource: database from Module.Product where [IsActive = true] sort by Name asc
 ) {
-  column colName (attribute: Name, caption: 'Name')
-  column colPrice (attribute: Price, caption: 'Price')
+  column (attribute: Name, caption: 'Name')
+  column (attribute: Price, caption: 'Price')
 }
 ```
 
@@ -363,7 +402,7 @@ datagrid dgFiltered (
     where [IsActive = true and contains(Code, 'a') and Price > 10] or [Stock < 2]
     sort by Name asc, Price desc
 ) {
-  column colName (attribute: Name, caption: 'Name')
+  column (attribute: Name, caption: 'Name')
 }
 ```
 
@@ -383,7 +422,7 @@ datagrid dgProducts (
   PageSize: 25,
   PagingPosition: both
 ) {
-  column colName (attribute: Name, caption: 'Name')
+  column (attribute: Name, caption: 'Name')
 }
 
 -- Virtual scrolling (no paging buttons)
@@ -392,7 +431,7 @@ datagrid dgLargeList (
   PageSize: 50,
   Pagination: virtualScrolling
 ) {
-  column colName (attribute: Name, caption: 'Name')
+  column (attribute: Name, caption: 'Name')
 }
 ```
 
@@ -409,8 +448,8 @@ dataview dvName (datasource: $VariableName) {
   textarea txtDescription (label: 'Description', attribute: description)
 
   footer footer1 {
-    actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 }
 ```
@@ -469,8 +508,8 @@ dataview dataView1 (datasource: $Customer) {
   datepicker dpCreated (label: 'Created', attribute: CreateDate)
 
   footer footer1 {
-    actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }
 }
 ```
@@ -511,9 +550,9 @@ gallery galleryName (
   TabletColumns: 2,
   PhoneColumns: 1
 ) {
-  template template1 {
-    dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-    dynamictext email (content: '{1}', contentparams: [{1} = Email])
+  template {
+    dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+    dynamictext email (content: '{1}', contentparams: ({1} = Email))
   }
 }
 ```
@@ -521,19 +560,50 @@ gallery galleryName (
 **With Filter:**
 ```sql
 gallery productGallery (datasource: database Module.Product, selection: single) {
-  filter filter1 {
+  filter {
     textfilter searchName (attribute: Name)
   }
-  template template1 {
-    dynamictext prodName (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-    dynamictext prodCode (content: 'SKU: {1}', contentparams: [{1} = Code])
+  template {
+    dynamictext prodName (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+    dynamictext prodCode (content: 'SKU: {1}', contentparams: ({1} = Code))
   }
 }
 ```
 
+**With a row action** — a click on a card runs an action. The Gallery calls a
+row click *ambiguous* when the gallery also selects on a single click (its
+default), and `mx check` fails the page; `check` reports that as MDL-WIDGET36
+under `mdl 1;` (warning MDL-V1-GALLERYCLICK without the header). Say which one
+the click means:
+```sql
+-- the click is the action; nothing is selected
+gallery cards (datasource: database Module.Product, selection: None,
+  onClick: call nanoflow Module.ACT_OpenProduct(Product = $currentObject)) {
+  template { dynamictext name (content: '{1}', contentparams: ({1} = Name)) }
+}
+-- keep the selection, run the action on a double click
+gallery cards (datasource: database Module.Product, selection: Single, onClickTrigger: double,
+  onClick: call nanoflow Module.ACT_OpenProduct(Product = $currentObject)) {
+  template { dynamictext name (content: '{1}', contentparams: ({1} = Name)) }
+}
+```
+`onSelectionChange:` and `onConfigurationChange:` take an action the same way.
+
 ### Filter Widgets
 
-Filter widgets are used inside GALLERY FILTER containers to enable search/filtering:
+A filter widget lives in one of two places: **inside a DATA GRID column's own braces**,
+where it filters that column, or inside a **GALLERY FILTER container**, where it filters
+the whole list. The widgets below are the same either way:
+
+```sql
+datagrid dg (datasource: database Module.Entity) {
+  column (attribute: Name) { textfilter f1 }   -- the grid form
+}
+
+gallery g (datasource: database Module.Entity) {
+  filter flt { textfilter f1 }                         -- the gallery form
+}
+```
 
 **TEXTFILTER** - Text search filter:
 ```sql
@@ -573,7 +643,7 @@ associated objects. Giving the filter a `datasource:` (the OPTION list) selects
 this mode; all three parts are required:
 
 ```sql
-column colCustomer (attribute: Order_Customer/Name, caption: 'Customer') {
+column (attribute: Order_Customer/Name, caption: 'Customer') {
   dropdownfilter ddfCustomer (
     Association: Sales.Order_Customer,          -- the reference on the GRID entity
     datasource: database Sales.Customer,        -- the option list (associated entity)
@@ -594,9 +664,9 @@ Create a menu with action items:
 
 ```sql
 navigationlist navName {
-  item itemEdit (caption: 'Edit', action: show_page Module.EditPage(entity: $EntityParameter))
+  item itemEdit (caption: 'Edit', action: show page Module.EditPage(entity = $EntityParameter))
   item itemDelete (caption: 'Delete', action: delete)
-  item itemBack (caption: 'Back', action: close_page)
+  item itemBack (caption: 'Back', action: close page)
 }
 ```
 
@@ -609,7 +679,7 @@ Embed a reusable snippet:
 snippetcall snippetName (snippet: Module.SnippetName)
 
 -- With parameters
-snippetcall actions (snippet: Module.EntityActions, params: {entity: $Param})
+snippetcall actions (snippet: Module.EntityActions, params: (entity = $Param))
 ```
 
 **A parameter satisfied by the enclosing data context takes NO mapping.** Mendix
@@ -623,12 +693,12 @@ dataview dvOrder (datasource: $Order) {
 }
 ```
 
-`params: {Order: $currentObject}` means the same thing and produces the same
+`params: (Order = $currentObject)` means the same thing and produces the same
 (empty) mapping. Naming a real page parameter or variable produces a real
 mapping, as expected:
 
 ```sql
-snippetcall scActions (snippet: MyModule.OrderActions, params: {Order: $Order})
+snippetcall scActions (snippet: MyModule.OrderActions, params: (Order = $Order))
 ```
 
 Omitting `Params:` where the context is a *different* entity is still an error —
@@ -641,7 +711,7 @@ Display images on pages:
 ```sql
 -- Image with dimensions (responsive by default)
 image imgLogo (width: 200, height: 100)
-staticimage imgBanner (width: 400, height: 120)
+staticimage imgBanner (Image: 'MyModule.Images.banner', width: 400, height: 120)
 
 -- Dynamic image (from entity data source, e.g. inside a DataView)
 dynamicimage imgProduct (width: 300, height: 200)
@@ -651,6 +721,65 @@ image imgIcon
 ```
 
 **Properties:** `width: integer`, `height: integer`, `AlternativeText: 'text'`, `WidthUnit: pixels | percentage | auto`, `HeightUnit: pixels | percentage | auto`, `Responsive: true | false`, `DisplayAs: fullImage | thumbnail | icon`, `class: 'css'`, `style: 'css'`
+
+#### `Image:` — which image a STATICIMAGE shows
+
+`Image:` names an entry in an image collection, as the three-part qualified name
+`Module.Collection.Image` — the same shape `Icon:` and the pluggable `image`
+widget use, because all three are by-name references to the same `Images$Image`
+element. `describe image collection Module.Images` lists the names.
+
+Without it the widget is written with no reference and mxbuild reports
+**CE0436 "No image selected."** Until mendixlabs/mxcli#1057 there was no way to
+say it at all, so `describe page` marked every stored static image
+`-- NOT re-executable` and the round trip dropped it.
+
+```sql
+staticimage imgAllSelected (Image: 'MyFirstModule.Images.gallery')
+```
+
+`WidthUnit:`, `HeightUnit:` (`pixels` | `percentage` | `auto`) and
+`Responsive: false` are written too. Leave them out for Studio Pro's defaults —
+auto units and a responsive image — which `describe page` also omits, so a
+round trip neither loses them nor invents them.
+
+**CE0582** is reported for `staticimage` wherever it appears, by any app running
+the React client — which Mendix added in **10.7** and which is the only client on
+11, so this is not a Mendix 11 rule. The replacement is the pluggable `image`
+widget, which takes the same `Image:`; Studio Pro offers the conversion from the
+CE0582 error's context menu. mxcli still writes it, because round-tripping a
+model that already contains one is the point — and `mxcli lint` reports it as
+**MPR012** so a new page does not reach for it by accident.
+
+#### `DataSource:` — which object a DYNAMICIMAGE shows
+
+A dynamic image shows the image held by an **object**, so it needs the entity
+that object belongs to — reachable from the widget's context, which in practice
+means the enclosing data container's entity:
+
+```sql
+listview lvPhoto (DataSource: database from MyModule.Photo) {
+  dynamicimage imgPhoto (
+    DataSource: database from MyModule.Photo,
+    DefaultImage: 'MyModule.Images.placeholder',
+    Width: 200, Height: 200
+  )
+}
+```
+
+**Without `DataSource:` the build fails with CE0489** ("Select an entity for the
+data source of this dynamic image"). Every `dynamicimage` mxcli wrote before this
+was missing it, so the widget could not build at all.
+
+`DefaultImage:` is the fallback shown when the object carries no image, named the
+same three-part way as `staticimage`'s `Image:`. `WidthUnit:`/`HeightUnit:`,
+`Responsive: false`, `DisplayAs: thumbnail` and `OnClickType: enlarge` are all
+written; leave them out for Mendix's defaults (auto, responsive, full size, no
+enlarge), which `describe page` also omits.
+
+CE0582 applies here too — the React client supports neither legacy image widget,
+and the pluggable `image` widget is the replacement for both. `mxcli lint` reports
+either as **MPR012**.
 
 #### Setting Image Source (PLUGGABLEWIDGET syntax)
 
@@ -684,8 +813,8 @@ alter page Mod.Home {
 
 For theme images, use paths relative to `theme/web/` (e.g., `img/logo.svg` → `theme/web/img/logo.svg`).
 
-**A per-row image URL comes from the entity, two ways.** `imageUrl` is a text
-template, so it takes either spelling:
+**A per-row image URL comes from the entity, three ways.** `imageUrl` is a text
+template, so it takes any of these spellings:
 
 ```sql
 -- named placeholder: shortest form for a single attribute
@@ -696,9 +825,24 @@ pluggablewidget 'com.mendix.widget.web.image.Image' cardImage (
 -- numbered placeholders + contentparams: needed for several values, or a format block
 pluggablewidget 'com.mendix.widget.web.image.Image' cardImage (
   datasource: imageUrl,
-  imageUrl: '{1}/{2}', contentparams: [{1} = BaseUrl, {2} = PictureUrl]
+  imageUrl: '{1}/{2}', contentparams: ({1} = BaseUrl, {2} = PictureUrl)
+)
+
+-- `<Name>Params`: the property's OWN parameters. `contentparams` is one list
+-- shared by every template on the widget, so it cannot bind `imageUrl` and
+-- `alternativeText` to different attributes; this can (ako/mxcli#575).
+pluggablewidget 'com.mendix.widget.web.image.Image' cardImage (
+  datasource: imageUrl,
+  imageUrl: '{1}',        imageUrlParams: ({1} = PictureUrl),
+  alternativeText: '{1}', alternativeTextParams: ({1} = Name)
 )
 ```
+
+The same companion works on any pluggable widget's text-template property — a
+TreeNode's `headerCaption`, a Timeline's `title` / `description` /
+`timeIndication` — under the property's own name + `Params`. Without it a
+text-template property took literal text only, so it rendered the same string
+on every row with `check`, `exec` and `mx check` all clean.
 
 Every `{N}` must have a matching parameter — Mendix rejects a shortfall with
 `CE0720` ("place holder index N is greater than …, the number of parameter(s)").
@@ -718,10 +862,26 @@ conditional visibility — or put the condition in the microflow it calls:
 
 ```sql
 actionbutton btnSubmit (
-  caption: 'Submit', action: microflow Mod.ACT_Submit,
-  visible: [$currentObject/Status = Mod.Status.Draft]
+  caption: 'Submit', action: call microflow Mod.ACT_Submit,
+  visible: $currentObject/Status = Mod.Status.Draft
 )
 ```
+
+### Inputs in a List View Need `editable: true` on the List View
+
+A list view has an `Editable` of its own, default **false** (Mendix's default),
+and its read-only context wins over `editable: Always` on an input inside it —
+even inside a nested data view. Without it every input renders as a read-only
+value, while `mx check` and the build stay clean. `mxcli check` reports this as
+MDL-WIDGET31.
+
+```sql
+listview lvRows (datasource: database Mod.Row, editable: true) {
+  textbox tName (label: 'Name', attribute: Name)
+}
+```
+
+Write `true` unquoted: `editable: 'true'` is a string and is written false.
 
 ### Only a CONTAINER (or a Button) Can Be Clicked
 
@@ -737,19 +897,20 @@ Two shapes, two remedies:
   the input widgets, `groupbox`, `tabcontainer`, `layoutgrid`, `snippetcall`) —
   put the action on a `container` inside the widget. A container renders with
   `tabindex="0" role="button"`, so it is the correct modelling, not a workaround.
-- **Mendix models one but mxcli cannot write it yet** (`listview`,
-  `staticimage`, `dynamicimage`) — the container is a workaround here; the model
-  could hold the action.
+- **Mendix models one but mxcli cannot write it yet** — nobody is in this group
+  today. `listview`, `staticimage` and `dynamicimage` were, and their actions
+  have been written since ako/mxcli#512; MDL-WIDGET23's second message survives
+  so the next such gap has a sentence, not because one is open.
 
 ```sql
 -- WRONG: silently does nothing
-dataview dvOrder (datasource: microflow Mod.DS_Order, onclick: show_page Mod.Detail) {
+dataview dvOrder (datasource: microflow Mod.DS_Order, onclick: show page Mod.Detail) {
   dynamictext t (content: 'Open')
 }
 
 -- RIGHT: the container carries the click
 dataview dvOrder (datasource: microflow Mod.DS_Order) {
-  container clickable (onclick: show_page Mod.Detail) {
+  container clickable (onclick: show page Mod.Detail) {
     dynamictext t (content: 'Open')
   }
 }
@@ -771,13 +932,13 @@ container card1 (class: 'card', style: 'padding: 16px;') {
 }
 
 -- Container with design properties
-container spaced1 (designproperties: ['Spacing top': 'Large', 'Full width': on]) {
+container spaced1 (designproperties: ('Spacing top': 'Large', 'Full width': on)) {
   dynamictext text1 (content: 'Spaced full-width content')
 }
 
 -- Nested containers with combined styling
 customcontainer outer1 (class: 'section') {
-  container inner1 (class: 'card', designproperties: ['Spacing top': 'Medium']) {
+  container inner1 (class: 'card', designproperties: ('Spacing top': 'Medium')) {
     dynamictext text1 (content: 'Nested content')
   }
 }
@@ -785,10 +946,10 @@ customcontainer outer1 (class: 'section') {
 
 **Clickable container (On click action).** A container can trigger an action when
 clicked — use `OnClick:` (or the equivalent `Action:` keyword) with any client
-action (`microflow`, `nanoflow`, `show_page`, `save_changes`, …):
+action (`microflow`, `nanoflow`, `show page`, `save changes`, …):
 
 ```sql
-container card1 (OnClick: microflow MyModule.ACT_OpenDetails, class: 'clickable-card') {
+container card1 (OnClick: call microflow MyModule.ACT_OpenDetails, class: 'clickable-card') {
   dynamictext title (content: 'Open details')
 }
 ```
@@ -805,7 +966,7 @@ as an `actionbutton`'s `action:`:
 
 ```sql
 -- Rich, parameterised trigger: a card that opens the object it represents
-container tileCard (OnClick: microflow MyModule.ACT_Open(Item: $currentObject), class: 'tile') {
+container tileCard (OnClick: call microflow MyModule.ACT_Open(Item = $currentObject), class: 'tile') {
   dynamictext tileValue (content: '4')
   dynamictext tileLabel (content: '4 LEFT', class: 'tile-label')
 }
@@ -822,8 +983,8 @@ Container for form action buttons:
 
 ```sql
 footer footerName {
-  actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-  actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+  actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+  actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
 }
 ```
 
@@ -842,10 +1003,46 @@ header headerName {
 Control bar for data widgets:
 
 ```sql
-controlbar controlBar1 {
-  actionbutton btnNew (caption: 'New', action: create_object Module.Entity then show_page Module.EditPage, buttonstyle: primary)
+controlbar {
+  actionbutton btnNew (caption: 'New', action: create object Module.Entity then show page Module.EditPage, buttonstyle: primary)
 }
 ```
+
+**A control bar is not row-scoped.** It sits above the rows, so the grid's
+current object is not in scope there — an action calling a flow with a parameter
+gets **CE1571** unless you give it an argument, and `$currentObject` is unbound
+(`mxcli check` reports MDL-BUTTON01). The remedy is the grid's **selection**,
+addressed by the widget's own name and available once `selection:` is set:
+
+```sql
+datagrid dgMaterials (
+  datasource: database from Module.Material,
+  selection: single
+) {
+  column (attribute: Name, caption: 'Name')
+
+  -- Row-scoped: the grid's row supplies the parameter, no argument needed.
+  column (caption: 'Row') {
+    container cRowUnlink (action: call nanoflow Module.ACT_UnLink, class: 'command') {
+      actionbutton btnRowUnlink (caption: 'Unlink')
+    }
+  }
+
+  controlbar {
+    -- Not row-scoped: pass the selection explicitly.
+    container cUnlink (
+      class: 'command',
+      action: call nanoflow Module.ACT_UnLink (Material = $dgMaterials)
+    ) {
+      actionbutton btnUnlink (caption: 'Unlink')
+    }
+  }
+}
+```
+
+A **container** takes an argument list exactly like an `actionbutton` does — the
+two share one action grammar. Reaching for a button because a container "cannot
+pass parameters" changes the rendering for no reason (mendixlabs/mxcli#1082).
 
 ### Charts (Charts.mpk — ColumnChart / BarChart / AreaChart / PieChart)
 

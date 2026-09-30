@@ -132,6 +132,12 @@ model:
 | `11-sharepoint-lane.mdl` | SharePoint list read + write (POST/PATCH), OData transformer |
 | `13-binary-lane.mdl` | Binary download/upload (upload is a known-broken regression test) |
 | `14-message-definition-lane.mdl` | Message definition + export mapping, published as JSON |
+
+Every script carries the `mdl 1;` language header. Two things that took to get
+there, both in FINDINGS #65: each `commit` states `with`/`without events`
+rather than leaning on a default that moved, and six microflows are dropped and
+re-created rather than modified in place, because a loop or a decision body
+cannot be spliced and under `mdl 1` an unspliceable change is a refusal.
 | `12-organize.mdl` | Folder layout — run last, after every document exists |
 
 **Re-run `02-security.mdl` after any change to `01-domain-model.mdl`.** Entity

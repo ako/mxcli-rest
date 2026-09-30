@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * SharePoint list read AND write, through Graph, against a local Prism mock
  *
@@ -15,7 +16,7 @@
  * item-scoped calls use an inline REST CALL instead.
  */
 
-create or modify rest client RestLab."SharePointApi" (
+create or modify consumed rest service RestLab."SharePointApi" (
   BaseUrl: 'http://127.0.0.1:4025',
   authentication: none
 )
@@ -24,11 +25,11 @@ create or modify rest client RestLab."SharePointApi" (
    * READ one item. Object root with a nested "fields" object, so the mapping
    * populates SPTask and its SPTaskFields child.
    */
-  operation "GetTask" {
+  operation "GetTask" (
     method: get,
     path: '/sites/root/lists/Tasks/items/12',
     query: ($expand: String),
-    headers: ('Accept' = 'application/json', 'Authorization' = 'Bearer dev-token'),
+    headers: ('Accept': 'application/json', 'Authorization': 'Bearer dev-token'),
     timeout: 30,
     response: mapping RestLab."SPTask" {
       "Etag" = "@odata.etag",
@@ -43,7 +44,7 @@ create or modify rest client RestLab."SharePointApi" (
         "PriorityLevel" = "Priority_x0020_Level"
       }
     }
-  }
+  )
 
   /*
    * NO WRITE OPERATION HERE, DELIBERATELY.
@@ -94,6 +95,13 @@ source json '{"@odata.context":"ctx","value":[{"id":"12","fields":{"Title":"Repl
 
 -- ---------------------------------------------------------------- microflows
 
+-- Dropped and re-created rather than modified in place: a loop or a
+-- decision in this flow cannot be spliced, and under `mdl 1;` an
+-- unspliceable change is a refusal rather than a whole-flow rebuild.
+-- Re-creating converges by construction; it remints element IDs, which
+-- costs nothing for a flow no one has laid out by hand. FINDINGS #65.
+drop microflow if exists RestLab.ACT_SP_GetTask;
+
 /**
  * READ one item through the document mapping.
  */
@@ -103,7 +111,7 @@ begin
   declare $Start DateTime = [%CurrentDateTime%];
 
   $Task = send rest request RestLab."SharePointApi"."GetTask"
-    with ($expand = 'fields');
+    with (expand = 'fields');
 
   $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
     Url = 'http://127.0.0.1:4025/sites/root/lists/Tasks/items/12?$expand=fields',
@@ -118,12 +126,17 @@ begin
 
   IF $Task != empty THEN
     CHANGE $Task (RestLab.SPTask_CallLog = $Log);
-    COMMIT $Task;
+    COMMIT $Task WITHOUT EVENTS;
   END IF;
 
   RETURN $Log;
 end;
-/
+
+-- Dropped and re-created rather than modified in place: this flow holds a
+-- loop or a decision whose body the splice cannot edit, and under `mdl 1;`
+-- an unspliceable change is a refusal rather than a whole-flow rebuild.
+-- Re-creating converges by construction. FINDINGS #65.
+drop microflow if exists RestLab.ACT_SP_ListTasks;
 
 /**
  * READ the list. Collection, so it is transformed for display rather than mapped.
@@ -135,7 +148,7 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = rest call get 'http://127.0.0.1:4025/sites/root/lists/Tasks/items?$expand=fields'
+  $Raw = call rest service get 'http://127.0.0.1:4025/sites/root/lists/Tasks/items?$expand=fields'
     header Accept = 'application/json'
     header 'Authorization' = 'Bearer dev-token'
     timeout 30
@@ -161,12 +174,11 @@ begin
   IF $Raw != empty THEN
     $Shaped = transform $Raw with RestLab."DT_SharePointTasks";
     CHANGE $Log ("TransformedBody" = $Shaped);
-    COMMIT $Log;
+    COMMIT $Log WITHOUT EVENTS;
   END IF;
 
   RETURN $Log;
 end;
-/
 
 /**
  * WRITE: create a list item with an inline POST.
@@ -188,7 +200,7 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = rest call post 'http://127.0.0.1:4025/sites/root/lists/Tasks/items'
+  $Raw = call rest service post 'http://127.0.0.1:4025/sites/root/lists/Tasks/items'
     header 'Content-Type' = 'application/json'
     header 'Authorization' = 'Bearer dev-token'
     body '{{"fields": {{"Title": "{1}", "Status": "{2}"}}' with (
@@ -217,7 +229,6 @@ begin
 
   RETURN $Log;
 end;
-/
 
 /**
  * WRITE via an inline call: PATCH an item's fields, with the etag in If-Match.
@@ -234,7 +245,7 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = rest call patch 'http://127.0.0.1:4025/sites/root/lists/Tasks/items/{1}/fields' with (
+  $Raw = call rest service patch 'http://127.0.0.1:4025/sites/root/lists/Tasks/items/{1}/fields' with (
     {1} = $ItemId
   )
     header 'Content-Type' = 'application/json'
@@ -269,4 +280,3 @@ begin
 
   RETURN $Log;
 end;
-/

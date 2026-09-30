@@ -13,7 +13,7 @@ Use this skill when the user wants to:
 - Change the after-startup or before-shutdown microflows
 - Modify hash algorithms, Java versions, or rounding modes
 - View or modify language settings
-- Configure workflow settings (user entity, parallelism)
+- Configure workflow settings (user entity, parallelism, groups)
 
 ## Commands
 
@@ -21,7 +21,7 @@ Use this skill when the user wants to:
 
 ```sql
 -- Overview table of all settings parts
-show settings;
+list settings;
 
 -- Full MDL output (round-trippable ALTER SETTINGS statements)
 describe settings;
@@ -30,22 +30,22 @@ describe settings;
 ### Modify Model Settings
 
 ```sql
-alter settings model AfterStartupMicroflow = 'Module.MF_Startup';  -- must return Boolean (CE0142)
-alter settings model BeforeShutdownMicroflow = 'Module.MF_Shutdown';
-alter settings model HealthCheckMicroflow = 'Module.MF_HealthCheck';
-alter settings model HashAlgorithm = 'BCrypt';
-alter settings model BcryptCost = 12;
-alter settings model JavaVersion = 'Java21';  -- or '21'; see note below
-alter settings model RoundingMode = 'HalfUp';
-alter settings model AllowUserMultipleSessions = true;
-alter settings model ScheduledEventTimeZoneCode = 'Etc/UTC';
-alter settings model DefaultTimeZoneCode = 'Europe/Amsterdam';
-alter settings model FirstDayOfWeek = 'Monday';       -- Default, Monday..Sunday
-alter settings model DecimalScale = 8;
-alter settings model EnableDataStorageOptimisticLocking = true;
-alter settings model UseDatabaseForeignKeyConstraints = true;
-alter settings model UseOQLVersion2 = true;
-alter settings model SslCertificateAlgorithm = 'PKIX';   -- PKIX or SunX509
+alter settings runtime ( AfterStartupMicroflow: 'Module.MF_Startup' );  -- must return Boolean (CE0142)
+alter settings runtime ( BeforeShutdownMicroflow: 'Module.MF_Shutdown' );
+alter settings runtime ( HealthCheckMicroflow: 'Module.MF_HealthCheck' );
+alter settings runtime ( HashAlgorithm: 'BCrypt' );
+alter settings runtime ( BcryptCost: 12 );
+alter settings runtime ( JavaVersion: 'Java21' );  -- or '21'; see note below
+alter settings runtime ( RoundingMode: 'HalfUp' );
+alter settings runtime ( AllowUserMultipleSessions: true );
+alter settings runtime ( ScheduledEventTimeZoneCode: 'Etc/UTC' );
+alter settings runtime ( DefaultTimeZoneCode: 'Europe/Amsterdam' );
+alter settings runtime ( FirstDayOfWeek: 'Monday' );       -- Default, Monday..Sunday
+alter settings runtime ( DecimalScale: 8 );
+alter settings runtime ( EnableDataStorageOptimisticLocking: true );
+alter settings runtime ( UseDatabaseForeignKeyConstraints: true );
+alter settings runtime ( UseOQLVersion2: true );
+alter settings runtime ( SslCertificateAlgorithm: 'PKIX' );   -- PKIX or SunX509
 ```
 
 **Not every project stores every setting.** Mendix adds model settings over time —
@@ -87,22 +87,30 @@ parses the bare major and rejects the project outright with
 `describe settings` always emits the project's own spelling, so its output replays
 cleanly.
 
+**`describe settings` never prints `DatabasePassword`.** Describe output is what gets
+committed and reviewed, so the password is omitted and a comment says it is set.
+Replaying the output leaves the stored password unchanged (`create or modify
+configuration` only touches the keys it names); on a project that lacks the
+configuration, add `DatabasePassword = '…'` yourself.
+
 ### Modify Configuration Settings
 
 ```sql
 -- Full database configuration
-alter settings configuration 'Default'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'localhost:5432',
-  DatabaseName = 'mydb',
-  DatabaseUserName = 'mendix',
-  DatabasePassword = 'mendix',
-  HttpPortNumber = 8080,
-  ServerPortNumber = 8090;
+alter settings configuration 'Default' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'localhost:5432',
+  DatabaseName: 'mydb',
+  DatabaseUserName: 'mendix',
+  DatabasePassword: 'mendix',
+  HttpPortNumber: 8080,
+  ServerPortNumber: 8090
+);
 
 -- Update a single field
-alter settings configuration 'Default'
-  DatabaseUrl = 'newhost:5432';
+alter settings configuration 'Default' (
+  DatabaseUrl: 'newhost:5432'
+);
 ```
 
 `HttpPortNumber`, `ServerPortNumber`, `BcryptCost`, `DefaultTaskParallelism` and
@@ -121,18 +129,18 @@ fine: `HttpPortNumber = '8080'` and `HttpPortNumber = 8080` are equivalent.
 
 ```sql
 -- View constant values across all configurations
-show constant values;
-show constant values in MyModule;    -- Filter by module
+list constant values;
+list constant values in MyModule;    -- Filter by module
 
 -- Override a constant value in a configuration
-alter settings constant 'BusinessEvents.ServerUrl' value 'kafka:9092'
+alter settings constant @BusinessEvents.ServerUrl value 'kafka:9092'
   in configuration 'Default';
 
 -- Without IN CONFIGURATION (uses first configuration)
-alter settings constant 'MyModule.ApiKey' value 'abc123';
+alter settings constant @MyModule.ApiKey value 'abc123';
 
 -- Remove a constant override (reset to default)
-alter settings drop constant 'MyModule.ApiKey' in configuration 'Default';
+alter settings drop constant @MyModule.ApiKey in configuration 'Default';
 ```
 
 #### Shared vs private values
@@ -145,7 +153,7 @@ API tokens are the usual reason to make one private.
 MDL **preserves that choice but never changes it**. The two statements above operate
 on shared values only:
 
-- `show constant values` reports a private override as `(private)` rather than a blank
+- `list constant values` reports a private override as `(private)` rather than a blank
   cell — the value is not in the project, so mxcli cannot show it.
 - `describe settings` reports a private override as a comment, not as a re-executable
   `alter settings constant` line — replaying that line would publish into the shared
@@ -163,10 +171,11 @@ on shared values only:
 create configuration 'Staging';
 
 -- Create with properties
-create configuration 'Production'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'prod-db:5432',
-  HttpPortNumber = 8080;
+create configuration 'Production' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'prod-db:5432',
+  HttpPortNumber: 8080
+);
 
 -- Drop a configuration
 drop configuration 'Staging';
@@ -188,10 +197,10 @@ and produces nothing at build time — so enable the language first.
 alter settings LANGUAGE add 'de_DE';
 alter settings LANGUAGE add 'ar_SD' (CheckCompleteness: true, CustomDateFormat: 'yyyy-MM-dd');
 alter settings LANGUAGE modify 'de_DE' (CheckCompleteness: true);
-alter settings LANGUAGE remove 'de_DE';
+alter settings Language drop 'de_DE';
 
 -- the default must already be enabled
-alter settings LANGUAGE DefaultLanguageCode = 'en_US';
+alter settings LANGUAGE ( DefaultLanguageCode: 'en_US' );
 ```
 
 A language is identified by its **code** — "Arabic, Sudan" is derived from
@@ -207,7 +216,7 @@ A language is identified by its **code** — "Arabic, Sudan" is derived from
 
 **Set the default language BEFORE authoring content.** The default is not only a
 fallback — it is the language a new caption is stored under, because Mendix has no
-language-neutral text. `alter settings LANGUAGE DefaultLanguageCode = 'nl_NL'`
+language-neutral text. `alter settings LANGUAGE (DefaultLanguageCode: 'nl_NL')`
 *after* creating a page leaves that page's texts in the old language, and nothing
 reports it: `mx check` is 0 errors either way and the symptom shows up only in
 Studio Pro, as the empty-caption placeholder plus a "no translation" warning.
@@ -217,7 +226,7 @@ rewritten under the new default (the old copy stays alongside, harmless).
 `create translations for '<the default>'` is refused: the default is the source
 language, not a translation target.
 
-⚠️ `show languages` lists languages that have **translations**, not enabled ones —
+⚠️ `list languages` lists languages that have **translations**, not enabled ones —
 a stock app reports 8 while 1 is enabled. Use `describe settings` for the enabled
 list.
 
@@ -225,40 +234,90 @@ list.
 
 ```sql
 
-alter settings workflows
-  UserEntity = 'System.User',
-  DefaultTaskParallelism = 3;
+alter settings workflows (
+  UserEntity: 'System.User',
+  DefaultTaskParallelism: 3
+);
 ```
+
+### Workflow Groups (Mendix 11.2+)
+
+The named buckets under App Settings ▸ Workflows ▸ Groups that a user task's
+group targeting selects from.
+
+```sql
+alter settings workflows add group 'Approvers' (Description: 'Primary approval group');
+alter settings workflows add group 'Reviewers';
+
+-- the upsert, and what `describe settings` emits
+alter settings workflows add or modify group 'Approvers' (Description: 'Approves budget requests');
+
+-- changes only the options it names
+alter settings workflows modify group 'Reviewers' (Description: 'Second-line review');
+
+alter settings workflows drop group 'Reviewers';
+
+list workflow groups;
+```
+
+Four things worth knowing:
+
+- **`Description` is the only option.** A `Settings$WorkflowGroup` stores `Name`
+  and `Description` and nothing else, so there is no identifier to set and the
+  **name is the group's identity** — which is what MODIFY and REMOVE address, and
+  why a second group differing only in case is refused rather than created.
+- **The version floor is 11.2, not 11.6.** `Settings$WorkflowGroup` and the
+  `groups` property were both introduced in the 11.2 metamodel; Mendix's release
+  notes call the feature GA in 11.6, which is a different question from whether
+  the document loads. On an earlier version the statement is refused with the
+  floor.
+- **An edit keeps the group's runtime identity.** Booting the app materialises one
+  `System.WorkflowGroup` row per entry, keyed on the group's element id — so
+  changing a description updates that row in place rather than replacing it, and
+  the group memberships and assigned user tasks survive.
+- **Nothing in the model points at a group.** A user task targets groups through a
+  microflow or an XPath returning `System.WorkflowGroup` objects, never by a
+  reference to the settings entry, so REMOVE has no dangling reference to check
+  for. What it does mean is that the removed group's runtime row stops being
+  maintained while the user tasks already assigned to it keep their association.
 
 ## Common Patterns
 
 ### PostgreSQL Configuration
 ```sql
-alter settings configuration 'Default'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'localhost:5432',
-  DatabaseName = 'myapp',
-  DatabaseUserName = 'mendix',
-  DatabasePassword = 'mendix',
-  HttpPortNumber = 8080;
+alter settings configuration 'Default' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'localhost:5432',
+  DatabaseName: 'myapp',
+  DatabaseUserName: 'mendix',
+  DatabasePassword: 'mendix',
+  HttpPortNumber: 8080
+);
 ```
 
 ### SQL Server Configuration
 ```sql
-alter settings configuration 'Default'
-  DatabaseType = 'SqlServer',
-  DatabaseUrl = 'localhost:1433',
-  DatabaseName = 'myapp',
-  DatabaseUserName = 'sa',
-  DatabasePassword = 'MyPassword',
-  HttpPortNumber = 8080;
+alter settings configuration 'Default' (
+  DatabaseType: 'SqlServer',
+  DatabaseUrl: 'localhost:1433',
+  DatabaseName: 'myapp',
+  DatabaseUserName: 'sa',
+  DatabasePassword: 'MyPassword',
+  HttpPortNumber: 8080
+);
 ```
 
 ## Checklist
 
-- [ ] Always run `show settings` or `describe settings` first to see current values
-- [ ] Verify changes after modification with `show settings`
+- [ ] Always run `list settings` or `describe settings` first to see current values
+- [ ] Verify changes after modification with `list settings`
 - [ ] There is always exactly one ProjectSettings document; it cannot be created or deleted
 - [ ] Model setting key names are case-sensitive (e.g., `JavaVersion`, not `javaversion`)
 - [ ] Configuration names are case-insensitive (e.g., `'default'` matches `'default'`)
 - [ ] Integer / Boolean settings must parse — `mxcli check` reports MDL-SET01 / MDL-SET02 before the write
+
+## AfterStartupMicroflow Must Return Boolean
+
+A microflow wired as the project's **after-startup** microflow must return `Boolean` — Mendix build fails with **CE0142** on a void (no-return) microflow. A common trip-up: a seed/demo-data microflow wired to after-startup will not build until it ends with a `return true` (Boolean).
+
+`mxcli check` now reports it (**MDL073**), which it could not before: #274 made `ALTER SETTINGS` resolve the qualified names it writes, but the name here *resolves* — the constraint is on the thing it names, not on the reference. The check runs with **no project** when the script creates the microflow itself (the usual shape), and against the stored return type when it does not. A microflow whose return type cannot be established is left alone rather than guessed at. `BeforeShutdownMicroflow` and `HealthCheckMicroflow` are deliberately **not** type-checked — their rules have not been measured here.

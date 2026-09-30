@@ -21,33 +21,33 @@ This skill covers discovering external services, browsing cached contracts, and 
 
 ```sql
 -- All OData clients (consumed services)
-show odata clients;
+list consumed odata services;
 
 -- All published OData services
-show odata services;
+list published odata services;
 
 -- All consumed REST services
-show rest clients;
+list consumed rest services;
 
 -- All published REST services
-show published rest services;
+list published rest services;
 
 -- All business event services
-show business event services;
+list business event services;
 
 -- All database connections
-show database connections;
+list database connections;
 
 -- All external entities (imported from OData)
-show external entities;
+list external entities;
 
 -- All external actions used in microflows
-show external actions;
+list external actions;
 ```
 
 ## Contract Browsing: OData $metadata
 
-`create odata client` auto-fetches and caches the `$metadata` XML from HTTP(S) URLs or reads it from local files. Browse it without network access:
+`create consumed odata service` auto-fetches and caches the `$metadata` XML from HTTP(S) URLs or reads it from local files. Browse it without network access:
 
 **Note:** `MetadataUrl` supports:
 - `https://...` or `http://...` — fetches from HTTP endpoint
@@ -55,14 +55,14 @@ show external actions;
 - `./path` or `path/file.xml` — reads from local relative path (resolved against `.mpr` directory)
 
 Local metadata files enable offline development, reproducible testing, and version-pinned contracts.
-`create odata client` auto-fetches and caches the `$metadata` XML. Browse it without network access:
+`create consumed odata service` auto-fetches and caches the `$metadata` XML. Browse it without network access:
 
 ```sql
 -- List all entity types from the contract
-show contract entities from MyModule.SalesforceAPI;
+list contract entities from MyModule.SalesforceAPI;
 
 -- List actions/functions
-show contract actions from MyModule.SalesforceAPI;
+list contract actions from MyModule.SalesforceAPI;
 
 -- Inspect a specific entity (properties, keys, navigation)
 describe contract entity MyModule.SalesforceAPI.PurchaseOrder;
@@ -80,10 +80,10 @@ Business event client services cache the AsyncAPI YAML:
 
 ```sql
 -- List channels
-show contract channels from MyModule.ShopEventsClient;
+list contract channels from MyModule.ShopEventsClient;
 
 -- List messages with payload info
-show contract messages from MyModule.ShopEventsClient;
+list contract messages from MyModule.ShopEventsClient;
 
 -- Inspect a message's payload properties
 describe contract message MyModule.ShopEventsClient.OrderChangedEvent;
@@ -148,7 +148,7 @@ create or modify external entities from MyModule.SalesforceAPI;
 
 1. Browse available entities:
    ```sql
-   show contract entities from MyModule.SalesforceAPI;
+   list contract entities from MyModule.SalesforceAPI;
    ```
 
 2. Inspect the entity you want:
@@ -164,7 +164,7 @@ create or modify external entities from MyModule.SalesforceAPI;
 4. Copy, customize (remove unwanted attributes), and execute:
    ```sql
    create external entity MyModule.PurchaseOrder
-   from odata client MyModule.SalesforceAPI (
+   from consumed odata service MyModule.SalesforceAPI (
        EntitySet: 'PurchaseOrders',
        RemoteName: 'PurchaseOrder',
        Countable: Yes

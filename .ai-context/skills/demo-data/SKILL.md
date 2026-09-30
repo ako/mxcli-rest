@@ -25,7 +25,7 @@ Mendix's internal ID system, and safely inserting rows with correct IDs and asso
 Use `mxcli` to read the project's configured database connection:
 
 ```bash
-./mxcli -p <project>.mpr -c "show settings;"
+./mxcli -p <project>.mpr -c "list settings;"
 ```
 
 Example output:
@@ -41,13 +41,14 @@ For full credentials (username, password):
 
 Example output:
 ```sql
-alter settings configuration 'Default'
-  DatabaseType = 'PostgreSql',
-  DatabaseUrl = 'localhost:5434',
-  DatabaseName = 'mxcli2-dev',
-  DatabaseUserName = 'mendix',
-  DatabasePassword = 'mendix',
-  HttpPortNumber = 8080;
+alter settings configuration 'Default' (
+  DatabaseType: 'PostgreSql',
+  DatabaseUrl: 'localhost:5434',
+  DatabaseName: 'mxcli2-dev',
+  DatabaseUserName: 'mendix',
+  DatabasePassword: 'mendix',
+  HttpPortNumber: 8080
+);
 ```
 
 ---
@@ -154,7 +155,7 @@ where table_name like 'tasklist%';
 ```
 
 Mendix stores associations in one of two ways, controlled by the project's
-`AssocStorage` convention setting (check with `show settings`):
+`AssocStorage` convention setting (check with `list settings`):
 
 #### Mode A — Column storage (`AssocStorage: column`)
 

@@ -102,5 +102,5 @@ Read it back through the same connection (in-session edits are visible), or look
 in Studio Pro:
 
 ```bash
-mxcli --mcp http://localhost/mcp --mcp-dial localhost:7782 -p app.mpr -c "show entities in MyModule"
+mxcli --mcp http://localhost/mcp --mcp-dial localhost:7782 -p app.mpr -c "list entities in MyModule"
 ```

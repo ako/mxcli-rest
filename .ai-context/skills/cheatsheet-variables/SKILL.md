@@ -23,7 +23,7 @@ Quick reference for variable declarations in MDL microflows.
 ## Key Rules
 
 1. **Primitives** (String/Integer/Long/Decimal/Boolean/DateTime/Enumeration): Use `declare $var type = value;` — these are the *only* types `declare` (a Create Variable activity) accepts.
-2. **Objects (entities)**: Never `declare` an object. Mendix forbids the Create Variable activity from holding an object (CE0053/CE0038, plus CE7247 on a later `set`; flagged as **MDL043** by `mxcli check`) — bare *or* initialized. Get the object from a microflow parameter, a `retrieve … limit 1`, `$var = create Module.Entity(...)`, or a loop iterator. There is no "empty object variable" and no aliasing activity — reuse the variable you already have.
+2. **Objects (entities)**: Never `declare` an object. Mendix forbids the Create Variable activity from holding an object (CE0053/CE0038, plus CE7247 on a later `set`; flagged as **MDL043** by `mxcli check`) — bare *or* initialized. Get the object from a microflow parameter, a `retrieve … first`, `$var = create Module.Entity(...)`, or a loop iterator. There is no "empty object variable" and no aliasing activity — reuse the variable you already have.
 3. **Lists**: Never `declare` a list — same Create Variable restriction (CE0053/CE0038, flagged as **MDL040**). Get the list from a microflow parameter, a `retrieve`, or `$var = create list of Module.Entity;`
 4. **SET requires DECLARE**: Always declare primitive variables before using SET.
 5. **Parameters are pre-declared**: Microflow parameters don't need DECLARE (and a parameter *may* be an object/list type — that restriction is only on `declare`).
@@ -40,7 +40,7 @@ declare $Product as Module.Product;         -- the AS keyword is also a parse er
 
 -- CORRECT: get the object from a source that produces one
 $Product = create Module.Product (Name = $n);     -- create
-retrieve $Product from Module.Product where Code = $c limit 1;  -- retrieve
+retrieve $Product from Module.Product where Code = $c first;  -- retrieve
 -- or accept it as a parameter, or use a loop iterator: loop $Product in $Products ...
 ```
 
@@ -93,7 +93,7 @@ begin
 
   declare $Result boolean = true;  -- Local primitive: must declare
   -- Need a local object? Don't declare it — create/retrieve it:
-  $Order = create Module.Order (Reference = $Input);  -- or retrieve … limit 1
+  $Order = create Module.Order (Reference = $Input);  -- or retrieve … first
 
   return $Result;
 end;

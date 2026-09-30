@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * The message-definition lane: a contract taken FROM the domain model
  *
@@ -38,17 +39,17 @@
  */
 create or modify message definition collection RestLab."MD_Rates"
   folder 'Lanes/Publish'
-(
-  definition "RateSnapshot" for RestLab."RateSnapshot" as 'Snapshot' (
+{
+  definition "RateSnapshot" for RestLab."RateSnapshot" as 'Snapshot' {
     "Base",
     "RateDate",
     "Amount" as 'BaseAmount',
-    RestLab."RateSnapshot_ExchangeRate"/RestLab."ExchangeRate" as 'Rates' (
+    RestLab."RateSnapshot_ExchangeRate"/RestLab."ExchangeRate" as 'Rates' {
       "Code",
       "Value"
-    )
-  )
-);
+    }
+  }
+};
 
 -- ------------------------------------------------------------- 2. the mapping
 
@@ -92,7 +93,7 @@ begin
   -- Domain model -> JSON, shaped by the message definition.
   $Json = export to mapping RestLab."EXM_RateSnapshot" ($Snapshot);
 
-  $Echo = rest call post 'https://httpbingo.org/post'
+  $Echo = call rest service post 'https://httpbingo.org/post'
     header 'Content-Type' = 'application/json'
     body '{1}' with ({1} = $Json)
     timeout 30
@@ -117,11 +118,10 @@ begin
 
   -- The generated JSON, kept beside the echo so the page can show both.
   CHANGE $Log ("TransformedBody" = $Json);
-  COMMIT $Log;
+  COMMIT $Log WITH EVENTS;
 
   RETURN $Log;
 end;
-/
 
 grant execute on microflow RestLab."ACT_Publish_RateSnapshot" to RestLab."Developer";
 grant execute on microflow RestLab."ACT_Publish_RateSnapshot" to RestLab."Administrator";

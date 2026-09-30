@@ -32,7 +32,7 @@ long build-outs are next door:
 
 ## MetadataUrl Formats
 
-`CREATE ODATA CLIENT` supports three formats for the `MetadataUrl` parameter:
+`CREATE CONSUMED ODATA SERVICE` supports three formats for the `MetadataUrl` parameter:
 
 | Format | Example | Stored In Model |
 |--------|---------|-----------------|
@@ -56,16 +56,16 @@ the service running. That cache is a snapshot, and a consumed service that gains
 entity sets makes it stale — the file on disk has five, the client still answers
 three.
 
-`CREATE OR MODIFY ODATA CLIENT` re-reads the contract every time it runs, so
+`CREATE OR MODIFY CONSUMED ODATA SERVICE` re-reads the contract every time it runs, so
 refreshing is a re-run of the statement you already have:
 
 ```mdl
 -- after refreshing ./contracts/live-now-metadata.xml from the running backend
-CREATE OR MODIFY ODATA CLIENT F1Now.NowApi (
+CREATE OR MODIFY CONSUMED ODATA SERVICE F1Now.NowApi (
   ODataVersion: OData4,
   MetadataUrl: './contracts/live-now-metadata.xml',
   Timeout: 300,
-  ServiceUrl: '@F1Now.ApiLocation'
+  ServiceUrl: F1Now.ApiLocation
 );
 ```
 
@@ -78,11 +78,20 @@ Read the verb it prints — it tells you which happened:
 | `Warning: could not refresh $metadata: …` | The contract could not be read; the **previously cached one is kept**, so re-run once it is reachable |
 
 Then re-import: `CREATE OR MODIFY EXTERNAL ENTITIES FROM F1Now.NowApi` maps the
-new entity sets. Do **not** `DROP ODATA CLIENT` and recreate it to force a
+new entity sets. Do **not** `DROP CONSUMED ODATA SERVICE` and recreate it to force a
 refresh — that invalidates the client ID the existing external entities point at.
 
-Note that `ALTER ODATA CLIENT SET MetadataUrl = …` does *not* re-fetch. Use
+Note that `ALTER CONSUMED ODATA SERVICE … SET ( MetadataUrl: … )` does *not* re-fetch. Use
 `CREATE OR MODIFY` when the contract is what changed.
+
+`describe` prints a client and an external entity as `create or modify …`, and
+re-running that output changes nothing: the rewrite keeps what it cannot print
+(the client's icon, UseQuerySegment, the catalog and proxy settings; each
+attribute's OData mapping). An external entity's attribute **types** are the
+service's, not the script's: declaring another (`OrderId: String(20)` for an
+`Edm.Int64` property) is CE6616 in mx check. Under `mdl 1` that statement is
+refused with nothing written; without the header it still writes, with warning
+`MDL-V1-REMOTETYPE`.
 
 **Use Cases for Local Metadata:**
 - **Offline development** — no network access required
@@ -98,19 +107,18 @@ Note that `ALTER ODATA CLIENT SET MetadataUrl = …` does *not* re-fetch. Use
 **Correct:**
 ```sql
 CREATE CONSTANT ProductClient.ProductDataApiLocation
-  TYPE String
-  DEFAULT 'http://localhost:8080/odata/productdataapi/v1/';
+  ( Type: String, DefaultValue: 'http://localhost:8080/odata/productdataapi/v1/' );
 
-CREATE ODATA CLIENT ProductClient.ProductDataApiClient (
+CREATE CONSUMED ODATA SERVICE ProductClient.ProductDataApiClient (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/$metadata',
-  ServiceUrl: '@ProductClient.ProductDataApiLocation'  -- ✅ Constant reference
+  ServiceUrl: ProductClient.ProductDataApiLocation  -- ✅ Constant reference
 );
 ```
 
 **Incorrect:**
 ```sql
-CREATE ODATA CLIENT ProductClient.ProductDataApiClient (
+CREATE CONSUMED ODATA SERVICE ProductClient.ProductDataApiClient (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/$metadata',
   ServiceUrl: 'https://api.example.com/odata'  -- ❌ Direct URL not allowed
@@ -164,14 +172,14 @@ When your API contract changes, create a new version rather than breaking existi
 
 ```sql
 -- v1: Original API (keep running for existing consumers)
-create odata service ProductApi.ProductDataApi (
+create published odata service ProductApi.ProductDataApi (
   path: 'odata/productdataapi/v1/',
   version: '1.0.0',
   ...
 );
 
 -- v2: New version with additional fields
-create odata service ProductApi.ProductDataApi_v2 (
+create published odata service ProductApi.ProductDataApi_v2 (
   path: 'odata/productdataapi/v2/',
   version: '2.0.0',
   ODataVersion: OData4,
@@ -202,34 +210,30 @@ Use the `Folder` property to organize OData documents within modules.
 
 ```sql
 -- Format 1: HTTP(S) URL
-create odata client ProductClient.ProductDataApiClient (
+create consumed odata service ProductClient.ProductDataApiClient folder 'Integration/ProductAPI' (
   ODataVersion: OData4,
-  MetadataUrl: 'https://api.example.com/odata/v4/$metadata',
-  Folder: 'Integration/ProductAPI'
+  MetadataUrl: 'https://api.example.com/odata/v4/$metadata'
 );
 
 -- Format 2: Absolute file:// URI
-create odata client ProductClient.ProductDataApiClient (
+create consumed odata service ProductClient.ProductDataApiClient folder 'Integration/ProductAPI' (
   ODataVersion: OData4,
-  MetadataUrl: 'file:///Users/team/contracts/productdataapi.xml',
-  Folder: 'Integration/ProductAPI'
+  MetadataUrl: 'file:///Users/team/contracts/productdataapi.xml'
 );
 
 -- Format 3a: Relative path with ./
-create odata client ProductClient.ProductDataApiClient (
+create consumed odata service ProductClient.ProductDataApiClient folder 'Integration/ProductAPI' (
   ODataVersion: OData4,
-  MetadataUrl: './metadata/productdataapi.xml',
-  Folder: 'Integration/ProductAPI'
+  MetadataUrl: './metadata/productdataapi.xml'
 );
 
 -- Format 3b: Relative path without ./
-create odata client ProductClient.ProductDataApiClient (
+create consumed odata service ProductClient.ProductDataApiClient folder 'Integration/ProductAPI' (
   ODataVersion: OData4,
-  MetadataUrl: 'metadata/productdataapi.xml',
-  Folder: 'Integration/ProductAPI'
+  MetadataUrl: 'metadata/productdataapi.xml'
 );
 
-create odata service ProductApi.ProductDataApi (
+create published odata service ProductApi.ProductDataApi (
   path: 'odata/productdataapi/v1/',
   version: '1.0.0',
   ODataVersion: OData4,
@@ -260,7 +264,7 @@ Before publishing:
 - [ ] View entity has at least one `key` field for OData identity
 - [ ] Module role created and granted on view entities (READ, optionally WRITE)
 - [ ] OData service has AUTHENTICATION set (Basic, Session, or Microflow)
-- [ ] GRANT ACCESS ON ODATA SERVICE to the API module role
+- [ ] GRANT ACCESS ON PUBLISHED ODATA SERVICE to the API module role
 - [ ] CUD microflows (if writable) accept `($ViewEntity, $HttpRequest)` parameters
 - [ ] CUD microflows granted EXECUTE to the API module role
 
@@ -270,7 +274,7 @@ Before consuming:
   - HTTP(S) URL: `https://api.example.com/$metadata`
   - Local file (absolute): `file:///path/to/metadata.xml`
   - Local file (relative): `./metadata/service.xml` (resolved against `.mpr` directory)
-- [ ] OData client uses `ServiceUrl: '@Module.Constant'` for runtime endpoint
+- [ ] OData client uses `ServiceUrl: Module.Constant` for runtime endpoint
 - [ ] External entities match the published exposed names and types
 - [ ] Module role created and granted on external entities (READ, optionally CREATE/WRITE/DELETE)
 
@@ -280,25 +284,25 @@ Use these commands to inspect existing OData setup in a project:
 
 ```sql
 -- List all published and consumed services
-show odata services;
-show odata clients;
+list published odata services;
+list consumed odata services;
 
 -- Inspect a specific service
-describe odata service ShopViews.ShopViewsApi;
-describe odata client ShopViewsClient.ShopViewsApiClient;
+describe published odata service ShopViews.ShopViewsApi;
+describe consumed odata service ShopViewsClient.ShopViewsApiClient;
 
 -- See external entities and view entities
-show entities in ShopViewsClient;
-show external entities;
-show external actions;
+list entities in ShopViewsClient;
+list external entities;
+list external actions;
 
 -- Browse available assets from cached $metadata contract
-show contract entities from ShopViewsClient.ShopViewsApiClient;
-show contract actions from ShopViewsClient.ShopViewsApiClient;
+list contract entities from ShopViewsClient.ShopViewsApiClient;
+list contract actions from ShopViewsClient.ShopViewsApiClient;
 describe contract entity ShopViewsClient.ShopViewsApiClient.Product;
 describe contract entity ShopViewsClient.ShopViewsApiClient.Product format mdl;
 
 -- Check security setup
-show access on odata service ShopViews.ShopViewsApi;
-show module roles in ShopViews;
+list access on odata service ShopViews.ShopViewsApi;
+list module roles in ShopViews;
 ```

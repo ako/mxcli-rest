@@ -158,6 +158,15 @@ where [not(Module.Order_Customer/Module.Customer)]
 
 **Rule**: Always use the fully qualified association name (`Module.AssociationName`).
 
+> **A bare association name is now caught before the build (MDL-XPATH01).**
+> `[Order_Customer = $currentUser]` used to pass `mxcli check --references`, get
+> written by `exec`, and only fail at the build with *"Error(s) in XPath
+> constraint"* (**CE0161**) — which is the expensive shape, because `exec` cannot
+> roll back and stops with the model half-updated. `check` now names the
+> association and the qualified spelling to use instead. It fires only when the
+> bare name is not an attribute of the constrained entity **and** is a known
+> association, so attributes stay bare and XPath functions are never touched.
+
 > **`= empty` does not work on associations (CE0161 / MDL047).** `= empty` tests
 > *attribute* nullability only. To test whether an object *has no* associated
 > object, use negated existence: `[not(Module.Order_Customer/Module.Customer)]` —
@@ -258,7 +267,7 @@ The expression inside `[...]` is parsed as XPath and stored in BSON as the `Xpat
 datagrid dg (
   datasource: database from Module.Entity where [State != 'Cancelled'] sort by Name asc
 ) {
-  column col1 (attribute: Name, caption: 'Name')
+  column (attribute: Name, caption: 'Name')
 }
 ```
 
@@ -277,16 +286,17 @@ datasource: database from Module.Entity where [IsActive = true] or [Stock > 10]
 
 ### GRANT Entity Access (Security)
 
-For security rules, XPath is passed as a **string literal** (not parsed):
+Security rules take the XPath in brackets, like every other XPath, so quotes
+inside it are written once:
 
 ```mdl
-grant Module.Role on Module.Entity (
-  read *,
-  write *
-) where '[System.owner = ''[%CurrentUser%]'']';
+grant read *, write * on entity Module.Entity to Module.Role
+  where [System.owner = '[%CurrentUser%]'];
 ```
 
-Note the double single-quotes for escaping inside the string literal.
+Sibling groups (`where [a][b]`) are kept as one constraint. The old quoted form
+`grant Module.Role on Module.Entity (...) where '[...]'` still parses, warns
+MDL-DEPR030, and `mxcli fmt --upgrade` rewrites it.
 
 ## Enumeration Attributes
 
@@ -366,7 +376,7 @@ retrieve $MyItems from Module.Item
   where [System.owner = '[%CurrentUser%]'];
 
 -- In security rule
-grant Module.User on Module.Item (read all) where '[System.owner = ''[%CurrentUser%]'']';
+grant read * on entity Module.Item to Module.User where [System.owner = '[%CurrentUser%]'];
 ```
 
 ## Validation

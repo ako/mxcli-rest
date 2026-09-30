@@ -160,7 +160,7 @@ See GitHub issue #213 for architecture discussion.
 
 **MDL CATALOG keyword** (different concept):
 - **What**: Local project metadata tables in the mxcli SQLite database
-- **MDL syntax**: `SELECT ... FROM CATALOG.entities`, `SHOW CATALOG TABLES`
+- **MDL syntax**: `SELECT ... FROM CATALOG.entities`, `LIST CATALOG TABLES`
 - **Purpose**: Query project structure (entities, microflows, pages, etc.)
 - **Requires**: `REFRESH CATALOG` command (no auth needed)
 - **Data source**: Your local .mpr file

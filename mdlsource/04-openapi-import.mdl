@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * PetStore client, generated from the published OpenAPI 3.0 spec.
  *
@@ -12,7 +13,7 @@
  * returned 500 when probed, and a GET on the id used came back as another
  * user's pet, so writes here are not demonstrable.
  */
-create or modify rest client RestLab."PetStoreApi" (
+create or modify consumed rest service RestLab."PetStoreApi" (
   OpenAPI: 'https://petstore3.swagger.io/api/v3/openapi.json',
   -- The spec's servers[0].url is the RELATIVE '/api/v3', which cannot be a
   -- BaseUrl; without this the import warns and leaves the client unusable.

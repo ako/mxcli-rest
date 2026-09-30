@@ -73,7 +73,7 @@ Each row in `bindings` is an object of `{var: {type, value}}`. A JSLT transforme
 └────────────────────┘   └────────────────────┘   └────────────────────┘   └────────────────┘
 ```
 
-**Why inline `rest call` rather than `create rest client` + `send rest request`?**
+**Why inline `rest call` rather than `create consumed rest service` + `send rest request`?**
 
 - At the time of writing, REST Client `authentication: basic (username: '...', password: '...')` silently fails to attach the `Authorization` header when the password contains special characters (e.g. `!`). Result: `401 Unauthorized`.
 - Inline `rest call ... auth basic '<user>' password '<pass>'` handles the same credentials correctly.
@@ -152,7 +152,7 @@ The JSON structure represents the **transformed** shape (after JSLT), not the ra
 
 ```sql
 create json structure MyModule.JSON_Customers
-snippet '{"customers":[{"customerUri":"http://example.com/Customer/0","customerId":"CUST001","customerName":"Global Tech Solutions Inc."}]}';
+sample '{"customers":[{"customerUri":"http://example.com/Customer/0","customerId":"CUST001","customerName":"Global Tech Solutions Inc."}]}';
 
 create import mapping MyModule.IMM_Customers
   with json structure MyModule.JSON_Customers
@@ -182,7 +182,7 @@ begin
   end loop;
 
   -- Inline REST CALL — NOT the REST Client (see notes)
-  $RawJson = rest call post 'https://graphstudio.mendixdemo.com/sparql/graphmart/http%3A%2F%2Fcambridgesemantics.com%2FGraphmart%2F3617250aca6a40d88972c1c0de38f86a'
+  $RawJson = call rest service post 'https://graphstudio.mendixdemo.com/sparql/graphmart/http%3A%2F%2Fcambridgesemantics.com%2FGraphmart%2F3617250aca6a40d88972c1c0de38f86a'
     header 'Accept'       = 'application/sparql-results+json'
     header 'Content-Type' = 'application/sparql-query'
     auth basic '<username>' password '<password>'
@@ -213,11 +213,11 @@ create page MyModule.Customer_Overview (
   layout: Atlas_Core.Atlas_Default
 ) {
   dynamictext heading (content: 'Customers', rendermode: H2)
-  actionbutton btnRefresh (caption: 'Refresh', action: microflow MyModule.ACT_RefreshCustomers, buttonstyle: primary)
+  actionbutton btnRefresh (caption: 'Refresh', action: call microflow MyModule.ACT_RefreshCustomers, buttonstyle: primary)
   datagrid gridCustomers (datasource: database MyModule.Customer sort by CustomerId asc) {
-    column colId   (attribute: CustomerId,   caption: 'ID')
-    column colName (attribute: CustomerName, caption: 'Name')
-    column colUri  (attribute: CustomerUri,  caption: 'URI')
+    column   (attribute: CustomerId,   caption: 'ID')
+    column (attribute: CustomerName, caption: 'Name')
+    column  (attribute: CustomerUri,  caption: 'URI')
   }
 }
 /
@@ -242,7 +242,7 @@ with ({1} = '{', {2} = '}')
 
 ### JSON structure auto-detects ISO strings as DateTime
 
-If your JSLT emits ISO 8601 timestamps (`"2026-04-13T14:00"`) and the target Mendix attribute is `string`, `create json structure ... snippet '...'` will infer `datetime` from the sample and mxbuild fails with `CE5015` ("schema type DateTime doesn't match attribute type String").
+If your JSLT emits ISO 8601 timestamps (`"2026-04-13T14:00"`) and the target Mendix attribute is `string`, `create json structure ... sample '...'` will infer `datetime` from the sample and mxbuild fails with `CE5015` ("schema type DateTime doesn't match attribute type String").
 
 **Solutions:**
 - Use a non-ISO sample value in the snippet (e.g. `"2026-04-13 14:00 CET"`).
@@ -301,9 +301,7 @@ where {
 
 ## Credential management
 
-For demos, literal credentials inline in the microflow are the simplest and most reliable. For anything else, put them in a project constant and reference it from the microflow via `$ConstantName` (requires a non-trivial amount of setup — see the project settings skill).
-
-**Do not** use `$ConstantName` in `create rest client ... authentication: basic (username: $C, password: $C)` — the MDL parser rejects the `$` prefix there, and the skill files' claim of `rest$ConstantValue` serialization isn't reachable.
+For demos, literal credentials inline in the microflow are the simplest and most reliable. For anything else, put them in a project constant and reference it as `@Module.ConstantName` — the one way MDL refers to a constant, in a microflow expression and in `create consumed rest service ... authentication: basic (username: @Module.User, password: @Module.Password)` alike. The older `$ConstantName` spelling in a REST credential still parses and warns MDL-DEPR083.
 
 ## Related skills
 

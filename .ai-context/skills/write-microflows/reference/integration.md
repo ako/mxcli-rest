@@ -12,7 +12,7 @@ round-trip without dropping SOAP actions.
 -- Structured form. Resolved SOAP references use normal qualified names.
 $Root = call web service SampleSOAP.OrderService
 operation FetchSampleItems
-send mapping SampleSOAP.OrderRequest
+send mapping SampleSOAP.OrderRequest from $Request
 receive mapping SampleSOAP.OrderResponse
 timeout 30
 on error rollback;
@@ -20,12 +20,62 @@ on error rollback;
 -- Quoted raw IDs are accepted when old project references are dangling or unavailable.
 $Root = call web service 'sample-service-id'
 operation FetchSampleItems
-send mapping 'sample-send-mapping-id'
 receive mapping 'sample-receive-mapping-id';
 
 -- Raw escape hatch emitted for unsupported SOAP fields.
 $Root = call web service raw 'AQID';
 ```
+
+### The request body: arguments OR a send mapping, never both
+
+A call stores **one** request body (`Microflows$RequestBodyHandling`), so the two
+forms are alternatives. Asking for both is refused as **MDL-SOAP01** by
+`mxcli check` and by `exec` — the same function runs in each.
+
+**Arguments** bind the operation's parameters, in the same `(Name = value)` form
+every other call statement uses:
+
+```mdl
+$Order = call web service Clients.OrderSoapClient
+operation GetOrder (OrderId = $Customer/OrderId)
+receive mapping Clients.SoapOrdersImportMapping;
+```
+
+Mendix stores each one under a `ParameterPath`
+(`http%3A//www.example.com/:GetOrder|OrderId`) built from the operation's request
+body element. mxcli reads that element off the consumed service document and
+builds the path, so the script names only the parameter. Two consequences:
+
+- **The consumed service must be present and declare the operation.** An
+  operation mxcli cannot resolve is refused rather than written with a made-up
+  path — a wrong path reproduces the same error with different text in it.
+- **A misspelled parameter name cannot be caught by `mxcli check`.** The names
+  live in the WSDL's inline schema, which mxcli does not parse; the error arrives
+  from mxbuild as **CE0178** "Body parameter mapping needs to be refreshed" —
+  which is also what you get if you omit arguments an operation requires.
+
+**A send mapping** builds the whole body from an export mapping, and needs the
+variable it maps **from**:
+
+```mdl
+call web service Clients.OrderSoapClient
+operation SaveOrder
+send mapping Clients.SoapOrderExportMapping from $NewSaveOrder;
+```
+
+`from $var` is not optional. An export mapping maps an object and Mendix stores
+which one; without it the call builds as **CE0369** "Cannot use simple request
+body, as the operation's body is complex".
+
+### Why DESCRIBE sometimes still shows base64
+
+`describe microflow` renders a SOAP call structurally only when re-executing that
+MDL would reproduce the stored document exactly. A call configured beyond what
+MDL spells — HTTP authentication, a custom location, SOAP headers, a per-parameter
+export mapping, or a result typed from the WSDL rather than from an import
+mapping — keeps the `call web service raw '<base64>'` form, which round-trips
+byte for byte. That is deliberate: rendering it structurally would silently
+normalise the call on the next `exec`.
 
 **Design note:** the raw payload is base64-encoded BSON for the complete action
 and is authoritative on re-exec. Treat this as round-trip support, not a
@@ -36,7 +86,7 @@ MDL supports two patterns for calling REST APIs from microflows:
 
 ### SEND REST REQUEST — Consumed REST Service Operations
 
-Calls an operation defined in a consumed REST service (created via `create rest client`). The URL, headers, authentication, and response mapping are configured in the REST client document — the microflow only references the operation.
+Calls an operation defined in a consumed REST service (created via `create consumed rest service`). The URL, headers, authentication, and response mapping are configured in the REST client document — the microflow only references the operation.
 
 ```mdl
 -- Fire and forget (RESPONSE NONE operation)
@@ -44,6 +94,10 @@ send rest request Module.ServiceName.OperationName;
 
 -- With output variable (RESPONSE JSON operation — maps to entity)
 $Result = send rest request Module.ServiceName.OperationName;
+
+-- With path/query parameters, bound as at every call site: `Param = expression`
+$Result = send rest request Module.ServiceName.GetItem
+    with (id = $ItemId, lang = 'en');
 
 -- With request body (POST/PUT operations)
 $Result = send rest request Module.ServiceName.CreateItem
@@ -71,7 +125,7 @@ if $RootResult != empty then  -- ERROR!
 
 **Restrictions:**
 - `send rest request` does **NOT** support custom error handling (`on error continue/rollback` causes CE6035). Errors are always handled by aborting.
-- The operation must be defined via `create rest client` with a three-part qualified name: `Module.ServiceDocument.OperationName`.
+- The operation must be defined via `create consumed rest service` with a three-part qualified name: `Module.ServiceDocument.OperationName`.
 
 ### REST CALL — Inline HTTP Calls
 
@@ -79,13 +133,13 @@ Direct HTTP call with URL, headers, auth, body, and response handling specified 
 
 ```mdl
 -- Simple GET returning string
-$response = rest call get 'https://api.example.com/data'
+$response = call rest service get 'https://api.example.com/data'
     header Accept = 'application/json'
     timeout 30
     returns string;
 
 -- POST with JSON body
-$response = rest call post 'https://api.example.com/items'
+$response = call rest service post 'https://api.example.com/items'
     header 'Content-Type' = 'application/json'
     header Accept = 'application/json'
     body '{{"name": "{1}", "value": {2}}' with (
@@ -101,28 +155,28 @@ $response = rest call post 'https://api.example.com/items'
 -- itself, and the content type goes on a header. A consumed REST CLIENT
 -- document has no binary body — `Body: file from $Doc` there is refused as
 -- MDL-REST02 — so binary uploads belong here.
-$response = rest call post 'https://api.example.com/upload'
+$response = call rest service post 'https://api.example.com/upload'
     header 'ContentType' = 'application/pdf'
     body binary $Doc/Contents
     timeout 300
     returns response;
 
 -- GET with URL template parameters
-$response = rest call get 'https://api.example.com/users/{1}' with (
+$response = call rest service get 'https://api.example.com/users/{1}' with (
     {1} = toString($UserId)
 )
     header Accept = 'application/json'
     returns string;
 
 -- With basic authentication
-$response = rest call get 'https://api.example.com/secure'
+$response = call rest service get 'https://api.example.com/secure'
     header Accept = 'application/json'
     auth basic $username password $password
     timeout 30
     returns string;
 
 -- DELETE (no response)
-rest call delete 'https://api.example.com/items/{1}' with (
+call rest service delete 'https://api.example.com/items/{1}' with (
     {1} = $ItemId
 )
     returns nothing
@@ -131,7 +185,7 @@ rest call delete 'https://api.example.com/items/{1}' with (
 
 **REST CALL response types:**
 - `returns string` — response body as string variable
-- `returns nothing` / `returns none` — ignore response
+- `returns nothing` — ignore response (`returns none` is the deprecated second spelling, MDL-DEPR024)
 - `returns response` — returns `System.HttpResponse` object
 - `returns mapping Module.ImportMapping as Module.Entity` — single object result
 - `returns mapping Module.ImportMapping as list of Module.Entity` — list result
@@ -146,7 +200,7 @@ create persistent entity MyModule.MyFile extends System.FileDocument ();
 
 create microflow MyModule.ACT_Download ($Location: String)
 begin
-  $file = rest call get '{1}' with ({1} = $Location)
+  $file = call rest service get '{1}' with ({1} = $Location)
     header 'Accept' = 'application/octet-stream'
     timeout 300
     returns MyModule.MyFile;
@@ -160,6 +214,28 @@ There is **no** equivalent for an HttpResponse specialization: Mendix allows onl
 **Pick `as` vs `as list of` based on the call site, not the mapping shape.** The same import mapping can yield either a single object or a list — Studio Pro stores the cardinality on the microflow's `ImportMappingCall` (`Range.SingleObject` + `ForceSingleOccurrence`). Use `as Module.Entity` when the response is a single object (the mapping may still be list-typed; Studio Pro binds the first item). Use `as list of Module.Entity` when the response should bind a list. Mismatching the cardinality with the surrounding code produces `mx check` `CE0117` at the End event or `CE0013` / `CE0100` on downstream loop / aggregate / list-operation activities.
 
 **REST CALL supports full error handling** (`on error continue`, `on error rollback`, custom error handlers).
+## Execute Database Query
+```mdl
+-- Static query (3-part name: Module.Connection.Query)
+$Results = execute database query Module.Conn.QueryName;
+
+-- Dynamic SQL override
+$Results = execute database query Module.Conn.QueryName
+  dynamic 'SELECT * FROM table LIMIT 10';
+
+-- Parameterized query (names must match query PARAMETER definitions)
+$Results = execute database query Module.Conn.QueryName
+  (paramName = $Variable);
+
+-- Runtime connection override
+$Results = execute database query Module.Conn.QueryName
+  connection (DBSource = $url, DBUsername = $user, DBPassword = $Pass);
+
+-- Fire-and-forget (no output variable)
+execute database query Module.Conn.QueryName;
+```
+**Note:** Only `on error rollback` is supported (the default). `on error continue` is not available for this action.
+
 ## File Downloads
 
 Use `download file` to stream a `System.FileDocument` from a microflow. Add

@@ -206,10 +206,11 @@ begin
 end loop;
 ```
 
-> **`@caption` does nothing on a loop.** Mendix for-loops have no caption
-> property, so `@caption` on a `loop` is silently dropped (`mxcli check` flags
-> it as **MDL042**). To label a loop, use `@annotation 'text'` — it attaches a
-> note, exactly like drawing one onto the loop in Studio Pro.
+> **`@caption` does nothing on a loop or a while loop.** Both are the same loop
+> activity, which has no caption property, so `@caption` on a `loop` or a `while`
+> is dropped (`mxcli check` flags it as **MDL042**). To label either, use
+> `@annotation 'text'` — it attaches a note, exactly like drawing one onto the loop
+> in Studio Pro.
 
 **Note**:
 - Loop variable (`$Product`) is scoped to the loop body
@@ -307,8 +308,10 @@ commit $Product;
 - `@annotation` before activity-binding metadata such as `@position`, `@caption`, `@color`, `@excluded`, or `@anchor` stays free-floating when later metadata binds the following activity
 - `@annotation` at the end (no following activity) creates a free-floating note
 - Escape single quotes by doubling: `@annotation 'Don''t forget'`
+- **Leave `@position` out unless you are reproducing a hand-made diagram.** Without it the builder lays the flow out itself: the main line wraps onto rows past two canvas widths, a guard's branch drops into the lane below while the main line carries on above it, and a `case` of four or more branches leaves the decision in three groups so its lines do not cross. A statement with `@position` is never moved and is not measured against what is placed around it, so a few hand-placed statements in an otherwise automatic flow are what produces overlaps (mendixlabs/mxcli#1154)
 - `@position` always appears in DESCRIBE output; `@caption` only when custom; `@color` only when not Default
 - DESCRIBE MICROFLOW shows `@` annotations before their activities
+- `@anchor(from: X)` is the side the flow **leaving** a statement starts from. On an `if` that is the flow out of its closing merge (the merge has no statement of its own, just as its position rides on the if as `@merge`); the if's `to:` is its incoming flow and `true:` / `false:` its branches. `@anchor(from: bottom, to: top, …)` on an if is how DESCRIBE writes a decision whose merge drops onto the next row (#767)
 - `@start(x, y)` positions the **start event** and goes on the first statement, because the start has no statement of its own. Omit it and the start is derived — one spacing unit (160) left of the first activity, on its centre line — and a rewrite re-derives it so the start follows the activities when they move. A start that is not at the derived spot was placed by hand (in Studio Pro or with `@start`): it survives a rewrite that does not mention it, and DESCRIBE emits `@start` for it. An explicit `@start` overrides both (#951)
 - `@position(x, y)` on a **parameter** goes inside the parameter list, ahead of the parameter it places — a parameter is a stored node with its own coordinates, and this is the only annotation it takes. Omit it and the parameters form a row along the top of the canvas (200;53, 300;53, …). The `@start` rule above applies unchanged: a parameter on that derived row is re-derived on a rewrite, one anywhere else was placed by hand, survives, and is emitted by DESCRIBE (#993). Before this, a hand-aligned parameter block was moved back onto the row by any rewrite — including a describe → exec of mxcli's own output:
 
@@ -331,17 +334,17 @@ call microflow Module.RiskyOperation() on error continue;
 -- ON ERROR ROLLBACK: Rollback transaction and propagate error
 commit $Order on error rollback;
 
--- ON ERROR { ... }: Custom error handler with rollback
-$Result = call microflow Module.ExternalService(data = $data) on error {
+-- ON ERROR BEGIN ... END ERROR: Custom error handler with rollback
+$Result = call microflow Module.ExternalService(data = $data) on error begin
   log error node 'ServiceError' 'External service failed';
   return $DefaultResult;
-};
+end error;
 
--- ON ERROR WITHOUT ROLLBACK { ... }: Custom handler, keep changes
-commit $Order on error without rollback {
+-- ON ERROR WITHOUT ROLLBACK BEGIN ... END ERROR: Custom handler, keep changes
+commit $Order on error without rollback begin
   log warning node 'CommitError' 'Commit failed, using fallback';
   change $Order (status = 'PENDING');
-};
+end error;
 ```
 
 ### Error Handling Semantics
@@ -350,8 +353,43 @@ commit $Order on error without rollback {
 |--------|----------|
 | `on error continue` | Catch error silently, continue normal flow |
 | `on error rollback` | Rollback database changes, propagate error |
-| `on error { ... }` | Execute handler block, then continue (with rollback) |
-| `on error without rollback { ... }` | Execute handler block, keep database changes |
+| `on error begin ... end error` | Execute handler block, then continue (with rollback) |
+| `on error without rollback begin ... end error` | Execute handler block, keep database changes |
+
+### RAISE ERROR is handler-only
+
+`raise error;` builds Mendix's **error event**, which *re-raises the error
+currently being handled*. Mendix therefore allows one only where an error is in
+scope — that is, inside an `on error begin ... end error` block. Studio Pro will not even
+let you draw the connection from the normal flow to an error event.
+
+```mdl
+-- ✅ inside a handler: an error IS in scope
+call microflow Module.RiskyOperation()
+on error begin
+  log error node 'Module' 'failed, re-raising';
+  raise error;
+end error;
+
+-- ❌ on the main flow: MDL084, and mxbuild rejects it with
+--    CE0710 "The main flow cannot join an error flow or end in an error event."
+create microflow Module.Fail ()
+begin
+  raise error;
+end;
+```
+
+Nesting does not change this: a `raise error;` inside an `if` or a `loop` on the
+main flow is still on the main flow, and one inside a branch of a handler body is
+still on the error flow.
+
+Mendix has **no main-flow "throw" activity**. To fail deliberately from the normal
+path, call a Java action that throws:
+
+```mdl
+create java action Module.JA_RaiseTechnicalError(Message: string not null) returns boolean as
+$$ throw new com.mendix.systemwideinterfaces.MendixRuntimeException(Message); $$;
+```
 
 ### When to Use Each Type
 
@@ -372,15 +410,99 @@ returns Module.Response as $response
 begin
   -- The call output establishes $response — objects are never declared
   $response = call microflow Module.CallExternalAPI(data = $RequestData)
-    on error without rollback {
+    on error without rollback begin
       log error node 'ExternalAPI' 'API call failed for: ' + $RequestData;
       -- Create error response
       $response = create Module.Response (
         success = false,
         message = 'External service unavailable');
-    };
+    end error;
 
   return $response;
 end;
 /
 ```
+
+### Where the Error Path Goes — `merge` / `join`
+
+`on error` has four forms, and they differ in **where the error path goes**, not
+just in what it does. The difference is invisible in the MDL, so it is worth
+knowing which one you are writing.
+
+| Form | Error path |
+|------|-----------|
+| `on error continue` | No error path at all |
+| `on error [without rollback] begin … return/throw end error` | Its own path, its own terminator |
+| `on error [without rollback] begin end error` | **Not a no-op** — falls through to whatever the *enclosing branch* does next |
+| `on error [without rollback] begin … join L; end error` | Rejoins the normal path at the merge labelled `L` |
+
+The empty form is the one that surprises people. It means "on error, do whatever
+the enclosing branch's continuation does" — which in a branch that returns
+something else is a value nowhere in the text. Prefer `join` when you mean it.
+
+```mdl
+create microflow Module.Post (Payload: String) returns String
+begin
+  declare $Status String = 'sent';
+  $r = call microflow Module.Send(Payload = $Payload) on error without rollback begin
+    log warning node 'Module' 'send failed, degrading';
+    set $Status = 'degraded';
+    join recovered;
+  end error;
+  join recovered;
+
+  merge recovered;
+  return $Status;
+end;
+```
+
+**`merge <label>` declares a join point; `join <label>` sends a path to it.** The
+label exists only in MDL — a Mendix `ExclusiveMerge` stores no name — so it is
+resolved when the microflow is built and never written to the model.
+
+Forward and backward references both resolve, so declaration order is free. A
+backward one is how a **retry loop** is written, with the merge before the
+activity:
+
+```mdl
+merge attempt;
+$r = call microflow Module.Send(Payload = $Payload) on error without rollback begin
+  log warning node 'Module' 'retrying';
+  join attempt;
+end error;
+return $r;
+```
+
+They also cover **crossed branches** — an inner split's branch landing where an
+outer split's branch lands, which no nesting of `if` reproduces:
+
+```mdl
+if $A then
+  if $B then join m1; else join m2; end if;
+else
+  join m1;
+end if;
+
+merge m1;
+log info node 'Module' 'shared by two branches';
+join m2;
+
+merge m2;
+return true;
+```
+
+Rules, all reported by `mxcli check` before anything is written:
+
+| Rule | Refusal |
+|------|---------|
+| MDL-FLOW02 | `join L` with no `merge L`, or a `merge L` nothing joins (Mendix rejects a merge with no inbound path) |
+| MDL-FLOW03 | The same label declared twice |
+| MDL-FLOW04 | `merge` / `join` inside a `loop` or `while` body — a `LoopedActivity` owns its own object collection and a sequence flow cannot leave it, so there is no graph this could build. Use `break` / `continue` and put the merge outside |
+
+A path that has already ended (`return`, `throw`, `join`) does **not** fall
+through into a following `merge`: the merge starts a new path.
+
+`DESCRIBE MICROFLOW` emits `merge` / `join` for an error path that rejoins the
+normal one, so those microflows round-trip. A graph with **crossed branches and
+no error handler** still describes to flattened MDL with the MDL-FLOW01 warning —
+that half is not done, and the warning says not to re-execute it.
