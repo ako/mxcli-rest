@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * The data-transformer lane: reshaping JSON that Mendix mappings cannot address
  *
@@ -51,7 +52,7 @@ source json '{"amount":1.0,"base":"EUR","date":"2026-08-18","rates":{"AUD":1.627
  * object.
  */
 create or modify json structure RestLab."JSON_Rates"
-snippet '{"base":"EUR","date":"2026-08-18","amount":1.0,"rates":[{"code":"AUD","value":1.6278},{"code":"BRL","value":6.0281}]}';
+sample '{"base":"EUR","date":"2026-08-18","amount":1.0,"rates":[{"code":"AUD","value":1.6278},{"code":"BRL","value":6.0281}]}';
 
 -- ---------------------------------------------------------------- 3. mapping
 
@@ -71,6 +72,12 @@ create or modify import mapping RestLab."IMM_Rates"
 
 -- ---------------------------------------------------------------- 4. microflow
 
+-- Dropped and re-created rather than modified in place: this flow holds a
+-- loop or a decision whose body the splice cannot edit, and under `mdl 1;`
+-- an unspliceable change is a refusal rather than a whole-flow rebuild.
+-- Re-creating converges by construction. FINDINGS #65.
+drop microflow if exists RestLab.ACT_Rates_GetLatest;
+
 /**
  * REST CALL (raw string) -> TRANSFORM (JSLT) -> IMPORT FROM MAPPING.
  *
@@ -85,7 +92,7 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = rest call get 'https://api.frankfurter.dev/v1/latest?base=EUR'
+  $Raw = call rest service get 'https://api.frankfurter.dev/v1/latest?base=EUR'
     header Accept = 'application/json'
     timeout 30
     returns string
@@ -115,7 +122,7 @@ begin
 
     -- Both payloads are stored so the detail page can show them side by side.
     CHANGE $Log ("TransformedBody" = $Shaped);
-    COMMIT $Log;
+    COMMIT $Log WITH EVENTS;
 
     -- The reshaped array becomes rows. This was blocked until ako/mxcli #192
     -- (an unauthored import range is All, not First) -- before it, every import
@@ -129,16 +136,15 @@ begin
     $Snapshot = import from mapping RestLab."IMM_Rates" ($Shaped);
 
     CHANGE $Snapshot (RestLab.RateSnapshot_CallLog = $Log);
-    COMMIT $Snapshot;
+    COMMIT $Snapshot WITH EVENTS;
 
     -- The mapping creates the children too, but they arrive uncommitted.
     RETRIEVE $Rates FROM $Snapshot/RestLab.RateSnapshot_ExchangeRate;
     LOOP $Rate IN $Rates
     BEGIN
-      COMMIT $Rate;
+      COMMIT $Rate WITH EVENTS;
     END LOOP;
   END IF;
 
   RETURN $Log;
 end;
-/

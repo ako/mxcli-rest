@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * Navigation and access
  *
@@ -6,12 +7,12 @@
  * the demos.
  */
 
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page RestLab."Home_Web"
-  menu (
-    menu item 'RestLab' page RestLab."Home_Web";
-    menu item 'Mapped data' page RestLab."Mapped_Overview";
-  )
+  {
+    menu item 'RestLab' ( OnClick: show page RestLab."Home_Web" )
+    menu item 'Mapped data' ( OnClick: show page RestLab."Mapped_Overview" )
+  }
 ;
 
 -- Page access

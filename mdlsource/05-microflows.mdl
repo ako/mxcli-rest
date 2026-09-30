@@ -1,3 +1,4 @@
+mdl 1;
 /**
  * RestLab microflows
  *
@@ -53,10 +54,9 @@ begin
     "Lane" = $Lane,
     "Timestamp" = [%CurrentDateTime%]
   );
-  COMMIT $CallLog;
+  COMMIT $CallLog WITHOUT EVENTS;
   RETURN $CallLog;
 end;
-/
 
 -- ---------------------------------------------------------------- CRUD lane
 
@@ -77,7 +77,7 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = rest call get 'https://api.restful-api.dev/objects/{1}' with (
+  $Raw = call rest service get 'https://api.restful-api.dev/objects/{1}' with (
     {1} = $ObjectId
   )
     header Accept = 'application/json'
@@ -103,7 +103,6 @@ begin
 
   RETURN $Log;
 end;
-/
 
 /**
  * Create an object on the remote API. Body is produced by the operation's
@@ -132,13 +131,19 @@ begin
   );
 
   CHANGE $NewObject (RestLab.RestObject_CallLog = $Log);
-  COMMIT $NewObject;
+  COMMIT $NewObject WITHOUT EVENTS;
 
   RETURN $Log;
 end;
-/
 
 -- ---------------------------------------------------------------- catalog lane
+
+-- Dropped and re-created rather than modified in place: a loop or a
+-- decision in this flow cannot be spliced, and under `mdl 1;` an
+-- unspliceable change is a refusal rather than a whole-flow rebuild.
+-- Re-creating converges by construction; it remints element IDs, which
+-- costs nothing for a flow no one has laid out by hand. FINDINGS #65.
+drop microflow if exists RestLab.ACT_Catalog_GetProducts;
 
 /**
  * Paged product fetch. Demonstrates the nested LIST mapping: the dummyjson
@@ -156,7 +161,7 @@ begin
   declare $Start DateTime = [%CurrentDateTime%];
 
   $ProductList = send rest request RestLab."CatalogApi"."GetProducts"
-    with ($limit = $Limit, $skip = $Skip);
+    with (limit = $Limit, skip = $Skip);
 
   $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
     Url = 'https://dummyjson.com/products?limit=' + $Limit + '&skip=' + $Skip,
@@ -178,12 +183,11 @@ begin
       "PriceValue" = if $Product/Price != empty then parseDecimal($Product/Price) else 0,
       RestLab.Product_CallLog = $Log
     );
-    COMMIT $Product;
+    COMMIT $Product WITHOUT EVENTS;
   END LOOP;
 
   RETURN $Log;
 end;
-/
 
 -- ---------------------------------------------------------------- edge cases
 
@@ -205,7 +209,7 @@ begin
   declare $Ok Boolean = false;
   declare $Err String = 'Request failed before a response was received';
 
-  $Response = rest call get 'https://httpbingo.org/status/{1}' with (
+  $Response = call rest service get 'https://httpbingo.org/status/{1}' with (
     {1} = $Code
   )
     header Accept = 'application/json'
@@ -233,7 +237,6 @@ begin
 
   RETURN $Log;
 end;
-/
 
 -- ---------------------------------------------------------------- weather lane
 
@@ -249,7 +252,7 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = rest call get 'https://api.open-meteo.com/v1/forecast?latitude=52.37&longitude=4.89&current=temperature_2m'
+  $Raw = call rest service get 'https://api.open-meteo.com/v1/forecast?latitude=52.37&longitude=4.89&current=temperature_2m'
     header Accept = 'application/json'
     timeout 30
     returns string
@@ -273,7 +276,6 @@ begin
 
   RETURN $Log;
 end;
-/
 
 -- ---------------------------------------------------------------- list mappings
 
@@ -307,12 +309,11 @@ begin
   -- Only an OBJECT root maps; see ACT_Catalog_GetProducts for one that works.
   IF $Objects != empty THEN
     CHANGE $Objects (RestLab.RestObject_CallLog = $Log);
-    COMMIT $Objects;
+    COMMIT $Objects WITHOUT EVENTS;
   END IF;
 
   RETURN $Log;
 end;
-/
 
 /**
  * jsonplaceholder posts -- flat attribute mapping, no nesting.
@@ -338,12 +339,11 @@ begin
   -- /posts is an array root too, so the same guard is needed here.
   IF $Posts != empty THEN
     CHANGE $Posts (RestLab.Post_CallLog = $Log);
-    COMMIT $Posts;
+    COMMIT $Posts WITHOUT EVENTS;
   END IF;
 
   RETURN $Log;
 end;
-/
 
 /**
  * The working mapping lane: object root + nested object + query parameters.
@@ -355,7 +355,7 @@ begin
   declare $Start DateTime = [%CurrentDateTime%];
 
   $Reading = send rest request RestLab."WeatherApi"."GetForecast"
-    with ($latitude = '52.37', $longitude = '4.89', $current = 'temperature_2m');
+    with (latitude = '52.37', longitude = '4.89', current = 'temperature_2m');
 
   $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
     Url = 'https://api.open-meteo.com/v1/forecast?latitude=52.37&longitude=4.89&current=temperature_2m',
@@ -370,9 +370,8 @@ begin
 
   IF $Reading != empty THEN
     CHANGE $Reading (RestLab.WeatherReading_CallLog = $Log);
-    COMMIT $Reading;
+    COMMIT $Reading WITHOUT EVENTS;
   END IF;
 
   RETURN $Log;
 end;
-/
