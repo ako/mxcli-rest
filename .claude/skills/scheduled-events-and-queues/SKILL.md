@@ -125,14 +125,14 @@ A task queue bounds how many queued calls run at once. Binding a call to it
 is a separate step — see [`IN QUEUE`](#binding-a-call-to-a-queue--in-queue).
 
 ```sql
-list queues;
-describe queue Ops.OrderProcessing;
+list task queues;
+describe task queue Ops.OrderProcessing;
 
-create queue Ops.OrderProcessing ( Parallelism: 3, ClusterWide: true );
-create queue Ops.Mail;                     -- defaults: parallelism 1, per-instance
+create task queue Ops.OrderProcessing ( Parallelism: 3, ClusterWide: true );
+create task queue Ops.Mail;                     -- defaults: parallelism 1, per-instance
 
-create or modify queue Ops.OrderProcessing ( Parallelism: '$MyModule.Workers' );
-drop queue Ops.Mail;
+create or modify task queue Ops.OrderProcessing ( Parallelism: '$MyModule.Workers' );
+drop task queue Ops.Mail;
 ```
 
 | Property | Meaning | Default |
@@ -250,7 +250,7 @@ Both take a `folder` clause on `create`, straight after the qualified name:
 create scheduled event Ops.SE_Nightly folder 'Private/Scheduled events'
   ( Microflow: Ops.ACT_Nightly, Repeat: Day, StartDateTime: '2026-01-01T02:00:00Z' );
 
-create queue Ops.Q_Imports folder 'Private/Queues' ( Parallelism: 3 );
+create task queue Ops.Q_Imports folder 'Private/Queues' ( Parallelism: 3 );
 ```
 
 On `create or modify` the clause moves an existing document; omitting it leaves
@@ -285,7 +285,7 @@ select QualifiedName, Parallelism, ClusterWide from CATALOG.QUEUES;
 ```
 
 A scheduled event counts as a caller of the microflow it runs, so
-`show callers of Ops.SE_Cleanup` lists it and the lint rule for orphaned
+`list callers of Ops.SE_Cleanup` lists it and the lint rule for orphaned
 microflows (QUAL004) does not flag it. `IntervalSeconds` is derived from the
 schedule, not from the legacy `Interval`/`IntervalType` pair Mendix also stores.
 
@@ -301,8 +301,8 @@ Starlark lint rules can iterate both: `scheduled_events()` yields
 
 ## Scheduled events — Mendix's cron (LIST/DESCRIBE/CREATE [OR MODIFY]/DROP). `Repeat:` names one of the eight `ScheduledEvents$*Schedule` variants and only that variant's fields are accepted; a field from another repeat is refused by `mxcli check` (MDL-SCHED01) and by exec, which call the same function. The document shape is pinned by re-serializing three whole Studio Pro-authored events (Workflow Commons 4.11.0, OIDC SSO 4.6.0, SAML 4.2.1) element by element — `modelsdk/gen` is **wrong** about two properties here
 
-the integers are stored as int64 (gen says int32, the #585 mismatch) and `StartDateTime` is a BSON datetime (gen says string), so both engines share one raw-BSON codec in `mdl/scheduledevents`. `Interval`/`IntervalType` are legacy siblings of `Schedule` that Studio Pro writes and does not keep in sync — derived on CREATE, carried through untouched on MODIFY. Only the Day and Hour variants have a Studio Pro reference; the other six are metamodel-derived and verified to load. Both are in the catalog (`CATALOG.SCHEDULED_EVENTS`, `CATALOG.QUEUES`) and a scheduled event emits a `schedule` edge into `CATALOG.REFS` — without it a microflow run only by a scheduled event was reported as dead by `show callers`, `GRAPH_DEAD_ASSETS` and lint rule QUAL004.
+the integers are stored as int64 (gen says int32, the #585 mismatch) and `StartDateTime` is a BSON datetime (gen says string), so both engines share one raw-BSON codec in `mdl/scheduledevents`. `Interval`/`IntervalType` are legacy siblings of `Schedule` that Studio Pro writes and does not keep in sync — derived on CREATE, carried through untouched on MODIFY. Only the Day and Hour variants have a Studio Pro reference; the other six are metamodel-derived and verified to load. Both are in the catalog (`CATALOG.SCHEDULED_EVENTS`, `CATALOG.QUEUES`) and a scheduled event emits a `schedule` edge into `CATALOG.REFS` — without it a microflow run only by a scheduled event was reported as dead by `list callers`, `GRAPH_DEAD_ASSETS` and lint rule QUAL004.
 
-## Task queues (LIST/DESCRIBE/CREATE [OR MODIFY]/DROP QUEUE). `Config.ParallelismExpression` is a **string** and the sibling int32 `Parallelism` is not written — matching all four Studio Pro queues in Business Events 3.12.1. Binding a *call* to a queue is not yet authorable, so `CREATE OR REPLACE|MODIFY MICROFLOW` is **refused** when the stored microflow has a queued call (guard-don't-drop, ADR-0005)
+## Task queues (LIST/DESCRIBE/CREATE [OR MODIFY]/DROP TASK QUEUE). `Config.ParallelismExpression` is a **string** and the sibling int32 `Parallelism` is not written — matching all four Studio Pro queues in Business Events 3.12.1. Binding a *call* to a queue is not yet authorable, so `CREATE OR REPLACE|MODIFY MICROFLOW` is **refused** when the stored microflow has a queued call (guard-don't-drop, ADR-0005)
 
 the rebuild used to write `QueueSettings` back as null, which made `mx check` go from CE1613 to 0 errors by deleting the user's configuration

@@ -225,7 +225,7 @@ end;
 | `for ... loop ... end loop` | `loop $item in $list begin ... end loop` |
 | `while ... loop ... end loop` | Not directly supported; use recursive microflow |
 | `CURSOR` | `retrieve $list from ...` then `loop` |
-| `EXCEPTION when ... then` | `on error { ... }` |
+| `EXCEPTION when ... then` | `on error begin ... end error` |
 
 ### Example: PL/SQL to MDL
 
@@ -272,9 +272,9 @@ begin
     set $Total = $Total + $Order/Amount;
 
     change $Order (status = 'PROCESSED');
-    commit $Order on error {
+    commit $Order on error begin
       log error 'Failed to process order: ' + $Order/OrderNumber;
-    };
+    end error;
   end loop;
 
   log info 'Processed ' + toString($count) + ' orders, total: ' + toString($Total);
@@ -358,7 +358,7 @@ widgets (
 | `PRE-insert` / `PRE-update` | Before commit event handler |
 | `post-insert` / `post-update` | After commit event handler |
 | `key-commit` | Save button action microflow |
-| `on-error` | `on error { ... }` blocks |
+| `on-error` | `on error begin ... end error` blocks |
 
 ## Migration Checklist
 

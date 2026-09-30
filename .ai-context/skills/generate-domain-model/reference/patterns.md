@@ -45,13 +45,13 @@ create enumeration ECommerce.OrderStatus (
 @position(50, 50)
 create persistent entity ECommerce.Customer (
   /** Unique customer identifier */
-  CustomerId: long not null error 'Customer ID is required' unique error 'Customer ID must be unique',
+  CustomerId: long not null error message 'Customer ID is required' unique error message 'Customer ID must be unique',
   /** Customer full name */
-  FullName: string(200) not null error 'Full name is required',
+  FullName: string(200) not null error message 'Full name is required',
   /** Email address */
-  Email: string(200) not null error 'Email is required' unique error 'Email must be unique',
+  Email: string(200) not null error message 'Email is required' unique error message 'Email must be unique',
   /** Registration date */
-  RegistrationDate: datetime not null error 'Registration date is required'
+  RegistrationDate: datetime not null error message 'Registration date is required'
 );
 
 /**
@@ -64,15 +64,15 @@ create persistent entity ECommerce.Customer (
 @position(50, 250)
 create persistent entity ECommerce.Product (
   /** Unique product identifier */
-  ProductId: long not null error 'Product ID is required' unique error 'Product ID must be unique',
+  ProductId: long not null error message 'Product ID is required' unique error message 'Product ID must be unique',
   /** Product name */
-  ProductName: string(200) not null error 'Product name is required',
+  ProductName: string(200) not null error message 'Product name is required',
   /** Product SKU */
-  SKU: string(50) not null error 'SKU is required' unique error 'SKU must be unique',
+  SKU: string(50) not null error message 'SKU is required' unique error message 'SKU must be unique',
   /** Unit price */
-  Price: decimal not null error 'Price is required',
+  Price: decimal not null error message 'Price is required',
   /** Stock quantity */
-  StockQuantity: integer not null error 'Stock quantity is required'
+  StockQuantity: integer not null error message 'Stock quantity is required'
 );
 
 /**
@@ -85,15 +85,15 @@ create persistent entity ECommerce.Product (
 @position(300, 150)
 create persistent entity ECommerce.SalesOrder (
   /** Unique order identifier */
-  OrderId: long not null error 'Order ID is required' unique error 'Order ID must be unique',
+  OrderId: long not null error message 'Order ID is required' unique error message 'Order ID must be unique',
   /** Order number */
-  OrderNumber: string(50) not null error 'Order number is required' unique error 'Order number must be unique',
+  OrderNumber: string(50) not null error message 'Order number is required' unique error message 'Order number must be unique',
   /** Order date */
-  OrderDate: datetime not null error 'Order date is required',
+  OrderDate: datetime not null error message 'Order date is required',
   /** Total amount */
-  TotalAmount: decimal not null error 'Total amount is required',
+  TotalAmount: decimal not null error message 'Total amount is required',
   /** Order status */
-  status: enumeration(ECommerce.OrderStatus) not null error 'Status is required'
+  status: enumeration(ECommerce.OrderStatus) not null error message 'Status is required'
 );
 
 -- Associations
@@ -216,14 +216,14 @@ alter entity Module.Customer
 
 -- Add an index
 alter entity Module.Customer
-  add index idx_email (Email asc);
+  add index (Email asc);
 
 -- Reposition entity on domain model canvas
 alter entity Module.Customer
   set position (100, 200);
 ```
 
-**Supported operations:** ADD ATTRIBUTE, RENAME ATTRIBUTE, MODIFY ATTRIBUTE (type + `NULLABLE`/`NOT NULL`/`UNIQUE`/`DEFAULT` constraints), DROP ATTRIBUTE, SET DOCUMENTATION, SET COMMENT, ADD INDEX, DROP INDEX, SET POSITION.
+**Supported operations:** ADD ATTRIBUTE, RENAME ATTRIBUTE, MODIFY ATTRIBUTE (type + `NULLABLE`/`NOT NULL`/`UNIQUE`/`DEFAULT` constraints), DROP ATTRIBUTE, SET DOCUMENTATION (`SET COMMENT` is its deprecated alias, MDL-DEPR135), ADD INDEX, DROP INDEX, SET POSITION.
 
 > **`MODIFY ATTRIBUTE` always takes a type** — restate it even when you only want
 > to change a constraint. Its type slot accepts a bare qualified name, so a

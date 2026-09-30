@@ -10,13 +10,13 @@ data grid calls `controlbar`:
 
 ```sql
 -- ✅ data grid: per-column filter, inside the column
-datagrid dg (...) { column colName (attribute: Name) { textfilter f1 } }
+datagrid dg (...) { column (attribute: Name) { textfilter f1 } }
 
 -- ✅ gallery: the widget-wide filter bar, which the gallery calls `filter`
 gallery g (...) { filter f { textfilter f1 } }
 
 -- ❌ the gallery form on a data grid — MDL-WIDGET30
-datagrid dg (...) { column colName (attribute: Name) filter f { textfilter f1 } }
+datagrid dg (...) { column (attribute: Name) filter f { textfilter f1 } }
 ```
 
 That last line is worth reading twice: it is not a column with a filter block.
@@ -31,7 +31,7 @@ shows a value from the other side (`attribute: Order_Customer/Name`); the filter
 the reference, the option list and what an option shows — all three, or it is refused:
 
 ```sql
-column colCustomer (attribute: Order_Customer/Name, caption: 'Customer') {
+column (attribute: Order_Customer/Name, caption: 'Customer') {
   dropdownfilter fltCustomer (
     Association: Sales.Order_Customer,    -- the reference on the grid's entity
     datasource: database Sales.Customer,  -- the option list

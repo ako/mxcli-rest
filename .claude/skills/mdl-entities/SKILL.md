@@ -35,7 +35,7 @@ create persistent entity Module.Customer (
   IsActive: boolean default true,
 
   -- Date/Time
-  BirthDate: date,
+  BirthDate: datetime,   -- there is no date-only type; `date` is refused
   -- Use autocreateddate (not datetime) to record when the object was created.
   -- 'CreatedDate' as a plain datetime triggers lint error MDL020.
   CreatedDate: autocreateddate,
@@ -77,7 +77,6 @@ create non-persistent entity Module.CustomerSearchParams (
 | Decimal | `Name: decimal` | `Amount: decimal` |
 | Boolean | `Name: boolean` | `IsActive: boolean` |
 | DateTime | `Name: datetime` | `CreatedAt: datetime` |
-| Date | `Name: date` | `BirthDate: date` |
 | Enumeration | `Name: Module.EnumName` | `status: Module.Status` |
 | AutoNumber | `Name: autonumber default 1` | `Code: autonumber default 1` (seed required) |
 | Binary | `Name: binary` | `FileData: binary` |
@@ -165,7 +164,7 @@ the entity being referenced (the "one" / parent side). Name convention is `Child
  */
 create association Module.Product_Category
 from Module.Product to Module.Category
-type reference_set
+type ReferenceSet
 owner both;
 /
 ```
@@ -179,14 +178,14 @@ owner both;
 create association Module.Order_Customer
 from Module.Order to Module.Customer
 type reference
-delete_behavior DELETE_AND_REFERENCES;
+on delete cascade;
 /
 ```
 
 Delete behaviors (applied to the referenced `to` entity):
-- `delete_behavior DELETE_AND_REFERENCES` - delete the referencing objects too (cascade)
-- `delete_behavior DELETE_BUT_KEEP_REFERENCES` - delete, nullify the reference (default)
-- `delete_behavior DELETE_IF_NO_REFERENCES` - only delete when nothing references it
+- `on delete cascade` - delete the referencing objects too (cascade)
+- `on delete set null` - delete, nullify the reference (default)
+- `on delete restrict` - only delete when nothing references it
 
 ## Enumerations
 
@@ -259,14 +258,17 @@ create persistent entity Module.Product (
   Category: string(50),
   Price: decimal
 )
-index idx_product_code (Code)
-index idx_product_category (Category);
+index (Code)
+index (Category);
 /
 ```
 
-> The `on` keyword is optional and reads SQL-like: `index idx_product_code on (Code)`
-> is equivalent to `index idx_product_code (Code)`. Multi-column indexes list the
-> columns in order: `index idx_pos on (Row, Col)`.
+> A Mendix index has **no name** — its columns, in order and direction, are its
+> identity. A name is accepted (`index idx_code on (Code)`) but not stored, so
+> `check` warns (MDL-IDX01), `describe` prints the index back as `index (Code)`,
+> and `drop index idx_code` cannot find it. Write indexes anonymously; drop one
+> by its columns: `alter entity Module.Product drop index (Code)`. Multi-column
+> indexes list the columns in order: `index (Row, Col desc)`.
 
 ## Complete Domain Model Example
 
@@ -328,7 +330,7 @@ type reference;
 create association Shop.OrderLine_Order
 from Shop.OrderLine to Shop.Order
 type reference
-delete_behavior DELETE_AND_REFERENCES;
+on delete cascade;
 /
 
 create association Shop.OrderLine_Product
@@ -336,6 +338,23 @@ from Shop.OrderLine to Shop.Product
 type reference;
 /
 ```
+
+## Changing an Existing Domain Model
+
+Choose the mode by who owns the entity ([choose-edit-mode](../choose-edit-mode/SKILL.md)).
+An entity, association or enumeration authored in Studio Pro is changed with `alter`,
+not by re-running `describe` output:
+
+```mdl
+alter entity Shop.Order add attribute Note: string(200);
+alter association Shop.Order_Customer set on delete set null;
+alter enumeration Shop.OrderStatus add value Cancelled caption 'Cancelled';
+```
+
+Re-running `create or modify` from `describe` on a Studio Pro association has flipped
+its storage from table to column, which is a schema change, with `mxcli diff` reporting
+no changes. Never `drop` and re-create an entity to change it: the new entity has a new
+identity, and the runtime drops the old table and its rows.
 
 ## Quick Reference
 
@@ -355,11 +374,15 @@ attributename: type [(length)] [not null] [unique] [default value]
 ```mdl
 create association Module.Child_Parent
 from Module.ChildEntity to Module.ParentEntity
-[type reference | reference_set]
+[type reference | ReferenceSet]
 [owner default | both]
 [storage column | table]
-[delete_behavior DELETE_AND_REFERENCES | DELETE_BUT_KEEP_REFERENCES | DELETE_IF_NO_REFERENCES];
+[on delete cascade | restrict | set null [error message '...']];
 ```
+
+Every clause is optional; unstated means `type Reference owner Default storage column
+on delete set null`. `describe` prints only the clauses that differ, so a table
+association always shows `storage table`.
 
 ### Enumeration Syntax
 ```mdl

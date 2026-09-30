@@ -11,7 +11,7 @@ Four AI agent document types stored as JSON inside Mendix MPR files:
 
 | Type | CREATE keyword | Notes |
 |------|---------------|-------|
-| Model | `create model` | GenAI model configuration; required by Agent |
+| Model | `create ai model` | GenAI model configuration; required by Agent |
 | Knowledge Base | `create knowledge base` | KB source; referenced by Agent body |
 | Consumed MCP Service | `create consumed mcp service` | MCP tool server; referenced by Agent body |
 | Agent | `create agent` | Orchestrates model + tools + prompts |
@@ -37,16 +37,16 @@ register `ASU_AgentEditor` as an after-startup microflow.
 ### Model
 
 ```sql
-create model Module.MyModel (
+create ai model Module.MyModel (
   Provider: MxCloudGenAI,   -- default, can omit
-  key: Module.ApiKeyConst   -- must be a String constant
+  key: @Module.ApiKeyConst   -- must be a String constant
 );
 ```
 
 **`Provider` is free-form, and nothing validates it.** MDL passes the value
 straight through; `MxCloudGenAI` is only the default applied when you omit the
 property, not the only accepted value. `Provider: OpenAI` parses, writes, and
-round-trips through `describe model` — as does `Provider: TotallyMadeUp`.
+round-trips through `describe ai model` — as does `Provider: TotallyMadeUp`.
 
 That means a typo is caught by **nothing** in the headless path. Agent Editor
 documents are stored as custom blobs, and mxbuild contains no agent-editor
@@ -64,7 +64,7 @@ document Studio Pro created**, rather than from memory or from this file.
 ```sql
 create knowledge base Module.ProductDocs (
   Provider: MxCloudGenAI,
-  key: Module.KBKeyConst
+  key: @Module.KBKeyConst
 );
 ```
 
@@ -96,22 +96,22 @@ prompt here.$$,
   UserPrompt: 'Single line prompt.'
 )
 {
-  mcp service Module.WebSearch {
+  mcp service Module.WebSearch (
     Enabled: true
-  }
+  )
 
-  knowledge base KBAlias {
+  knowledge base KBAlias (
     source: Module.ProductDocs,
     collection: 'product-docs',
     MaxResults: 5,
     description: 'Product docs',
     Enabled: true
-  }
+  )
 
-  tool MyMicroflowTool {
+  tool MyMicroflowTool (
     description: 'Fetch customer data',
     Enabled: true
-  }
+  )
 };
 ```
 
@@ -121,7 +121,7 @@ All four agent-editor document types support `ALTER` for targeted partial update
 
 ```sql
 -- Model, Knowledge Base, Consumed MCP Service: SET-only (no collections)
-alter model Module.MyModel set DisplayName = 'GPT-4 Turbo', KeyName = 'OPENAI_KEY';
+alter ai model Module.MyModel set DisplayName = 'GPT-4 Turbo', KeyName = 'OPENAI_KEY';
 
 alter knowledge base Module.MyKB set ModelDisplayName = 'text-embedding-3-small';
 
@@ -131,9 +131,9 @@ alter consumed mcp service Module.MyMCP
 -- Agent: SET for scalars, ADD/DROP for tools, MCP services, knowledge bases
 alter agent Module.MyAgent
     set SystemPrompt = 'New prompt', Temperature = 0.7, MaxTokens = 4096
-    add tool MyMicroflow { Description: '...', Enabled: true }
-    add mcp service Module.WeatherSvc { Description: '...', Enabled: true }
-    add knowledge base Docs { Source: Module.MyKB, Collection: 'docs', MaxResults: 5 }
+    add tool MyMicroflow ( Description: '...', Enabled: true )
+    add mcp service Module.WeatherSvc ( Description: '...', Enabled: true )
+    add knowledge base Docs ( Source: Module.MyKB, Collection: 'docs', MaxResults: 5 )
     drop tool OldTool
     drop mcp service Module.OldSvc
     drop knowledge base OldKB;
@@ -158,7 +158,7 @@ Agents reference Model, Knowledge Base, and MCP Service documents. Always drop A
 drop agent Module.MyAgent;
 drop consumed mcp service Module.WebSearch;
 drop knowledge base Module.ProductDocs;
-drop model Module.MyModel;
+drop ai model Module.MyModel;
 ```
 
 ### Variables: syntax
@@ -173,7 +173,7 @@ The feature uses `CustomBlobDocument` BSON type with a `Contents` field holding 
 
 ### Minimal agent (no tools)
 ```sql
-create model Module.M (Provider: MxCloudGenAI, key: Module.K);
+create ai model Module.M (Provider: MxCloudGenAI, key: @Module.K);
 create agent Module.A (
   UsageType: task,
   model: Module.M,
@@ -184,7 +184,7 @@ create agent Module.A (
 
 ### Check all agent documents in a module
 ```sql
-list models in module;
+list ai models in module;
 list knowledge bases in module;
 list consumed mcp services in module;
 list agents in module;

@@ -58,6 +58,19 @@ icon or entity sailed through a command that had been handed the project. A run
 without a project now says what it did not check, so a pass is never read as
 more than it is.
 
+**An excluded document's dangling references are warnings, not errors.** Mendix
+does not validate excluded documents (Feedback v4.0.2 ships an excluded page bound
+to nanoflows it lacks, and the project checks at 0 errors), so `check` and `exec`
+print them as `Reference warning` lines for excluded microflows, nanoflows, rules,
+and pages/snippets exec will write excluded (`@excluded`, or a stored namesake that
+is). **A missing data-source flow is a warning only when the bindings inside it are
+qualified** (`Attribute: Module.Entity.Attr`, `{1} = Module.Entity.Attr`,
+`Visible: Module.Entity.Attr in (…)`) — the form `describe` writes there. The
+widgets inside bind against the entity that flow returns, so with the flow missing
+a bare binding cannot be resolved; it is refused, naming the widget, because on
+11.13.0 a bare attribute reference left a project `mx` could not load. A missing
+entity still blocks.
+
 ### It also reports a name the PROJECT already has
 
 A plain `create` of a document the project already carries is a `check` error,
@@ -74,8 +87,10 @@ fourth — so "run it and see" is not a free experiment. `check` reports every
 conflict in the script before anything is written.
 
 Three spellings say "fine if it already exists", and none is reported:
-`create or modify`, `create or replace`, and `create … if not exists` (which
-leaves the stored element untouched rather than rewriting it). `create module M;`
+`create or modify`, `create or replace`, and `create <kind> if not exists <name>`
+(which leaves the stored element untouched rather than rewriting it; every
+`create` that names one element takes it, e.g. `create page if not exists M.P …`
+— `mxcli syntax create-if-not-exists`). `create module M;`
 is never reported either — it is a no-op when the module exists, which is what
 lets it open every script.
 
@@ -226,7 +241,7 @@ Before writing any MDL, verify these requirements:
 
 **Supported in Microflows:**
 - `declare $Var type = value;` (primitives only: String/Integer/Long/Decimal/Boolean/DateTime/Enumeration)
-- `$entity = create Module.Entity (...);` / `retrieve $entity from ... limit 1;` (objects — **never** `declare` an object; that fails CE0053/CE0038 and is flagged MDL043)
+- `$entity = create Module.Entity (...);` / `retrieve $entity from ... first;` (objects — **never** `declare` an object; that fails CE0053/CE0038 and is flagged MDL043)
 - `$list = create list of Module.Entity;` (lists — **never** `declare` a list; that fails CE0053/CE0038 and is flagged MDL040)
 - `set $Var = expression;`
 - `$Var = create Module.Entity (attr = value);`
@@ -236,18 +251,18 @@ Before writing any MDL, verify these requirements:
 - `retrieve $Var from Module.Entity [where condition];`
 - `$Result = call microflow Module.Name (Param = $value);` (NOT `set $Result = ...`)
 - `$Result = call nanoflow Module.Name (Param = $value);`
-- `show page Module.PageName ($Param = $value);`
+- `show page Module.PageName (Param = $value);`
 - `close page;`
 - `validation feedback $entity/attribute message 'message';`
 - `log info|warning|error [node 'name'] 'message';`
 - `if condition then ... [else ...] end if;`
 - `loop $item in $list begin ... end loop;`
 - `return $value;`
-- `on error continue|rollback|{ handler };`
+- `on error continue|rollback|[without rollback] begin handler end error;`
 
 **Now Supported (previously not):**
 - `rollback $entity [refresh];` - Reverts uncommitted changes
-- `retrieve ... limit n` - Returns single entity when `limit 1`
+- `retrieve ... first` - Returns a single entity; `limit n [offset n]` returns a list (a bare `limit 1` is the object only without the `mdl 1;` header, and warns MDL-V1-LIMIT1)
 - `boolean` without `default` - Auto-defaults to `false`
 - `buttonstyle: warning` and `buttonstyle: info` - Now parse correctly
 - Keywords as attribute names - `caption`, `label`, `title`, `text`, `content`, `format`, `range`, `source`, `check`, etc. all work unquoted
@@ -298,7 +313,7 @@ Before writing any MDL, verify these requirements:
 > **Exception — never quote `$`-prefixed variable/parameter references.** The quote
 > rule is for *bare* names (entities, attributes, associations, declared parameter
 > names). Variable and parameter **references** in expressions and widget bindings
-> stay **unquoted**: `datasource: $X`, `params: { $X: MES."Order" }`, `$currentObject`.
+> stay **unquoted**: `datasource: $X`, `params: ( $X: MES."Order" )`, `$currentObject`.
 > Quoting them (`"$X"`) breaks resolution ("parameter … references '$X' but no such
 > parameter is declared").
 >
@@ -360,7 +375,7 @@ cleanly, and `mx check` then reported them:
 does. Measured on Mendix 11.13: the same role is **CE0156 at security level
 Prototype and no error at all at level Off**, where roles are stored but not
 validated. A blank project ships `Off`. So the rule warns by default and is an
-error only when the script itself contains `ALTER PROJECT SECURITY LEVEL` set to
+error only when the script itself contains `ALTER APP SECURITY LEVEL` set to
 something other than `Off` — at which point the author has said which world they
 are in.
 

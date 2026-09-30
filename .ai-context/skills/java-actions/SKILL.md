@@ -87,6 +87,10 @@ return true;
 $$;
 ```
 
+A list of type-parameter instances is `list of pEntity` (Studio Pro's "List of <type parameter>").
+
+**A type parameter named after a primitive** (`String`, `Integer`, … — Studio Pro allows it): declare it with `entity <String>`, and refer to it **quoted** — `"String"`, `list of "String"`. Unquoted `String` is always the primitive. DESCRIBE quotes such names for you, so its output re-creates the action.
+
 Type parameter names can be mixed with regular parameter types:
 
 ```mdl
@@ -185,6 +189,11 @@ omitted bitmap is preserved.
 stores a toolbox entry, and the clause is refused on the other two with a
 message saying so.
 
+**Studio Pro-authored Java actions:** there is no `alter java action`. Before
+re-executing `describe` output for one, note its export level; a `create or modify`
+from describe output has changed an action's export level to Public. Check it again after
+`exec` (see [choose-edit-mode](../choose-edit-mode/SKILL.md)).
+
 ### Supported Parameter Types
 
 | MDL Type | Description |
@@ -203,6 +212,7 @@ message saying so.
 | `enum Module.EnumName` | Enumeration type |
 | `enumeration(Module.EnumName)` | Enumeration type (alternative syntax) |
 | `pEntity` (type param ref) | Type parameter reference (entity instance) |
+| `list of pEntity` | List of type-parameter instances |
 
 ### Examples
 

@@ -42,7 +42,7 @@ validation feedback $VariableName/attributename message 'Error message';
 
 With template arguments (for dynamic messages):
 ```mdl
-validation feedback $VariableName/attributename message '{1}' objects [$MessageVariable];
+validation feedback $VariableName/attributename message '{1}' with ({1} = $MessageVariable);
 ```
 
 ### CLOSE PAGE Statement
@@ -131,7 +131,7 @@ returns boolean as $IsValid
 folder 'OverviewPages'
 begin
   -- Call validation microflow
-  $IsValid = call microflow MdlTemplates.VAL_Car_NewEdit($param = $Car);
+  $IsValid = call microflow MdlTemplates.VAL_Car_NewEdit(param = $Car);
 
   -- Only save if validation passed
   if $IsValid then
@@ -240,7 +240,7 @@ end if;
 
 if trim($ValidationMessage) != '' then
   set $IsValid = false;
-  validation feedback $entity/value message '{1}' objects [$ValidationMessage];
+  validation feedback $entity/value message '{1}' with ({1} = $ValidationMessage);
 end if;
 ```
 
@@ -292,4 +292,4 @@ This feature is implemented in:
 
 ## Validation rules (CREATE VALIDATION RULE)
 
-binds a **regex** or a **range** to one attribute — `create validation rule for Mod.Entity.Attr regex Mod.Pattern feedback '…'`. The rule is anonymous and entity-scoped, so the statement names the attribute; re-running it replaces the rule of the same type and leaves the attribute's others alone. Unlocked by a `STORAGE-NAME OVERRIDE` in `modelsdk/gen`: it bound `RegularExpression` where Studio Pro stores `RegExIdentifier`, and the control (same script, key reverted) fails **CE0135 "No regular expression specified"** while the fixed one is 0 errors on mxbuild 11.13 with `RegExIdentifier` on disk. Range bounds are inclusive and map to Mendix's only three kinds (`from X to Y`/`from X`/`to Y` → Between/GreaterThanOrEqualTo/SmallerThanOrEqualTo); there is no strict `<`/`>`, and the old grammar's forms for it — plus an EXPRESSION rule type Mendix does not have and an inline regex literal — were removed, having never had a visitor or handler. Required/Unique stay attribute constraints (`not null error '…'` / `unique error '…'`), not a second spelling here. Rewriting an entity carrying **MaxLength or EqualsTo** is **refused** on both engines rather than silently downgraded to Required; that round trip was lossy and `mx check` stayed green, because a Required rule is valid. Both engines carry each rule's payload on READ (`ruleInfoFromGen` / `parseValidationRuleInfo`), which is what makes the refusal narrow instead of covering all of RegEx and Range — and what lets a **range bounded by another attribute** survive a rewrite even though MDL cannot author one (`describe entity` marks it with a comment rather than rendering it wrong). A rule whose payload did not survive the read is refused as firmly as an unknown type: a bare RuleInfo of the right `$Type` constrains nothing, which is the same silent downgrade wearing the right name
+binds a **regex** or a **range** to one attribute — `create validation rule for Mod.Entity.Attr regex Mod.Pattern error message '…'`. The rule is anonymous and entity-scoped, so the statement names the attribute; re-running it replaces the rule of the same type and leaves the attribute's others alone. Unlocked by a `STORAGE-NAME OVERRIDE` in `modelsdk/gen`: it bound `RegularExpression` where Studio Pro stores `RegExIdentifier`, and the control (same script, key reverted) fails **CE0135 "No regular expression specified"** while the fixed one is 0 errors on mxbuild 11.13 with `RegExIdentifier` on disk. Range bounds are inclusive and map to Mendix's only three kinds (`from X to Y`/`from X`/`to Y` → Between/GreaterThanOrEqualTo/SmallerThanOrEqualTo); there is no strict `<`/`>`, and the old grammar's forms for it — plus an EXPRESSION rule type Mendix does not have and an inline regex literal — were removed, having never had a visitor or handler. Required/Unique stay attribute constraints (`not null error message '…'` / `unique error message '…'`), not a second spelling here. `drop validation rule [if exists] for Mod.Entity.Attr [regex | range]` removes a rule; without a kind it removes both the regex and the range rule and leaves Required/Unique alone. Rewriting an entity carrying **MaxLength or EqualsTo** is **refused** on both engines rather than silently downgraded to Required; that round trip was lossy and `mx check` stayed green, because a Required rule is valid. Both engines carry each rule's payload on READ (`ruleInfoFromGen` / `parseValidationRuleInfo`), which is what makes the refusal narrow instead of covering all of RegEx and Range — and what lets a **range bounded by another attribute** survive a rewrite even though MDL cannot author one (`describe entity` marks it with a comment rather than rendering it wrong). A rule whose payload did not survive the read is refused as firmly as an unknown type: a bare RuleInfo of the right `$Type` constrains nothing, which is the same silent downgrade wearing the right name

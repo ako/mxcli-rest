@@ -300,7 +300,7 @@ DESCRIBE renders imperfectly — a snippet whose body comes out `{ }`, a buildin
 block under "Building blocks are read-only; they cannot be created via MDL" — and
 two imperfect renderings can differ for reasons that have nothing to do with you.
 Those are reported `unknown`, never `changed`, and `--save-edits` refuses to write
-them: replaying `create or modify snippet X (Folder: 'Web') { }` would **empty**
+them: replaying `create or modify snippet X folder 'Web' { }` would **empty**
 the snippet.
 
 **Read `verified`, not just `locallyModified`.** An element that cannot be described is
@@ -402,8 +402,8 @@ mxcli docker check -p MyAgentApp.mpr        # read the errors; they name what is
 # ...repeat per row...
 ```
 
-Then authoring works — `create constant` + `create model` + `create agent` executed and
-added 3 units, with `show features in agent_documents` reporting all four document types
+Then authoring works — `create constant` + `create ai model` + `create agent` executed and
+added 3 units, with `list features in agent_documents` reporting all four document types
 available on 11.12.1.
 
 Four things this run established, none of them obvious from the command list:

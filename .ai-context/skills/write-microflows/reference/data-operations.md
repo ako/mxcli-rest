@@ -117,18 +117,65 @@ add head($SourceItems) to $Items;
 
 Use expression-valued `add` only when the expression returns an object compatible with the target list element type.
 
-### `range` — paging a list
+### One statement per activity
 
-`range` takes the **offset first, then the amount**, and Mendix requires at
-least one of them:
+Every list operation and aggregate is **one Studio Pro activity**, and it is
+written as one statement that mirrors it: the keyword is the operation's name
+in the activity's dialog, and the inputs are the ones the dialog asks for. The
+operand is always a **variable**, because the dialog selects a variable — so
+one activity cannot be nested inside another, just as it cannot be drawn.
+
+| Studio Pro activity: operation | MDL statement |
+|---|---|
+| List operation: Filter | `$Open = filter $Orders by Status = Shop.Status.Open;` |
+| List operation: Filter by expression | `$Big = filter $Orders where $currentObject/Total > 1000;` |
+| List operation: Find | `$Order = find $Orders by Number = $Number;` |
+| List operation: Find by expression | `$Late = find $Orders where $currentObject/DueDate < [%CurrentDateTime%];` |
+| List operation: Sort | `$Sorted = sort $Orders by OrderDate desc, Number asc;` |
+| List operation: Head / Tail | `$First = head $Orders;` / `$Rest = tail $Orders;` |
+| List operation: Range | `$Page = range $Orders offset 20 limit 10;` |
+| List operation: Union / Intersect / Subtract | `$All = union $A with $B;` / `$Both = intersect $A with $B;` / `$Left = subtract $B from $A;` |
+| List operation: Contains / Equals | `$Has = contains $Order in $Orders;` / `$Same = equals $A and $B;` |
+| Aggregate list: Count | `$N = count $Orders;` |
+| Aggregate list: Sum / Average / Minimum / Maximum | `$Total = sum $Orders by Amount;` or `$Total = sum $Orders of $currentObject/Amount * 1.21;` |
+| Aggregate list: All / Any | `$AllPaid = all $Orders where $currentObject/Paid;` |
+| Aggregate list: Reduce | `$Csv = reduce $Orders from '' as String using $currentResult + $currentObject/Name;` |
+
+`by` picks a member (the dialog's attribute or association selector) and `where`
+/ `of` take an expression — the "… by expression" variants. `subtract $B from $A`
+is A minus B.
+
+Two statements, never one nested call:
 
 ```mdl
-$Page  = range($Sorted, $Offset, $PageSize);  -- skip $Offset, take $PageSize
-$First = range($Sorted, 0, 10);               -- first 10
-$Rest  = range($Sorted, $Offset);             -- skip $Offset, take the rest
+$Approved = filter $Orders where $currentObject/Status = Shop.Status.Approved;
+$Count    = count $Approved;
 ```
 
-`range($List)` with no bound builds nothing useful and fails with **CE6520**
+The older **call forms** (`$x = filter($L, …)`, `$n = count($L)`, `sum($L.Attr)`)
+still parse and build the same activity, but they are deprecated
+(`MDL-DEPR003`, `MDL-DEPR004`) — do not write them. Under the `mdl 1;` header:
+
+- `set` is **mandatory** to change a variable: `set $Total = $Total + 1;`. A
+  statement without `set` is only ever an activity (`MDL-V1-SET` under mdl 0).
+- `$x = find(…)` and `$x = contains(…)` are refused: the call is also Mendix's
+  **string** function. `set $Pos = find($Text, 'a');` is the string function;
+  `$Match = find $L where …;` is the list operation (`MDL-V1-LIST`).
+- a nested call, or a list operation after `set`, is refused (`MDL-V1-LIST`).
+  Without the header a nested operand is refused at check time as `MDL-LISTOP02`.
+
+### `range` — paging a list
+
+`range` takes an `offset` and a `limit` (Studio Pro's *Offset* and *Amount*), and
+Mendix requires at least one of them:
+
+```mdl
+$Page  = range $Sorted offset $Offset limit $PageSize;  -- skip $Offset, take $PageSize
+$First = range $Sorted limit 10;                        -- first 10
+$Rest  = range $Sorted offset $Offset;                  -- skip $Offset, take the rest
+```
+
+`range $List;` with no bound builds nothing useful and fails with **CE6520**
 ("Amount and offset are not specified. Either amount or offset or both must be
 specified."); `mxcli check` refuses it first as **MDL068**. To use the whole
 list, drop the activity and use the list variable directly.
@@ -142,89 +189,95 @@ retrieve $Page from Sales.Order where [Status = 'Open']
   sort by OrderDate desc limit $PageSize offset $Offset;
 ```
 
-Note the clause order there is `limit` then `offset` — the reverse of `range`'s
-argument order, because each mirrors the Mendix editor it comes from.
+### `filter` / `find` — `by` a member, or `where` an expression over `$currentObject`
 
-### `filter` / `find` test one item at a time — `$currentObject`
-
-A FILTER/FIND predicate is an expression Mendix evaluates once per item, with
-the item bound to **`$currentObject`**. That is the only iterator name there is:
-
-```mdl
-$Pending = filter($Orders, $currentObject/Status = 'Pending');
-$Large   = filter($Orders, $currentObject/Amount > 1000);
-$Match   = find($Orders, $currentObject/OrderNumber = $Wanted);
-```
-
-A **bare attribute name** means the same thing — mxcli resolves it against the
-list's entity and writes `$currentObject/Attr`:
+`by Member = value` is Studio Pro's *Filter* / *Find*: an attribute or
+association of the list's entity and the value it must have. Anything else is
+the *by expression* operation, written after `where`, which Mendix evaluates
+once per item with the item bound to **`$currentObject`** — the only iterator
+name there is:
 
 ```mdl
-$Open = filter($Orders, Status != 'Closed');   -- stored as $currentObject/Status
+$Pending = filter $Orders by Status = Shop.Status.Pending;
+$Large   = filter $Orders where $currentObject/Amount > 1000;
+$Match   = find $Orders by OrderNumber = $Wanted;
 ```
 
-Two things are refused rather than passed through to the build:
+A **bare attribute name** after `where` means the same thing — mxcli resolves it
+against the list's entity and writes `$currentObject/Attr`:
+
+```mdl
+$Open = filter $Orders where Status != 'Closed';   -- stored as $currentObject/Status
+```
+
+`by` accepts only `Member = value`; `filter $L by Amount > 3` is refused with a
+pointer to `where`. Two things are refused after `where` rather than passed
+through to the build:
 
 - a bare name that is **not** a member of the list's entity (this used to reach
   mxbuild as `CE0117 "Error(s) in expression."`);
-- any **other** iterator name — `filter($L, $item/Amount > 0)` is `MDL-LISTOP01`,
-  pre-empting `CE0109 "Undefined variable 'item'"`.
+- any **other** iterator name — `filter $L where $item/Amount > 0` is
+  `MDL-LISTOP01`, pre-empting `CE0109 "Undefined variable 'item'"`.
 
 `$item` is still fine when it is genuinely in scope, which is how the O(N) lookup
-idiom is written: inside `loop $item in $L`, `find($Others, Key = $item/Key)`
+idiom is written: inside `loop $item in $L`, `find $Others by Key = $item/Key`
 navigates the **loop's** variable on the right-hand side.
 
-**`sort` is not an expression.** It takes attribute names directly, so a bare
-attribute is the only spelling — `sort($Orders, CreateDate desc)`. Writing
-`$currentObject/` there is wrong.
+**`sort` is not an expression.** It takes attribute names directly —
+`sort $Orders by CreateDate desc` — and any word works as a name there, so an
+attribute called `Count` or `Date` needs no quotes. Writing `$currentObject/`
+there is wrong.
 
+### `contains` — string function vs list operation
 
-### `contains` is overloaded — string vs list
-
-`contains(a, b)` is both a **string** function (`contains(haystack, needle)` → substring test) and a **list** operation (`contains(list, object)` → membership test). mxcli picks the right serialization automatically:
+The list operation is `contains $Object in $List`, and it creates its own
+Boolean output variable, so do not declare it first. The **string** function
+`contains(haystack, needle)` is an expression, assigned with `set` to a variable
+declared first:
 
 ```mdl
+-- LIST contains — the statement creates $Found
+$Found = contains $Item in $Items;
+
 -- STRING contains — assign to a PRE-DECLARED Boolean (a Change Variable action)
 declare $HasAt Boolean = false;
 set $HasAt = contains($Email, '@');
-
--- LIST contains — do NOT pre-declare the output (the list op creates it)
-set $Found = contains($Items, $Item);
 ```
 
-The distinction: a **literal or computed** second argument is always the string function. When both arguments are plain variables, the input variable's declared type decides — a **String** input becomes the string function (Change Variable, so declare the Boolean first), anything else stays a list operation (which creates its own output variable, so leave it undeclared). Getting the declare wrong is what triggers `CE0111 "Duplicate variable name"`.
+Under `mdl 1;` that is the whole rule. Without the header, the call form
+`$Found = contains($Items, $Item)` is still read as the list operation when both
+arguments are plain variables and the first is not a declared String — the
+guess that `mdl 1` removes. Getting the declare wrong is what triggers `CE0111
+"Duplicate variable name"`.
 
 ### Aggregates — all eight, including `reduce`, `all` and `any`
 
 An Aggregate list activity folds a list into one value. `count` takes only the
-list; the rest take either an **attribute** or an **expression** over
-`$currentObject`.
+list; `sum`, `average`, `minimum` and `maximum` aggregate an attribute (`by`) or
+an expression over `$currentObject` (`of`) — the dialog's *Aggregate with*.
 
 ```mdl
-$Count   = count($Orders);
-$Total   = sum($Orders.Amount);              -- attribute form
-$Total   = sum($Orders, $currentObject/Amount * 1.21);  -- expression form
-$Avg     = average($Orders.Amount);
-$Min     = minimum($Orders.Amount);
-$Max     = maximum($Orders.Amount);
+$Count   = count $Orders;
+$Total   = sum $Orders by Amount;                           -- attribute
+$Total   = sum $Orders of $currentObject/Amount * 1.21;     -- expression
+$Avg     = average $Orders by Amount;
+$Min     = minimum $Orders by Amount;
+$Max     = maximum $Orders by Amount;
 
 -- Boolean predicates over every item. No seed, always Boolean.
-$AllPaid = all($Orders, $currentObject/Paid);
-$AnyLate = any($Orders, $currentObject/DueDate < [%CurrentDateTime%]);
+$AllPaid = all $Orders where $currentObject/Paid;
+$AnyLate = any $Orders where $currentObject/DueDate < [%CurrentDateTime%];
 
 -- REDUCE folds with a running total. $currentResult is the accumulator.
-$Discounted = reduce(
-  $Orders,
-  $currentResult + $currentObject/Amount * 0.9,
-  initial: 0,
-  returns: Decimal
-);
+$Discounted = reduce $Orders from 0 as Decimal
+  using $currentResult + $currentObject/Amount * 0.9;
 ```
 
-**`reduce` needs `initial:` and `returns:` and neither can be inferred.** Mendix
-stores both beside the expression, and the fold is meaningless without a seed
-and a result type — so MDL makes them mandatory rather than guessing. `all` and
-`any` take neither: they never accumulate, and always fold to Boolean.
+**`reduce` needs the initial value (`from`) and the return type (`as`), and
+neither can be inferred.** Mendix stores both beside the expression, and the
+fold is meaningless without a seed and a result type — so MDL makes them
+mandatory rather than guessing. `all` and `any` take neither: they never
+accumulate, and always fold to Boolean.
 
 Do not reach for `reduce` where `sum` will do. It exists for folds Mendix has no
 dedicated function for — running a string together, or carrying a value forward
@@ -254,9 +307,10 @@ retrieve $Product from Test.Product
 
 **Important**:
 - Use `from Module.Entity` (fully qualified)
-- RETRIEVE with `limit 1` returns a **single entity**
-- RETRIEVE without `limit 1` returns a **list** (`list of Module.Entity`)
-- Use `limit 1` when you expect exactly one result (e.g., lookup by unique key)
+- RETRIEVE with `first` returns a **single entity**
+- RETRIEVE without a range, or with `limit n [offset n]`, returns a **list** (`list of Module.Entity`)
+- Use `first` when you expect exactly one result (e.g., lookup by unique key). `limit 1`
+  is a list of one under `mdl 1;` and the object without the header (warning `MDL-V1-LIMIT1`)
 
 **Sorting and paging** — use `sort by`, **not** `order by`:
 

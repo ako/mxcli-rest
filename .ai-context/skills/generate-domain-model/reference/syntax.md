@@ -180,17 +180,17 @@ Cross-module associations have no anchors at all — Mendix stores none, and
 @position(100, 100)
 create persistent entity Module.EntityName (
   /** Unique identifier */
-  Id: long not null error 'ID is required' unique error 'ID must be unique',
+  Id: long not null error message 'ID is required' unique error message 'ID must be unique',
   /** Attribute description */
-  attributename: string(200) not null error 'Attribute name is required',
+  attributename: string(200) not null error message 'Attribute name is required',
   /** Numeric value */
   Amount: decimal,
-  /** Date field */
-  CreationDate: date,
+  /** Date field (there is no date-only type) */
+  CreationDate: datetime,
   /** Boolean flag */
-  IsActive: boolean not null error 'IsActive flag is required' default true,
+  IsActive: boolean not null error message 'IsActive flag is required' default true,
   /** Enumeration field */
-  status: enumeration(Module.StatusEnum) not null error 'Status is required'
+  status: enumeration(Module.StatusEnum) not null error message 'Status is required'
 );
 ```
 
@@ -294,7 +294,7 @@ create persistent entity Module.Manager extends Person (Reports: integer);
 **Security follows inheritance.** Mendix inheritance is multi-table: all of the
 parent's attributes are members of the child, so a specialized entity's access rule
 must cover them. Grant an inherited member exactly like one of the entity's own —
-`grant Module.Viewer on Module.Attachment (read (AttachmentDescription, "Name", Size));`
+`grant read (AttachmentDescription, "Name", Size) on entity Module.Attachment to Module.Viewer;`
 — and `read *` / `write *` cover them too. Skipping them is Mendix CE0066 "Entity
 access is out of date". The one exception is entities extending `System.User`, whose
 inherited platform members Mendix manages and which must not be granted. See
@@ -474,8 +474,7 @@ create association Module.EntityWithFK_ReferencedEntity
 from Module.EntityWithFK to Module.ReferencedEntity
 type reference
 owner default
-delete_behavior DELETE_BUT_KEEP_REFERENCES
-comment 'Additional documentation';
+on delete set null;
 ```
 
 **Idempotency**: plain `create association` is **not** idempotent — re-running it
@@ -520,12 +519,10 @@ both is refused as **MDL067**.
 > to-many collection and a list widget works. See master-detail-pages for the
 > widget patterns.
 
-**Delete Behaviors**:
-- `DELETE_AND_REFERENCES` - Delete object and all referencing objects
-- `DELETE_BUT_KEEP_REFERENCES` - Delete object, keep references (nullify)
-- `DELETE_IF_NO_REFERENCES` - Only delete if no objects reference it
-- `cascade` - Cascade delete to associated objects
-- `prevent` - Prevent deletion if references exist
+**Delete Behaviors** (`on delete …`; the old `delete_behavior …` clause is deprecated, MDL-DEPR022):
+- `on delete cascade` - Delete object and all referencing objects
+- `on delete set null` - Delete object, keep references (nullify) — the default
+- `on delete restrict [error message '…']` - Only delete if no objects reference it
 
 **Naming Convention**: `{FromEntity}_{ToEntity}` (e.g., `Order_Customer`, `Transaction_Account`)
 
@@ -603,13 +600,13 @@ Each constraint can have a custom error message using `error 'message'` syntax:
 ```sql
 create persistent entity Module.Customer (
   /** Customer name - required with custom error */
-  Name: string(200) not null error 'Name is required',
+  Name: string(200) not null error message 'Name is required',
   /** Email - required and unique with separate error messages */
-  Email: string(200) not null error 'Email is required' unique error 'Email must be unique',
+  Email: string(200) not null error message 'Email is required' unique error message 'Email must be unique',
   /** Age with default value */
   Age: integer default 0,
   /** Active status flag */
-  IsActive: boolean not null error 'IsActive flag is required' default true
+  IsActive: boolean not null error message 'IsActive flag is required' default true
 );
 ```
 
@@ -617,23 +614,23 @@ create persistent entity Module.Customer (
 - Place `error 'message'` immediately after the constraint
 - Multiple constraints can each have their own error message
 - Keep messages clear and user-friendly
-- Follow the pattern: `not null error 'X is required'` for required fields
-- For UNIQUE: `unique error 'X must be unique'`
+- Follow the pattern: `not null error message 'X is required'` for required fields
+- For UNIQUE: `unique error message 'X must be unique'`
 - Error messages are shown to end users during validation
 
 **Common patterns:**
 ```sql
 -- Required field
-Name: string(200) not null error 'Name is required',
+Name: string(200) not null error message 'Name is required',
 
 -- Required and unique
-Email: string(200) not null error 'Email is required' unique error 'Email must be unique',
+Email: string(200) not null error message 'Email is required' unique error message 'Email must be unique',
 
 -- Required with default
-IsActive: boolean not null error 'IsActive flag is required' default true,
+IsActive: boolean not null error message 'IsActive flag is required' default true,
 
 -- Enum with required error
-status: enumeration(Module.Status) not null error 'Status is required',
+status: enumeration(Module.Status) not null error message 'Status is required',
 
 -- Enum with default value (use fully qualified Module.Enum.Value)
 Priority: enumeration(Module.Priority) default Module.Priority.Normal

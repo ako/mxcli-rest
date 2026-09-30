@@ -26,14 +26,14 @@ All are `Platform: Web`, all live in module `Atlas_Web_Content`, referenced as
 `Atlas_Web_Content.<Name>`.
 
 > Your project may ship more blocks from installed modules (e.g. a feedback widget).
-> Always `show building blocks` on the actual project rather than trusting this list —
+> Always `list building blocks` on the actual project rather than trusting this list —
 > it is the standard Atlas baseline, not an exhaustive per-project inventory.
 
 ### Capability reality: discover, inspect, and instantiate
 
 | Capability | State |
 |---|---|
-| **Discover** — `SHOW BUILDING BLOCKS`, `CATALOG.building_blocks` | ✅ shipped |
+| **Discover** — `LIST BUILDING BLOCKS`, `CATALOG.building_blocks` | ✅ shipped |
 | **Inspect** — `DESCRIBE BUILDING BLOCK Mod.Name` (full widget tree) | ✅ shipped |
 | **Instantiate** — `use building block Mod.Name [as prefix_]` onto a page | ✅ v1 (deep-copy; configure afterwards with `alter page`; legacy engine today) |
 | **Author** — `CREATE BUILDING BLOCK` | ❌ not yet (proposed) |
@@ -49,7 +49,7 @@ is the fallback for hand-tuning or the modelsdk engine; the how-to is below.
    `DesignProperties:` — copy both.
 3. **Reproduce the tree** on your page, binding real data where the block has
    placeholder text (`'Card title'` → your attribute/content).
-4. **DRY it** — if the shape repeats, put it in a `define fragment` and `use` it.
+4. **DRY it** — if the shape repeats, put it in a `create fragment` and `use` it.
 
 ### Worked example — `Card`
 
@@ -63,13 +63,13 @@ create page MyModule.CardDemo
   layout: Atlas_Core.Atlas_Default
 )
 {
-  container myCard (designproperties: ['Card style': on]) {
+  container myCard (designproperties: ('Card style': on)) {
     dynamictext cardTitle
     (
       content: 'Customers',
       rendermode: H4,
       class: 'card-title',
-      designproperties: ['Spacing': ['margin-bottom': 'L']]
+      designproperties: ('Spacing': ('margin-bottom': 'L'))
     )
   }
 };
@@ -80,8 +80,8 @@ the slot with each card's own content. This is the key idiom: one card wrapper,
 arbitrary bodies, no copy-paste of the wrapper markup.
 
 ```mdl
-define fragment SectionCard as {
-  container card1 (designproperties: ['Card style': on, 'Spacing': ['margin-bottom': 'Large']]) {
+create fragment SectionCard as {
+  container card1 (designproperties: ('Card style': on, 'Spacing': ('margin-bottom': 'Large'))) {
     container cardBody (class: 'card-body') {
       slot content            -- each page's widgets land here
     }
@@ -119,8 +119,8 @@ inside; typed **parameters** vary *which entity* and *which microflow*. Declare 
 `datasource` and/or `action` parameter and the card becomes a real component:
 
 ```mdl
-define fragment EntityCard($data: datasource, $onOpen: action) as {
-  container card1 (designproperties: ['Card style': on]) {
+create fragment EntityCard($data: datasource, $onOpen: action) as {
+  container card1 (designproperties: ('Card style': on)) {
     listview lv (datasource: $data) {
       slot content
       actionbutton open (caption: 'Open', action: $onOpen, buttonstyle: primary)
@@ -137,7 +137,7 @@ rebind overrides that rewrite the block's outermost datasource / first button:
 
 ```mdl
 use building block Atlas_Web_Content.List_Cards
-  (datasource: database Sales.Order, action: microflow Sales.Open) as orders_;
+  (datasource: database Sales.Order, action: call microflow Sales.Open) as orders_;
 ```
 
 For a binding the override rule can't reach, copy the block in (`as prefix_`) and
@@ -149,10 +149,10 @@ For a binding the override rule can't reach, copy the block in (`as prefix_`) an
 
 ```
 {
-  container container1 (Class: 'pageheader', DesignProperties: ['Item gap': 'None']) {
+  container container1 (Class: 'pageheader', DesignProperties: ('Item gap': 'None')) {
     dynamictext text40 (Content: 'Page header title', RenderMode: H1, Class: 'pageheader-title')
     dynamictext text39 (Content: 'Supporting text', RenderMode: Paragraph, Class: 'pageheader-subtitle',
-      DesignProperties: ['Color': 'Detail color', 'Spacing': ['margin-bottom': 'None']])
+      DesignProperties: ('Color': 'Detail color', 'Spacing': ('margin-bottom': 'None')))
   }
 }
 ```
@@ -166,14 +166,14 @@ create page MyModule.CustomersHeaderDemo
   layout: Atlas_Core.Atlas_Default
 )
 {
-  container pageHeader (class: 'pageheader', designproperties: ['Item gap': 'None']) {
+  container pageHeader (class: 'pageheader', designproperties: ('Item gap': 'None')) {
     dynamictext headerTitle (content: 'Customers', rendermode: H1, class: 'pageheader-title')
     dynamictext headerSubtitle
     (
       content: 'All active accounts',
       rendermode: Paragraph,
       class: 'pageheader-subtitle',
-      designproperties: ['Color': 'Detail color', 'Spacing': ['margin-bottom': 'None']]
+      designproperties: ('Color': 'Detail color', 'Spacing': ('margin-bottom': 'None'))
     )
   }
 };
@@ -218,7 +218,7 @@ Apply via `class:` on any widget (space-join several: `class:'card flex-column'`
 | **Group boxes** | `groupbox-{primary,danger,secondary,callout}` |
 
 Source: `atlas_core/web/design-properties.json` (verified in-project). To see what a
-specific widget offers, run `show design properties` / `describe styling`
+specific widget offers, run `list design properties` / `describe styling`
 (`theme-styling`).
 
 ### When to reach for each
@@ -245,13 +245,13 @@ cleanly into Studio Pro. Common mappings:
 
 | Class-style | Typed design-property equivalent |
 |---|---|
-| `class:'card'` | `designproperties: ['Card style': on]` |
-| `class:'background-primary'` | `designproperties: ['Background color': 'Brand Primary']` |
-| `class:'flex-column'` | `designproperties: ['Flex container': 'Vertical (column)']` |
-| `class:'flex-row'` | `designproperties: ['Flex container': 'Horizontal (row)']` |
-| `class:'align-x-center'` | `designproperties: ['Align items X': 'Center']` |
-| `class:'Shadow'` | `designproperties: ['Shadow': 'None' / 'Small' / …]` |
-| spacing utilities | `designproperties: ['Spacing': ['margin-bottom': 'L', 'padding-top': 'S']]` |
+| `class:'card'` | `designproperties: ('Card style': on)` |
+| `class:'background-primary'` | `designproperties: ('Background color': 'Brand Primary')` |
+| `class:'flex-column'` | `designproperties: ('Flex container': 'Vertical (column)')` |
+| `class:'flex-row'` | `designproperties: ('Flex container': 'Horizontal (row)')` |
+| `class:'align-x-center'` | `designproperties: ('Align items X': 'Center')` |
+| `class:'Shadow'` | `designproperties: ('Shadow': 'None' / 'Small' / …)` |
+| spacing utilities | `designproperties: ('Spacing': ('margin-bottom': 'L', 'padding-top': 'S'))` |
 
 **Both channels render identically at runtime** — raw `class:` is sufficient for the
 visual result today. The typed channel matters for Studio Pro round-trip and is the

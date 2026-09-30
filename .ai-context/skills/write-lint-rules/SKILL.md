@@ -50,13 +50,19 @@ silently return empty results (issue #721).
 | Function | Returns | Description |
 |----------|---------|-------------|
 | `entities()` | list of entity | All non-system entities |
-| `microflows()` | list of microflow | All non-system microflows |
+| `microflows()` | list of microflow | All non-system microflows, nanoflows **and rules** — they share one catalog table. Name the document with `document_noun_title`, never a hardcoded `"Microflow"` |
 | `pages()` | list of page | All non-system pages |
 | `enumerations()` | list of enumeration | All non-system enumerations |
 | `constants()` | list of constant | All non-system constants |
 | `widgets()` | list of widget | All non-system widgets |
 | `snippets()` | list of snippet | All non-system snippets |
 | `scheduled_events()` | list of scheduled_event | All non-system scheduled events (requires MPR reader) |
+| `queues()` | list of queue | All non-system task queues |
+| `java_actions()` | list of java_action | All non-system, non-marketplace Java actions, each carrying its parameters |
+| `database_connections()` | list of database_connection | All non-system external database connections |
+| `documents()` | list of document | Every App Explorer document outside System and Marketplace modules, as one uniform projection with `folder` — for rules about where a document *lives* |
+| `documentable_elements()` | list of documentable | Every element that can carry documentation, across all document types, with its `description` — for documentation sweeps. Leaves out microflows and Java actions; use `microflows()` / `java_actions()` for those |
+| `navigation_targets()` | list of navigation_target | Every page a navigation profile routes to: profile home pages, role home pages and menu items. Login and not-found pages are excluded |
 | `rest_clients()` | list of rest_client | Consumed REST service documents (excluding platform modules) |
 | `rest_operations()` | list of rest_operation | Operations on consumed REST services, including their `timeout` |
 | `attributes_for(entity_qualified_name)` | list of attribute | Attributes for a specific entity |
@@ -84,6 +90,7 @@ not fail). In a session, run `refresh catalog communities` before `lint`.
 | `layer_of(asset)` | int or None | Topological layer sequence number (no opinion on ordering) |
 | `community_of(asset)` | struct{id, label} or None | The asset's detected community (bounded context) |
 | `cycles()` | list of struct{id, size, members} | Dependency cycles (SCCs > 1 node) |
+| `module_cycles()` | list of struct{id, size, members} | Module-level dependency cycles over every reference kind; `members` are module names. Use this, not `cycles()`, for "no circular module dependencies" — modules can reference each other through documents that form no asset-level cycle |
 | `module_dependencies()` | list of struct{source_module, target_module, ref_kind, edges} | Directed module→module edges |
 | `centrality(asset)` | struct{in, out, total, pagerank, betweenness} or None | Centrality of an asset |
 | `god_nodes(metric="degree"\|"pagerank"\|"betweenness", min=N)` | list of struct{asset, object_type, module_name, degree, pagerank, betweenness} | High-centrality assets above a threshold |
@@ -164,6 +171,10 @@ def check():
 | `validation_rule_count` | int | Number of validation rules |
 | `has_event_handlers` | bool | True if entity has event handlers |
 | `is_external` | bool | True if entity is from an external service |
+| `has_created_date` | bool | True if the entity stores `createdDate` (an audit member, not counted in `attribute_count`) |
+| `has_changed_date` | bool | True if the entity stores `changedDate` |
+| `has_owner` | bool | True if the entity stores `owner` |
+| `has_changed_by` | bool | True if the entity stores `changedBy` |
 
 ### microflow
 | Property | Type | Example |
@@ -173,12 +184,14 @@ def check():
 | `qualified_name` | string | `"Sales.ACT_Customer_Create"` |
 | `module_name` | string | `"Sales"` |
 | `folder` | string | `"microflows/Customer"` — folder path within module |
-| `microflow_type` | string | `"microflow"` or `"nanoflow"` |
+| `microflow_type` | string | exactly `"MICROFLOW"`, `"NANOFLOW"` or `"RULE"` — upper-case, unlike `entity_type`. `microflows()` yields all three flavours, so a rule meant for microflows only must filter on `"MICROFLOW"` |
 | `description` | string | Documentation text |
 | `return_type` | string | Return type |
 | `parameter_count` | int | Number of parameters |
 | `activity_count` | int | Number of activities |
 | `complexity` | int | McCabe cyclomatic complexity |
+| `document_noun` | string | `"microflow"`, `"nanoflow"` or `"rule"` — for mid-sentence use in a message |
+| `document_noun_title` | string | `"Microflow"`, `"Nanoflow"` or `"Rule"` — for `document_type=` and a message that opens with it |
 
 ### page
 | Property | Type | Example |
@@ -249,7 +262,86 @@ def check():
 | `module_name` | string | `"MyModule"` |
 | `microflow_name` | string | `"MyModule.MF_NightlyCleanup"` — resolved from catalog; raw UUID when catalog not built |
 | `interval_seconds` | int | `86400` — `0` for unrecognised interval type |
+| `repeat` | string | Schedule variant: `"Minute"`, `"Hour"`, `"Day"`, `"Week"`, `"MonthDate"`, `"MonthWeekday"`, `"YearDate"` or `"YearWeekday"`; `""` when the event has no schedule |
+| `on_overlap` | string | `"DelayNext"` or `"SkipNext"` — what happens when a run is still going at the next start |
+| `time_zone` | string | Time zone the schedule is evaluated in |
 | `enabled` | bool | `True` if the event is active |
+
+### queue
+| Property | Type | Example |
+|----------|------|---------|
+| `name` | string | `"ImportQueue"` |
+| `qualified_name` | string | `"Sales.ImportQueue"` |
+| `module_name` | string | `"Sales"` |
+| `parallelism` | string | `"3"` — an **expression**, stored as a string; do not assume it parses as an integer |
+| `cluster_wide` | bool | `True` if parallelism applies across the cluster rather than per node |
+
+### java_action
+| Property | Type | Example |
+|----------|------|---------|
+| `id` | string | Document UUID |
+| `name` | string | `"JA_ParseJson"` |
+| `qualified_name` | string | `"Sales.JA_ParseJson"` |
+| `module_name` | string | `"Sales"` |
+| `folder` | string | Folder path within module |
+| `documentation` | string | Documentation text |
+| `description` | string | Same as `documentation`, so a rule sweeping mixed document kinds can read one field name |
+| `export_level` | string | `"Hidden"` or `"API"` |
+| `return_type` | string | Return type |
+| `parameter_count` | int | Number of parameters |
+| `parameters` | list of java_action_parameter | The action's parameters, in order |
+
+#### java_action_parameter (nested in java_action)
+| Property | Type | Example |
+|----------|------|---------|
+| `name` | string | `"InputString"` |
+| `description` | string | Parameter documentation |
+| `parameter_type` | string | Parameter type |
+| `is_required` | bool | `True` if the parameter is required |
+
+### database_connection
+| Property | Type | Example |
+|----------|------|---------|
+| `id` | string | Document UUID |
+| `name` | string | `"LegacyDB"` |
+| `qualified_name` | string | `"Integration.LegacyDB"` |
+| `module_name` | string | `"Integration"` |
+| `folder` | string | Folder path within module |
+| `database_type` | string | Database engine of the connection |
+| `query_count` | int | Number of queries defined on the connection |
+
+### document
+Returned by `documents()`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `kind` | string | Catalog object type, upper-case: `"MICROFLOW"`, `"PAGE"`, `"WORKFLOW"`, … |
+| `name` | string | `"Customer_Overview"` |
+| `qualified_name` | string | `"Sales.Customer_Overview"` |
+| `module_name` | string | `"Sales"` |
+| `folder` | string | Folder path within module; `""` means directly in the module root |
+
+### documentable
+Returned by `documentable_elements()`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `kind` | string | Mendix term, TitleCase: `"Page"`, `"Enumeration"`, `"Workflow"`, … |
+| `name` | string | `"OrderStatus"` |
+| `qualified_name` | string | `"Sales.OrderStatus"` |
+| `module_name` | string | `"Sales"` |
+| `description` | string | Documentation text, whichever of the element's Documentation/Description properties holds it |
+
+### navigation_target
+Returned by `navigation_targets()`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `profile` | string | Navigation profile: `"Responsive"`, `"Phone"`, `"Tablet"`, … |
+| `kind` | string | `"home"`, `"role_home"` or `"menu"` |
+| `role` | string | User role, for a `"role_home"` target; `""` otherwise |
+| `caption` | string | Menu item caption, for a `"menu"` target; `""` otherwise |
+| `page` | string | Qualified name of the target page |
 
 ### xpath_expression
 
@@ -351,6 +443,8 @@ def count_not(node):
 | `entity_ref` | string | Referenced entity qualified name |
 | `service_ref` | string | Called service document (REST / web service / OData client); empty when the activity calls none |
 | `action_ref` | string | Operation or action within that service; empty when the activity calls none |
+| `use_request_timeout` | bool | Call REST service: whether "Use a timeout" is enabled. False for other action types |
+| `timeout_expression` | string | Call REST service: the timeout in seconds, stored as an expression, e.g. `"300"` |
 
 ### rest_client
 | Property | Type | Example |
@@ -395,6 +489,7 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 | `member_name` | string | Attribute name (for MEMBER_READ/MEMBER_WRITE) |
 | `xpath_constraint` | string | XPath constraint or empty |
 | `is_constrained` | bool | True if XPath constraint is set |
+| `default_member_access_rights` | string | The rule's "default rights for new members": `"None"`, `"ReadOnly"` or `"ReadWrite"`. Empty for non-entity permissions |
 
 ### user_role
 | Property | Type | Example |
@@ -420,13 +515,13 @@ Returned by `permissions()` (all types) or `permissions_for()` (entity-specific)
 ### reference
 | Property | Type | Example |
 |----------|------|---------|
-| `source_type` | string | The document the edge comes FROM, upper-case: `"MICROFLOW"`, `"NANOFLOW"`, `"RULE"`, `"PAGE"`, `"SNIPPET"`, `"ENTITY"`, `"ASSOCIATION"`, `"WORKFLOW"`, `"NAVIGATION"`, `"SCHEDULED_EVENT"`, `"PUBLISHED_REST_OPERATION"`, `"PROJECT_SETTINGS"` |
+| `source_type` | string | The document the edge comes FROM, upper-case: `"MICROFLOW"`, `"NANOFLOW"`, `"RULE"`, `"PAGE"`, `"SNIPPET"`, `"ENTITY"`, `"ASSOCIATION"`, `"WORKFLOW"`, `"NAVIGATION"`, `"SCHEDULED_EVENT"`, `"PUBLISHED_REST_OPERATION"`, `"PROJECT_SETTINGS"`, `"IMPORT_MAPPING"`, `"EXPORT_MAPPING"` |
 | `source_id` | string | Source UUID |
 | `source_name` | string | `"Sales.ACT_Customer_Create"` |
-| `target_type` | string | What it points AT, upper-case: `"ENTITY"`, `"ASSOCIATION"`, `"MICROFLOW"`, `"NANOFLOW"`, `"RULE"`, `"PAGE"`, `"LAYOUT"`, `"WORKFLOW"`, `"WIDGET"`, `"JAVA_ACTION"`, `"REST_OPERATION"`, `"REGULAR_EXPRESSION"`. `LAYOUT` and `WIDGET` are only ever targets; `SCHEDULED_EVENT` and `PROJECT_SETTINGS` only ever sources |
+| `target_type` | string | What it points AT, upper-case: `"ENTITY"`, `"ASSOCIATION"`, `"MICROFLOW"`, `"NANOFLOW"`, `"RULE"`, `"PAGE"`, `"LAYOUT"`, `"WORKFLOW"`, `"WIDGET"`, `"JAVA_ACTION"`, `"REST_OPERATION"`, `"REGULAR_EXPRESSION"`, `"ATTRIBUTE"`, `"ENUMERATION"`, `"ENUMERATION_VALUE"`. `LAYOUT`, `WIDGET`, `ATTRIBUTE`, `ENUMERATION` and `ENUMERATION_VALUE` are only ever targets; `SCHEDULED_EVENT` and `PROJECT_SETTINGS` only ever sources |
 | `target_id` | string | Target UUID |
-| `target_name` | string | `"Sales.Customer"` |
-| `ref_kind` | string | How it references: `"call"`, `"create"`, `"retrieve"`, `"change"`, `"delete"`, `"show_page"`, `"datasource"`, `"action"`, `"layout"`, `"parameter"`, `"return"`, `"generalize"`, `"associate"`, `"home_page"`, `"login_page"`, `"menu_item"`, `"calculate"`, `"schedule"`, `"validate"`, `"settings"`, `"widget"`, `"sync"`, `"publish"`, `"event"` — lower-case, unlike the types above |
+| `target_name` | string | `"Sales.Customer"`; three-part for an attribute or an enumeration value: `"Sales.Order.Total"`, `"Sales.OrderStatus.Open"` |
+| `ref_kind` | string | How it references: `"call"`, `"create"`, `"retrieve"`, `"change"`, `"delete"`, `"show_page"`, `"datasource"`, `"action"`, `"layout"`, `"parameter"`, `"return"`, `"generalize"`, `"associate"`, `"home_page"`, `"login_page"`, `"menu_item"`, `"calculate"`, `"schedule"`, `"validate"`, `"settings"`, `"widget"`, `"sync"`, `"publish"`, `"event"`, `"member"` (binds/reads/writes an attribute or navigates an association), `"xpath"` (an XPath constraint names it), `"type"` (typed as an enumeration), `"value"` (an expression names an enumeration value), `"mapping"` (an import/export mapping maps the entity) — lower-case, unlike the types above. Attribute names used only through a variable in a free-text expression (`$Order/Total`) have no edge |
 | `module_name` | string | Source module |
 
 ### project_security
@@ -440,6 +535,7 @@ Returned by `project_security()`. Returns `none` if no MPR reader is available.
 | `enable_guest_access` | bool | Whether anonymous/guest access is enabled |
 | `check_security` | bool | Whether security checking is active |
 | `strict_mode` | bool | Strict security mode |
+| `anonymous_user_role` | string | Name of the project's guest user role, the role anonymous users get. Read `enable_guest_access` too: the role name can stay set while guest access is off |
 | `password_policy` | struct | Nested password policy settings |
 
 #### password_policy (nested in project_security)
@@ -460,6 +556,8 @@ Returned by `project_security()`. Returns `none` if no MPR reader is available.
 | `is_pascal_case(s)` | Returns True if string is PascalCase |
 | `is_camel_case(s)` | Returns True if string is camelCase |
 | `matches(s, pattern)` | Returns True if string matches regex |
+| `get_option(key, default?)` | The rule's option `key` from the `options:` block under its rule ID in `.claude/lint-config.yaml`, or `default` (`None` if omitted) when unset |
+| `struct(**kwargs)` | Build an ad-hoc struct, e.g. `struct(name="x", count=1)`, to group values inside a rule |
 
 ## Common Patterns
 
@@ -501,7 +599,7 @@ def check():
         return [violation(
             message="password minimum length is {} (recommended: 8+)".format(sec.password_policy.min_length),
             location=location(module="", document_type="security", document_name="ProjectSecurity"),
-            suggestion="alter project security password POLICY minimum length 8",
+            suggestion="alter app security password POLICY minimum length 8",
         )]
     return []
 ```

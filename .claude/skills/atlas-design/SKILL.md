@@ -139,8 +139,8 @@ instantiate** them, so the workflow is:
 
 **1. Discover what your project ships.**
 ```bash
-mxcli -p app.mpr -c "show building blocks"
-mxcli -p app.mpr -c "show building blocks in Atlas_Web_Content"
+mxcli -p app.mpr -c "list building blocks"
+mxcli -p app.mpr -c "list building blocks in Atlas_Web_Content"
 mxcli -p app.mpr -c "select QualifiedName, Category from CATALOG.building_blocks"
 ```
 
@@ -151,9 +151,9 @@ mxcli -p app.mpr -c "describe building block Atlas_Web_Content.Card"
 ```
 ```
 {
-  container container2 (DesignProperties: ['Card style': on]) {
+  container container2 (DesignProperties: ('Card style': on)) {
     dynamictext text22 (Content: 'Card title', RenderMode: H4, Class: 'card-title',
-      DesignProperties: ['Spacing': ['margin-bottom': 'L']])
+      DesignProperties: ('Spacing': ('margin-bottom': 'L')))
   }
 }
 ```
@@ -450,7 +450,7 @@ row before opening files.
 
 - [ ] **Atlas-first** — reached for `class:`/design properties (Layer 0) and brand
       tokens (Layer 1) before any custom CSS
-- [ ] **Discovered** the project's building blocks (`show building blocks`) and
+- [ ] **Discovered** the project's building blocks (`list building blocks`) and
       **inspected** the target block (`describe building block …`) before using it
 - [ ] **Instantiated** with `use building block Mod.Name [as prefix_]` (the one-liner),
       then configured the copied widgets with `alter page` — mirrored by hand only as a

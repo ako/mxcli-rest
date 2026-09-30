@@ -94,6 +94,7 @@ Load skills based on the task:
 | "Set this empty repo up as a Mendix app" | `bootstrap-app` |
 | "Create entity/domain model" | `mdl-entities` |
 | "Write microflow" | `write-microflows`, `cheatsheet-variables` |
+| "Change an existing page / microflow / entity" | `choose-edit-mode`, then the doctype skill |
 | "Create validation" | `validation-microflows`, `patterns-crud` |
 | "Add CRUD operations" | `patterns-crud` |
 | "Process list of items" | `patterns-data-processing` |

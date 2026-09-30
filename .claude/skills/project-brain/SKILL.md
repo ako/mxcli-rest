@@ -33,8 +33,8 @@ someone edits the model, and it will disagree silently.
 Before writing anything down, ask whether a command answers it:
 
 ```bash
-mxcli -p app.mpr -c "show entities"
-mxcli -p app.mpr -c "show callers of MyModule.ACT_Thing"
+mxcli -p app.mpr -c "list entities"
+mxcli -p app.mpr -c "list callers of MyModule.ACT_Thing"
 mxcli -p app.mpr -c "describe microflow MyModule.ACT_Thing"
 ```
 

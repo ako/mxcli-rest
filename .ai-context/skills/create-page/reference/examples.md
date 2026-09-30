@@ -9,7 +9,7 @@ Supporting reference for [create-page](../SKILL.md).
 ```sql
 create or replace page CRM.CustomerEdit
 (
-  params: { $Customer: CRM.Customer },
+  params: ( $Customer: CRM.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -19,8 +19,8 @@ create or replace page CRM.CustomerEdit
   -- inside a layoutgrid → row → column. A DataView with input fields placed
   -- directly on the page (no grid) is flagged by lint rule MPR010 / mxcli check.
   layoutgrid mainGrid {
-    row row1 {
-      column col1 (desktopwidth: autofill) {
+    row {
+      column (desktopwidth: autofill) {
         dataview dvCustomer (datasource: $Customer) {
           textbox txtName (label: 'Name', attribute: Name)
           textbox txtEmail (label: 'Email', attribute: Email)
@@ -28,8 +28,8 @@ create or replace page CRM.CustomerEdit
           checkbox cbActive (label: 'Active', attribute: IsActive)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }
@@ -48,17 +48,17 @@ create page Orders.OrderOverview
 )
 {
   layoutgrid mainGrid {
-    row row1 {
-      column col1 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         dynamictext heading (content: 'Order Overview', rendermode: H2)
       }
     }
-    row row2 {
-      column col2 (desktopwidth: 12) {
+    row {
+      column (desktopwidth: 12) {
         datagrid dgOrders (datasource: database from Orders.Order sort by OrderDate desc) {
-          column colNumber (attribute: OrderNumber, caption: 'Order #')
-          column colDate (attribute: OrderDate, caption: 'Date')
-          column colTotal (attribute: TotalAmount, caption: 'Total')
+          column (attribute: OrderNumber, caption: 'Order #')
+          column (attribute: OrderDate, caption: 'Date')
+          column (attribute: TotalAmount, caption: 'Total')
         }
       }
     }
@@ -76,20 +76,20 @@ create page CRM.Customer_MasterDetail
 )
 {
   layoutgrid mainGrid {
-    row row1 {
+    row {
       -- Master list (left column)
-      column colMaster (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         dynamictext heading (content: 'Customers', rendermode: H3)
         gallery customerList (datasource: database from CRM.Customer sort by Name asc, selection: single) {
-          template template1 {
-            dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-            dynamictext email (content: '{1}', contentparams: [{1} = Email])
+          template {
+            dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+            dynamictext email (content: '{1}', contentparams: ({1} = Email))
           }
         }
       }
 
       -- Detail form (right column)
-      column colDetail (desktopwidth: 8) {
+      column (desktopwidth: 8) {
         dataview customerDetail (datasource: selection customerList) {
           dynamictext detailHeading (content: 'Customer Details', rendermode: H3)
           textbox txtName (label: 'Name', attribute: Name)
@@ -97,8 +97,8 @@ create page CRM.Customer_MasterDetail
           textbox txtPhone (label: 'Phone', attribute: Phone)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }

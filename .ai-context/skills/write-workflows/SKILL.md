@@ -87,6 +87,11 @@ build with `CE0117 "Error(s) in expression."`.
 
 ## Activities
 
+Expressions are bare, as everywhere in MDL: a decision's condition, a timer's
+delay, a due date (`decision $WorkflowContext/Total > 1000`, `due date
+addDays([%CurrentDateTime%], 3)`). The older string form (`decision '…'`) still
+parses and warns `MDL-DEPR080`; `mxcli fmt --upgrade` rewrites it.
+
 Every activity statement ends with `;`. Blocks `{ … }` nest a sub-flow.
 
 ```sql
@@ -96,7 +101,7 @@ begin
   -- User task: renders a page, offers named outcomes (branches)
   user task Review 'Review the request'
     page Module.ReviewPage
-    targeting users microflow Module.ACT_Reviewers   -- or: targeting users xpath '[Active = true()]'
+    targeting users microflow Module.ACT_Reviewers   -- or: targeting users xpath [Active = true()]
     on created microflow Module.ACT_AssignReviewer   -- optional: runs when the task is created
     description 'Please review'
     outcomes
@@ -109,19 +114,18 @@ begin
     outcomes 'Done' { };
 
   -- Call a microflow (server logic); optional name, parameter mapping + outcomes
-  call microflow Module.ACT_Validate as callMicroflow1
-    with (Module.ACT_Validate.Item = '$WorkflowContext');
+  call microflow Module.ACT_Validate(Item = $WorkflowContext) as callMicroflow1;
 
   -- Decision: a boolean or enum exclusive split. The name is optional; give one
   -- when a `jump to` targets it.
-  decision decision1 '$WorkflowContext/Total > 1000'
+  decision decision1 $WorkflowContext/Total > 1000
     outcomes
       true  -> { call microflow Module.ACT_Escalate; }
       false -> { call microflow Module.ACT_AutoApprove; };
 
   -- An enum decision: each outcome is a FULLY QUALIFIED enumeration value
   -- (Module.Enumeration.Value), plus one '' outcome for "none of the above".
-  decision decision2 '$WorkflowContext/Status'
+  decision decision2 $WorkflowContext/Status
     outcomes
       'Module.ENUM_Status.Approved' -> { }
       'Module.ENUM_Status.Rejected' -> { }
@@ -133,14 +137,14 @@ begin
     path 2 { call microflow Module.ACT_Log; };
 
   -- Wait for a timer, then continue (duration is a Mendix expression)
-  wait for timer timer1 'addHours([%CurrentDateTime%], 1)';
+  wait for timer timer1 addHours([%CurrentDateTime%], 1);
 
   -- Wait for an external notification (e.g. an event)
   wait for notification waitForNotification1;
 
   -- An intermediate notification event (Mendix 11.11+): what `notify workflow`
   -- targets by name
-  notification DocumentsReceived comment 'Documents received';
+  notification DocumentsReceived caption 'Documents received';
 
   -- Loop back, or stop the whole workflow, from inside an outcome. A `jump to`
   -- and an `end workflow` must each END their path, so neither can close the
@@ -149,21 +153,34 @@ begin
     page Module.ReviewPage
     outcomes
       'Redo'   { jump to Review; }
-      'Cancel' { end workflow comment 'Cancelled'; }
+      'Cancel' { end workflow caption 'Cancelled'; }
       'Done'   { };
 
   -- Call a sub-workflow
-  call workflow Module.SubProcess as callWorkflow1 comment 'delegate';
+  call workflow Module.SubProcess as callWorkflow1 caption 'delegate';
 end workflow;
 ```
 
-> **Do NOT use `annotation '...'` in a workflow body.** It parses, but the
-> annotation is written into the workflow's activity flow, which Mendix loads by
+**Notes** attach to an activity with `@annotation '…'` on the line before it,
+as in a microflow; the workflow's own note is the header clause
+`annotation '…'`, and an event sub-process takes `@annotation` before
+`event subprocess`. One note per activity; no other `@` annotation is accepted.
+
+```sql
+create workflow Module.Approve
+  parameter $WorkflowContext: Module.Request
+  annotation 'Started from the request form'
+begin
+  @annotation 'Escalates after two days'
+  user task review 'Review' page Module.Review_Task outcomes 'Done' { };
+end workflow;
+```
+
+> **Do NOT use a standalone `annotation '...';` statement in a workflow body.**
+> It parses, but the note is written into the activity flow, which Mendix loads by
 > constructing every child with a `Flow` parent — no annotation type takes one, so
-> the resulting `.mpr` **cannot be loaded at all**: Studio Pro will not open the
-> project and `mx check` fails before validating anything. `mxcli` now refuses the
-> statement (MDL-WF04) at both check and exec time. Keep the note as an MDL comment
-> (`-- ...`); workflow canvas annotations are not yet writable.
+> the resulting `.mpr` **cannot be loaded at all**. `mxcli` refuses it (MDL-WF04)
+> at check and exec time. Attach the note to an activity with `@annotation`.
 
 **Boundary events** attach a timer to a user task / call-microflow / wait:
 
@@ -174,7 +191,7 @@ begin
   user task Review 'Review'
     page Module.ReviewPage
     outcomes 'Done' { }
-    boundary event interrupting timer 'addDays([%CurrentDateTime%], 3)' {
+    boundary event interrupting timer addDays([%CurrentDateTime%], 3) {
       call microflow Module.ACT_Escalate;
     };
 end workflow;
@@ -197,8 +214,8 @@ end workflow;
   targets it, so it takes a **name** instead of a delay:
   `boundary event interrupting notification Withdrawn 'Request withdrawn' { end workflow; }`.
   The name is unique in the workflow. Only one interrupting boundary event per
-  activity, of either kind (CE6697, MDL-WF15). `alter workflow … insert boundary
-  event` cannot add one yet — restate the workflow.
+  activity, of either kind (CE6697, MDL-WF15). `alter workflow … { insert into X
+  { boundary event … } }` cannot add one yet — restate the workflow.
 - **Over MCP (`--mcp`), Studio Pro dictates how a notification path ends**, which
   mxbuild does not: an interrupting one ends in `end workflow;` (in `jump to` inside
   a parallel split), a non-interrupting one runs to its end. mxcli refuses the
@@ -220,7 +237,7 @@ begin
     call microflow HR.ACT_LogCancel;
   };
   event subprocess ESP_Reminder 'Daily reminder'
-    on non interrupting timer 'addDays([%CurrentDateTime%], 1)' as espReminderStart {
+    on non interrupting timer addDays([%CurrentDateTime%], 1) as espReminderStart {
     call microflow HR.ACT_Remind;
   };
 end workflow;
@@ -244,44 +261,68 @@ drop workflow Module.ApprovalFlow;
 
 ## ALTER WORKFLOW
 
-In-place edits go through the workflow mutator — no full rewrite. Supports
-`SET` properties, and `INSERT` / `DROP` / `REPLACE` of activities, outcomes,
-parallel paths, decision conditions, and boundary events. Reference an activity
-by its name (or an auto-named one by its caption in quotes).
-
-Each operation is its **own statement** — there is no `{ … }` wrapper, and `SET`
-uses no `=` (`set display 'X'`, not `set display = 'X'`):
+In-place edits go through the workflow mutator — no full rewrite. `alter
+workflow` is the generic alter (the same shape as `alter page`): the operations
+go in `{ … }`, properties are set with `set ( Key: value )`, and a fragment is
+written exactly as in `create workflow`.
 
 ```sql
-alter workflow Module.ApprovalFlow set display 'Updated Approval';
-alter workflow Module.ApprovalFlow set activity Review page Module.AltReviewPage;
-alter workflow Module.ApprovalFlow insert after Review call microflow Module.ACT_Log;
-alter workflow Module.ApprovalFlow replace activity ACT_Validate with call microflow Module.ACT_Process;
+alter workflow Module.ApprovalFlow {
+  set (Display: 'Updated Approval', DueDate: addDays([%CurrentDateTime%], 7));
+  set (Page: Module.AltReviewPage, Description: 'Check the amount') on Review;
+  set (Targeting: xpath [Active = true()]) on Review;
+  insert before Review { call microflow Module.ACT_Prepare; }
+  insert after Review { call microflow Module.ACT_Log; call microflow Module.ACT_Notify; }
+  replace ACT_Validate with { call microflow Module.ACT_Process; }
+  drop ObsoleteStep;
+};
 ```
 
-Consecutive `set`s may chain in one statement:
-`alter workflow Module.ApprovalFlow set display 'X' set description 'Y';`
+**Addressing an activity.** A target is the activity's **name** (`Review` —
+`describe workflow` prints every name) or its **caption** in quotes
+(`'Review the request'`); add `@n` to choose one of several matches. A name wins
+over a caption that repeats it. An ambiguous target is refused, and the error
+lists the matches (`@1 user task Review, @2 decision Review`) — mxcli never
+guesses. Every target is resolved before anything changes, so a refused
+statement leaves the workflow untouched. The flow's start activity (`start1`,
+caption `'Start'`) is addressable too, but nothing goes before it — `insert
+before start1` is refused (it would be `CE9526`); use `insert after start1`.
 
-See `mdl-examples/doctype-tests/24-workflow-examples.mdl` for the full ALTER
-surface (insert path, drop path, insert condition, boundary events).
+Workflow keys: `Display`, `Description`, `ExportLevel`, `DueDate`,
+`OverviewPage`, `Parameter: $WorkflowContext: Module.Entity`. Activity keys
+(with `on <activity>`): `Page`, `Description`, `Targeting: microflow M.F` /
+`Targeting: xpath [ … ]`, `DueDate`.
 
-**The INSERT op has to match the activity kind.** An activity's outcome list is
-typed, and each op writes exactly one outcome type into it:
+**Adding to an activity: `insert into`.** What goes in the braces is the
+activity's own clause, as `create workflow` writes it — and it has to match the
+activity kind, because an activity's outcome list is typed:
 
-| Op | Writes | Only on |
-|----|--------|---------|
-| `insert outcome '<name>' on X { }` | `UserTaskOutcome` | a user task |
-| `insert condition '<Module.Enum.Value>' on X { }` | `…ConditionOutcome` | a decision, a call microflow |
-| `insert path on X { }` | `ParallelSplitOutcome` | a parallel split |
-| `insert boundary event on X interrupting timer '<expr>' { }` | a boundary event | user task, call microflow, call workflow, wait for notification |
+| Fragment | Writes | Only on |
+|----------|--------|---------|
+| `insert into X { outcomes '<name>' { … } }` | `UserTaskOutcome` | a user task |
+| `insert into X { outcomes '<Module.Enum.Value>' -> { … } }` (or `true`, `false`, `default`) | `…ConditionOutcome` | a decision, a call microflow |
+| `insert into X { path { … } }` (`path n` must be the next number) | `ParallelSplitOutcome` | a parallel split |
+| `insert into X { boundary event interrupting timer <expr> { … } }` | a boundary event | user task, call microflow, call workflow, wait for notification |
 
 Aim one at the wrong kind and the outcome lands in a list that cannot hold it,
 which is **not** a build error: the project stops **loading**, so Studio Pro will
 not open it and `mx check` dies before it validates anything (ako/mxcli#415).
-mxcli refuses all of these now — at `check --references` and at `exec`, which
-call the same function — and the refusal names the op that fits the target. The
-`drop` ops are unaffected: removing a branch cannot write a wrong type, and it
-leaves an ordinary build error (`CE6686`) rather than an unloadable project.
+mxcli refuses all of these — at `check --references` and at `exec`, which call
+the same function — and the refusal names the fragment that fits the target.
+
+**Removing a member: `drop X outcome 'Reject'`**, `drop Decision1 outcome true`
+(`false`, `default`), `drop Split1 path 2`, `drop X boundary event`. Removing a
+branch cannot write a wrong type; it leaves an ordinary build error (`CE6686`)
+rather than an unloadable project. `path n` addresses a **parallel split** only
+— on a user task it used to delete the n-th outcome (ako/mxcli#791) and is now
+refused; drop a user task's outcome by its value. `drop X boundary event` names
+no event, so on an activity with several it is refused under `mdl 1` (under
+`mdl 0` it drops the first and warns `MDL-V1-BOUNDARYDROP`).
+
+The old per-action statements (`alter workflow M.W set display 'X';`, `set
+activity X page …`, `insert outcome 'N' on X { }`, `drop path 'Path 2' on X`)
+still parse and warn `MDL-DEPR140`–`149`; `mxcli fmt --upgrade` rewrites them.
+See `mdl-examples/doctype-tests/24-workflow-examples.mdl` for the full surface.
 
 ## DESCRIBE round-trip
 
@@ -290,7 +331,16 @@ tasks, decisions, splits, jump-to targets, wait activities and boundary events
 all come back as statements (not comments). You can learn the exact syntax by
 describing a Studio-Pro-authored workflow, and `describe → drop → exec`
 reproduces a workflow that builds. (The implicit start/end activities are
-omitted, as they are re-synthesised on create.)
+omitted, as they are re-synthesised on create.) `describe` prints
+`create or modify workflow`, and re-running it on the workflow it came from
+changes nothing: the rewrite keeps the stored names of the activities MDL cannot
+name (Studio Pro's `start1`, `end1`, …), the empty flow of an outcome that leads
+nowhere, and the empty event sub-process list.
+
+That is for learning the syntax and for workflows your scripts own. **To change an
+existing Studio Pro workflow, use `alter workflow`**, never drop → exec: that
+re-creates the document with new identities and loses anything MDL cannot express
+(see [choose-edit-mode](../choose-edit-mode/SKILL.md)).
 
 Event sub-processes come back as `event subprocess … on …` blocks after the main
 body, and notification activities and notification boundary events as statements.
@@ -397,7 +447,7 @@ matches. Route on your own entity's status instead.
 The System module's enumerations are **not in the project file** — Mendix ships
 them with the platform — so mxcli synthesizes them from its own table of platform
 definitions. `describe enumeration System.WorkflowUserTaskState` and
-`show enumerations` report them, read-only:
+`list enumerations` report them, read-only:
 
 ```bash
 mxcli -p app.mpr describe enumeration System.WorkflowUserTaskState
@@ -419,9 +469,9 @@ values. The full list and the System **entities** are in `system-module`.
   reset it.** An event sub-process and a workflow event handler subscribed to no
   event types are set in Studio Pro.
   `create or modify` on a workflow that holds any of them is refused with the
-  list, and so is `alter workflow … replace activity` on an activity that holds
-  one. Change such a workflow with `alter workflow … set activity …` (it edits
-  the stored document and keeps the rest) or in Studio Pro.
+  list, and so is `alter workflow … { replace X with { … } }` on an activity that holds
+  one. Change such a workflow with `alter workflow … { set ( … ) on X; }` (it
+  edits the stored document and keeps the rest) or in Studio Pro.
 
 - **`end workflow` ends the whole workflow from inside a branch** — the workflow
   counterpart of a microflow's `return`. `return;` itself is refused in a workflow
@@ -440,7 +490,7 @@ values. The full list and the System **entities** are in `system-module`.
     reaches the end of the workflow needs no `end workflow`.
   - The main flow needs none: the body's closing `end workflow` is its End.
   An outcome left **empty** does not stop anything — it rejoins the main flow.
-  `comment '…'` sets the End's caption, as on every workflow activity.
+  `caption '…'` sets the End's caption, as on every workflow activity (`comment '…'` is its deprecated alias, MDL-DEPR104).
 
 - **A multi-user task says who must respond and how their outcomes decide**:
   `participants all | <n> | <n> percent`, `decide by …` and `await all users`,
@@ -461,11 +511,11 @@ values. The full list and the System **entities** are in `system-module`.
   users` is refused — each omitted clause would reset it.
 - **An AI agent task is `call agent microflow`** (Mendix 11.9+) — the call
   microflow statement stored as `Workflows$AIAgentTaskActivity`, with the same
-  `as`, `comment`, `with (…)`, `outcomes` and boundary events. The microflow is
+  argument list, `as`, `comment`, `outcomes` and boundary events. The microflow is
   where the agent is invoked. Measured on mxbuild 11.13 against the identical
   call microflow, one rule differs: **its microflow must take a parameter**
-  (`CE1590 "Missing parameter"`), usually the context object mapped with
-  `with (Param = '$WorkflowContext')`. Return Boolean or an enumeration to
+  (`CE1590 "Missing parameter"`), usually the context object passed as
+  `(Param = $WorkflowContext)`. Return Boolean or an enumeration to
   branch on the answer.
 - **Handler microflows have fixed signatures** (measured, mxbuild 11.13):
   - `on created microflow` takes exactly `System.WorkflowUserTask` and the context
@@ -520,9 +570,11 @@ values. The full list and the System **entities** are in `system-module`.
   `REPLACE ACTIVITY`. A **required (`not null`) attribute does not exempt it** —
   measured, the empty outcome is still required. Boolean (`true`/`false`)
   decisions do not take one.
-- **A `with (...)` parameter value is a quoted string**, not a bare variable:
-  `with (Request = '$WorkflowContext')`. The unquoted spelling used elsewhere in
-  MDL is a syntax error here (it used to crash the binary — ako/mxcli#1023).
+- **Arguments go right after the callee, as bare expressions**, like every other
+  call: `call microflow HR.Escalate(Request = $WorkflowContext) as callMicroflow1`.
+  The older `with (Request = '$WorkflowContext')`, the expression inside a
+  string, still parses with the same meaning but is deprecated (MDL-DEPR008);
+  `mxcli fmt --upgrade` rewrites it.
 - The context **Parameter entity must be persistent**.
 - Write the context variable as **`$WorkflowContext`**, matching the parameter
   name exactly. Mendix expressions are case-sensitive on 11.9+, so a lowercase
@@ -566,6 +618,6 @@ Two traps worth knowing before you start:
 ./bin/mxcli check script.mdl -p app.mpr --references   # entity/page/microflow refs exist
 ```
 
-Then `show workflows` (lists the workflow, its parameter entity, and activity
+Then `list workflows` (lists the workflow, its parameter entity, and activity
 count) and, if Docker is available, `mxcli docker build -p app.mpr` for the full
 Studio-Pro validation.

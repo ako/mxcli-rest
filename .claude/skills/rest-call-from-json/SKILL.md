@@ -10,7 +10,7 @@ JSON Structure → Non-persistent entities → Import Mapping → microflow.
 
 > **Two approaches**: This skill uses the **inline REST CALL** approach (good for one-off calls
 > and quick prototyping). For structured APIs with reusable operations, use the **REST Client**
-> approach instead — see [rest-client](../rest-client/SKILL.md) for `create rest client` + `send rest request`
+> approach instead — see [rest-client](../rest-client/SKILL.md) for `create consumed rest service` + `send rest request`
 > + optional `transform` with JSLT data transformers.
 
 ## Overview — Four Steps
@@ -26,7 +26,7 @@ JSON Structure → Non-persistent entities → Import Mapping → microflow.
 
 ```sql
 create json structure Module.JSON_MyStructure
-  snippet '{"key": "value", "count": 1}';
+  sample '{"key": "value", "count": 1}';
 ```
 
 - The executor **formats** the snippet (pretty-print) then **refreshes** (derives element tree) automatically.
@@ -121,7 +121,7 @@ begin
   @position(185, 200)
   declare $endpoint string = $baseUrl + '/path';
   @position(375, 200)
-  $Result = rest call get '{1}' with ({1} = $endpoint)
+  $Result = call rest service get '{1}' with ({1} = $endpoint)
     header 'Accept' = 'application/json'
     timeout 300
     returns mapping Module.IMM_MyMapping as Module.MyRootObject on error rollback;
@@ -139,7 +139,7 @@ end;
 
 **For list responses** (JSON root is an array):
 ```sql
-  $Results = rest call get '{1}' with ({1} = $endpoint)
+  $Results = call rest service get '{1}' with ({1} = $endpoint)
     header 'Accept' = 'application/json'
     timeout 300
     returns mapping Module.IMM_MyMapping as Module.MyItem on error rollback;
@@ -220,7 +220,7 @@ create or modify microflow Module.POST_Document_Upload (
 returns boolean as $Ok
 begin
   declare $Ok boolean = false;
-  $Response = rest call post 'https://api.example.com/documents'
+  $Response = call rest service post 'https://api.example.com/documents'
     header 'ContentType' = 'application/pdf'
     body binary $Doc/Contents
     timeout 300
@@ -237,7 +237,7 @@ file document.
 
 **A consumed REST CLIENT document cannot do this.** Its body is one of
 `Rest$JsonBody`, `Rest$StringBody` or `Rest$ImplicitMappingBody` — all textual —
-so `Body: file from $Doc` in a `create rest client` operation is refused as
+so `Body: file from $Doc` in a `create consumed rest service` operation is refused as
 **MDL-REST02**. Binary uploads belong in a microflow. (`Response: file as $Doc`
 on an operation is fine; downloads work either way.)
 
@@ -248,7 +248,7 @@ on an operation is fine; downloads work either way.)
 ```sql
 -- Step 1: JSON Structure
 create json structure Integrations.JSON_BibleVerse
-  snippet '{"translation":{"identifier":"web","name":"World English Bible","language":"English","language_code":"eng","license":"Public Domain"},"random_verse":{"book_id":"1SA","book":"1 Samuel","chapter":17,"verse":49,"text":"David put his hand in his bag, took a stone, and slung it."}}';
+  sample '{"translation":{"identifier":"web","name":"World English Bible","language":"English","language_code":"eng","license":"Public Domain"},"random_verse":{"book_id":"1SA","book":"1 Samuel","chapter":17,"verse":49,"text":"David put his hand in his bag, took a stone, and slung it."}}';
 
 -- Step 2: Entities
 create non-persistent entity Integrations.BibleApiResponse ();
@@ -307,7 +307,7 @@ begin
   @position(185, 200)
   declare $endpoint string = $baseUrl + '/data/web/random';
   @position(375, 200)
-  $Result = rest call get '{1}' with ({1} = $endpoint)
+  $Result = call rest service get '{1}' with ({1} = $endpoint)
     header 'Accept' = 'application/json'
     timeout 300
     returns mapping Integrations.IMM_BibleVerse as Integrations.BibleApiResponse on error rollback;

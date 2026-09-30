@@ -180,7 +180,7 @@ SmartForms Views map to Mendix pages/snippets. The rules system (event-driven, "
 ```sql
 create page CRM.Customer_Edit
 (
-  params: { $Customer: CRM.Customer },
+  params: ( $Customer: CRM.Customer ),
   title: 'Edit Customer',
   layout: Atlas_Core.PopupLayout
 )
@@ -197,8 +197,8 @@ create page CRM.Customer_Edit
 
     -- Button bar (SmartForms action buttons)
     footer footer1 {
-      actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: primary)
-      actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+      actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
 }
@@ -241,7 +241,7 @@ begin
   commit $Order;
 
   -- Show page for review (like K2 "Task" with form)
-  show page CRM.Order_Review ($Order = $Order);
+  show page CRM.Order_Review (Order = $Order);
 end;
 
 -- K2 Decision "Order > $5000?" → Mendix microflow with decision
@@ -252,7 +252,7 @@ begin
 
   if $Order/TotalAmount > 5000 then
     -- Route to manager (K2 Destination Rule equivalent)
-    call microflow CRM.ACT_Order_SubmitForManagerReview ($Order = $Order);
+    call microflow CRM.ACT_Order_SubmitForManagerReview (Order = $Order);
   else
     -- Auto-approve (K2 "Go To" equivalent)
     change $Order (status = CRM.OrderStatus.Approved);
@@ -378,8 +378,8 @@ create module role CRM.Manager description 'Can approve orders and manage custom
 create module role CRM.User description 'Can create and edit own records';
 
 -- Access rules
-grant CRM.Manager on CRM.Order (create, delete, read *, write *);
-grant CRM.User on CRM.Order (create, read *, write *) where [owner = '[%CurrentUser%]'];
+grant create, delete, read *, write * on entity CRM.Order to CRM.Manager;
+grant create, read *, write * on entity CRM.Order to CRM.User where [owner = '[%CurrentUser%]'];
 ```
 
 ## Common Challenges and Solutions

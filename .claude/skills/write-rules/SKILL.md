@@ -95,17 +95,17 @@ The argument names are the rule's parameter names, so
 ## Reading and managing rules
 
 ```
-list rules;                  -- `show rules` is the same statement
+list rules;                  -- `list rules` is the same statement
 list rules in Sales;
 describe rule Sales.Rule_IsSolvent;   -- round-trippable MDL
 drop rule Sales.Rule_IsSolvent;
 move rule Sales.Rule_IsSolvent to folder 'Rules/Customer';
 ```
 
-`show microflows` lists microflows only — not nanoflows, not workflows, and not
+`list microflows` lists microflows only — not nanoflows, not workflows, and not
 rules. Each doctype has its own listing.
 
-`show callers of Sales.Rule_IsSolvent` lists the microflows whose decisions
+`list callers of Sales.Rule_IsSolvent` lists the microflows whose decisions
 evaluate it, and a microflow called from inside a rule's body is a normal
 reference: it will not be reported as dead code.
 
@@ -137,4 +137,4 @@ Before presenting a rule:
 
 ## Rules (LIST/DESCRIBE/CREATE [OR MODIFY]/DROP/MOVE RULE)
 
-Mendix's "special kind of microflow" — returns Boolean or an enumeration, callable only from a decision. Handled as a third flow flavour beside microflows and nanoflows: its own semantic type, its own listing (`show microflows` stays microflow-only), the shared `microflowBody`, flow builder and describer. The document is the ten properties a Studio Pro rule stores, pinned against two reference rules (ako/TestApp, 11.13.0) — **no `AllowedModuleRoles`** (a rule is not independently callable, so there is no `grant execute on rule`) and **no `ReturnType`** despite gen declaring one beside `MicroflowReturnType`. Two keys only a reference document catches, both invisible to `mx check`: `ExportLevel` (Studio Pro writes "Hidden" on every rule) and `Flows` (written as the bare marker even when empty — a `MandatoryLists` entry). Rules are catalog objects and their bodies are walked for references, which together stop a microflow called only from a rule reading as dead. The body restrictions are refused at check time by the same function `exec` calls, each measured: create/change/delete/commit/rollback and client or web-service activities are **CE0009**, a non-Boolean/enum return is **CE0103 + CE0139**. Authoring is modelsdk-only; legacy refuses.
+Mendix's "special kind of microflow" — returns Boolean or an enumeration, callable only from a decision. Handled as a third flow flavour beside microflows and nanoflows: its own semantic type, its own listing (`list microflows` stays microflow-only), the shared `microflowBody`, flow builder and describer. The document is the ten properties a Studio Pro rule stores, pinned against two reference rules (ako/TestApp, 11.13.0) — **no `AllowedModuleRoles`** (a rule is not independently callable, so there is no `grant execute on rule`) and **no `ReturnType`** despite gen declaring one beside `MicroflowReturnType`. Two keys only a reference document catches, both invisible to `mx check`: `ExportLevel` (Studio Pro writes "Hidden" on every rule) and `Flows` (written as the bare marker even when empty — a `MandatoryLists` entry). Rules are catalog objects and their bodies are walked for references, which together stop a microflow called only from a rule reading as dead. The body restrictions are refused at check time by the same function `exec` calls, each measured: create/change/delete/commit/rollback and client or web-service activities are **CE0009**, a non-Boolean/enum return is **CE0103 + CE0139**. Authoring is modelsdk-only; legacy refuses.

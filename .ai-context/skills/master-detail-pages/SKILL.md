@@ -23,23 +23,23 @@ create page Module.Entity_MasterDetail
 )
 {
   layoutgrid mainGrid {
-    row row1 {
+    row {
       -- Master list (4 columns)
-      column colMaster (desktopwidth: 4) {
+      column (desktopwidth: 4) {
         gallery entityList (datasource: database Module.Entity, selection: single) {
-          template template1 {
-            dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
+          template {
+            dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
           }
         }
       }
 
       -- Detail form (8 columns)
-      column colDetail (desktopwidth: 8) {
+      column (desktopwidth: 8) {
         dataview entityDetail (datasource: selection entityList) {
           textbox txtName (label: 'Name', attribute: Name)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: success)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
           }
         }
       }
@@ -59,7 +59,7 @@ gallery widgetName (
 ) {
   template template1 {
     -- Widgets for each item
-    dynamictext name (content: '{1}', contentparams: [{1} = AttrName], rendermode: H4)
+    dynamictext name (content: '{1}', contentparams: ({1} = AttrName), rendermode: H4)
   }
 }
 ```
@@ -105,18 +105,18 @@ create page CRM.Customer_MasterDetail
 )
 {
   layoutgrid mainGrid {
-    row row1 {
-      column colMaster (desktopwidth: 4) {
+    row {
+      column (desktopwidth: 4) {
         dynamictext heading (content: 'Customers', rendermode: H3)
         gallery customerList (datasource: database from CRM.Customer sort by Name asc, selection: single) {
-          template template1 {
-            dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-            dynamictext email (content: '{1}', contentparams: [{1} = Email])
+          template {
+            dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+            dynamictext email (content: '{1}', contentparams: ({1} = Email))
           }
         }
       }
 
-      column colDetail (desktopwidth: 8) {
+      column (desktopwidth: 8) {
         dataview customerDetail (datasource: selection customerList) {
           dynamictext detailHeading (content: 'Customer Details', rendermode: H3)
           textbox txtName (label: 'Name', attribute: Name)
@@ -124,8 +124,8 @@ create page CRM.Customer_MasterDetail
           textbox txtPhone (label: 'Phone', attribute: Phone)
 
           footer footer1 {
-            actionbutton btnSave (caption: 'Save', action: save_changes, buttonstyle: success)
-            actionbutton btnCancel (caption: 'Cancel', action: cancel_changes)
+            actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
+            actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
         }
       }
@@ -154,8 +154,8 @@ The selection binding uses widget names to connect:
 Inside Gallery templates, use `contentparams` to reference current item attributes:
 ```sql
 template template1 {
-  dynamictext name (content: '{1}', contentparams: [{1} = Name], rendermode: H4)
-  dynamictext email (content: '{1}', contentparams: [{1} = Email])
+  dynamictext name (content: '{1}', contentparams: ({1} = Name), rendermode: H4)
+  dynamictext email (content: '{1}', contentparams: ({1} = Email))
 }
 ```
 
@@ -172,9 +172,9 @@ template template1 {
 | Where filter | `datasource: database from entity where [IsActive = true]` |
 | Selection mode | `selection: single` |
 | Attribute binding | `attribute: attributename` |
-| Action binding | `action: save_changes` |
+| Action binding | `action: save changes` |
 | Button style | `buttonstyle: success` |
-| Text content | `content: 'text'` with `contentparams: [{1} = attr]` |
+| Text content | `content: 'text'` with `contentparams: ({1} = attr)` |
 | Render mode | `rendermode: H4` |
 | Template content | `template template1 { ... }` |
 

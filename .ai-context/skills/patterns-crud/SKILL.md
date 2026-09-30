@@ -35,7 +35,7 @@ returns boolean
 begin
   -- Validate first
   declare $IsValid boolean = true;
-  $IsValid = call microflow Module.VAL_Customer_Save($Customer = $Customer);
+  $IsValid = call microflow Module.VAL_Customer_Save(Customer = $Customer);
 
   if $IsValid then
     commit $Customer;
@@ -153,7 +153,7 @@ begin
     CreatedDate = [%CurrentDateTime%]
   );
 
-  show page Module.Customer_NewEdit ($Customer = $NewCustomer);
+  show page Module.Customer_NewEdit (Customer = $NewCustomer);
   return true;
 end;
 /
@@ -198,7 +198,7 @@ create microflow Module.ACT_Customer_Edit (
 )
 returns boolean
 begin
-  show page Module.Customer_NewEdit ($Customer = $Customer);
+  show page Module.Customer_NewEdit (Customer = $Customer);
   return true;
 end;
 /

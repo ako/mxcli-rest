@@ -2285,3 +2285,82 @@ The container is new, so the five-probe harness from #56–#62 (mock servers,
 `MapProbe` module, binary and path-parameter repros) went with the old
 scratchpad. Only the rates lane was rebuilt and run. The static gates above
 cover the rest; a full runtime re-verification would need the harness rebuilt.
+
+## 64. MDL v1: the corpus migrates cleanly, and three scripts stop executing
+
+`nightly-663-gdfccef55`, 588 commits and release 0.24.0 since #63. The
+refactoring is a **language version**: `mdl 1;` is an opt-in header, everything
+without it is `mdl 0`, and `mxcli fmt --upgrade [--header]` migrates a script.
+Nothing in this project broke — and adopting the header would break three lanes.
+
+### Where the corpus stands on main
+
+All 14 scripts still pass `check --references`, `mx check` is 0 errors, lint 278,
+access rules intact, the rates lane still imports at runtime. Backwards
+compatibility holds exactly as the changelog claims.
+
+Twelve of the fourteen now carry deprecation warnings — **24 distinct codes**:
+
+| Script | codes |
+| --- | --- |
+| 02-security | DEPR030 ×30, DEPR133, DEPR137, DEPR554, DEPR710 |
+| 03-rest-clients | DEPR070 ×5, DEPR120 ×5, DEPR550 ×5, DEPR711 ×2 |
+| 07-pages | DEPR001 ×3, **DEPR005 ×58**, DEPR007, DEPR020 ×21, DEPR105, DEPR123 |
+| 05, 06, 09–11, 13, 14 | DEPR006/070/073/094/120/132/550, V1-SLASH |
+
+`grant Role on Entity (rights)` → `grant rights on entity E to Role` (DEPR030),
+`rest client` → `consumed rest service` (DEPR550), invented widget names dropped
+(DEPR005), `$Param =` → `Param =` (DEPR006), `/` as a terminator (V1-SLASH).
+
+### `fmt --upgrade --header` migrates all 14, and reports success on three it broke
+
+Every file took the header: **0 warnings, nothing blocked**, ~155 rewrites. Then
+executing them against the real model:
+
+| | result |
+| --- | --- |
+| 11 scripts | applied |
+| **05-microflows, 10-graph-lane, 11-sharepoint-lane** | **refused, nothing written** |
+
+```
+Error: create or modify microflow RestLab.ACT_Catalog_GetProducts: this change
+cannot be spliced into the stored flow: the Loop at (1210, 200) changes inside
+its body … Nothing was written: rebuilding the whole flow instead would reset
+what Studio Pro drew (curves, merges, element IDs).
+```
+
+**The migration did not cause it — the header did.** Narrowed to one token: take
+the original script and change only `with ($limit = …)` to `with (limit = …)`,
+the DEPR006 rewrite, and the same flow is refused. Under mdl 0 the identical
+situation is
+
+```
+Warning [MDL-V1-REBUILD]: microflow RestLab.ACT_Catalog_GetProducts is rebuilt
+as a whole: the Loop at (1210, 200) changes …
+```
+
+— a warning, and the flow is rebuilt. `mdl 1;` turns that warning into a refusal.
+Any script whose microflow cannot be spliced therefore stops being re-runnable
+the moment it takes the header, and these three cannot be spliced because
+`create or modify` re-renders a flow the script never states positions for.
+
+**`check` does not see it.** All 14 migrated scripts check clean with zero
+warnings; the refusal appears only at `exec`. So `fmt --upgrade --header` writes
+a script it calls fully upgraded, `check` agrees, and three of them write nothing
+when run. That is the check/exec split this file keeps recording (#60's
+`ALTER PAGE`, #61's access rules), now in the migration path — where it matters
+more, because the tool's whole promise is that it moves a working script to a
+working script.
+
+### Not migrated here
+
+The corpus stays on mdl 0. It costs 24 deprecation warnings and nothing else;
+the header would cost three lanes their `exec`. The route for those three, per
+the error's own advice, is `alter microflow` for the changed activities or an
+explicit drop-and-create — a rewrite of three scripts, not a formatting pass.
+Worth doing deliberately, with the runtime suite rebuilt first.
+
+Also on this release: 73 skill files refreshed, and the 0.24.0 headline is a
+storage-GUID guard — *"28 attributes emptied across 607 rows by a single edit"* —
+the same silent-loss family as #61's access rules, caught at the write choke
+point rather than by a linter noticing afterwards.

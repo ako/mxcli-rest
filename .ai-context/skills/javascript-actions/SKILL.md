@@ -161,7 +161,7 @@ Studio Pro regenerates the file. The MDL `$$ body $$` lands inside `USER CODE`.
 ## Inspecting
 
 ```sql
-SHOW JAVASCRIPT ACTIONS [IN Module];
+LIST JAVASCRIPT ACTIONS [IN Module];
 DESCRIBE JAVASCRIPT ACTION Module.Name;   -- re-executable MDL (signature + body)
 ```
 

@@ -31,7 +31,7 @@ Use when the user asks to:
 - **Offline Profiles** — An offline profile makes the app work without a connection (a PWA with a local database that syncs). It is not a different document — same properties as its online twin — but it **constrains every page it can reach**, see below.
 - **Home Page** — The default page shown after login. Can be a PAGE or MICROFLOW.
 - **Role-Based Home Pages** — Override the default home page per user role (e.g., admins see a dashboard, users see a task list).
-- **Menu Items** — Hierarchical menu tree. Each item has a caption and optionally targets a PAGE or MICROFLOW. Sub-menus nest with `menu 'caption' (...)`.
+- **Menu Items** — Hierarchical menu tree. Each item has a caption and optionally targets a PAGE or MICROFLOW. Sub-menus nest with `menu 'caption' { ... }`.
 - **Menu Documents** — A *separate* document type (`Menus$MenuDocument`) holding a reusable menu that a menu widget points at, e.g. Atlas_Core's `Phone_Menu`. Not the same thing as a profile's menu, though both are built from the same items, so the item syntax is identical. Managed with `create/describe/drop menu` — see below.
 - **Login Page** — Custom login page (optional; Mendix provides a default).
 - **Not-Found Page** — Custom 404 page (optional).
@@ -40,18 +40,18 @@ Use when the user asks to:
 
 ```sql
 -- Summary of all navigation profiles (home pages, menu counts)
-show navigation;
+list navigation;
 
 -- Full MDL description of a profile (round-trippable output)
 describe navigation Responsive;
 describe navigation;              -- all profiles
 
 -- Menu tree for a specific profile
-show navigation menu Responsive;
-show navigation menu;             -- all profiles
+list navigation menu Responsive;
+list navigation menu;             -- all profiles
 
 -- Home page assignments across all profiles and roles
-show navigation homes;
+list navigation homes;
 ```
 
 ## CREATE OR REPLACE NAVIGATION (Full Replacement)
@@ -93,28 +93,32 @@ no error code and no line number, and `mx check` exits non-zero *without* the
 "The app contains: N errors" line. The two role kinds are easy to confuse
 because they share names: a blank app has a user role `Administrator` and module
 roles called `Administrator` in three modules. List the real ones with
-`show user roles`; `mxcli check --references` refuses the wrong form.
+`list user roles`; `mxcli check --references` refuses the wrong form.
 
 ### Full Menu Tree
 
-The `menu (...)` block replaces the entire menu. Use `menu item` for leaf items and `menu 'caption' (...)` for sub-menus:
+The menu items are the profile's children, in `{ ... }` after its clauses, like a page's widgets — no `;` between them. The block replaces the entire menu. Use `menu item 'Caption' ( OnClick: … )` for leaf items and `menu 'caption' { ... }` for sub-menus. The action is `OnClick:` in the words a page action uses: `show page M.P`, `call microflow M.F`, or `sign out`:
 
 ```sql
 create or replace navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login
-  menu (
-    menu item 'Home' page MyModule.Home_Web;
-    menu 'Orders' (
-      menu item 'All Orders' page Orders.Order_Overview;
-      menu item 'New Order' page Orders.Order_New;
-    );
-    menu 'Admin' (
-      menu item 'Users' page Administration.Account_Overview;
-      menu item 'Run Report' microflow Reports.ACT_GenerateReport;
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyModule.Home_Web )
+    menu 'Orders' {
+      menu item 'All Orders' ( OnClick: show page Orders.Order_Overview )
+      menu item 'New Order' ( OnClick: show page Orders.Order_New )
+    }
+    menu 'Admin' {
+      menu item 'Users' ( OnClick: show page Administration.Account_Overview )
+      menu item 'Run Report' ( OnClick: call microflow Reports.ACT_GenerateReport )
+    }
+  };
 ```
+
+The old spelling — `menu ( menu item 'Home' page M.Home; menu 'Admin' ( … ); )`,
+the action and icon as clauses and `;` after each item — still parses and warns
+(MDL-DEPR121, MDL-DEPR122); `mxcli fmt --upgrade` rewrites it.
 
 ### Menu Icons
 
@@ -125,14 +129,15 @@ shows its icon, and one without falls back to the first few characters of its
 caption — rarely enough to tell `Orders` from `Order lines`. Nothing else catches
 it. The model builds, `mx check` passes, and the menu is simply hard to use.
 
-Both `menu item` and `menu 'caption' (...)` take an `icon`, in one of three
-forms — Mendix stores three different icon **elements**, not three spellings of
-one value:
+Both `menu item` and `menu 'caption' { ... }` take an `Icon:` in their property
+list, in one of three forms — Mendix stores three different icon **elements**, not
+three spellings of one value:
 
 ```sql
-menu item 'Home'  page M.Home  icon Atlas_Core.Atlas.home;     -- icon collection
-menu item 'Close' page M.Close icon glyph 57377;               -- numeric glyph code
-menu item 'Logo'  page M.Logo  icon image M.Images.logo;       -- image collection
+menu item 'Home'  ( OnClick: show page M.Home,  Icon: Atlas_Core.Atlas.home )   -- icon collection
+menu item 'Close' ( OnClick: show page M.Close, Icon: glyph 57377 )             -- numeric glyph code
+menu item 'Logo'  ( OnClick: show page M.Logo,  Icon: image M.Images.logo )     -- image collection
+menu 'Admin' ( Icon: Atlas_Core.Atlas.user ) { … }                               -- a sub-menu's icon
 ```
 
 The **bare** form is the icon-collection icon and is what you normally want. Use
@@ -146,9 +151,9 @@ errors and then breaks `mxbuild --target=deploy` with *"An exception occurred
 while exporting layout '<some layout>'"* — a message naming a document that is
 not the cause. `mxcli check` now warns (**MDL078**) against the 247 codes the
 shipped font defines, but a glyph is still an unchecked number where an icon
-collection reference is a resolved model reference. Browse the codes with `show glyphs`
-(`show glyphs like 'star'` searches by name, `describe glyph 57350` goes the
-other way), or use `icon Atlas_Core.Atlas.<name>` and list the names with
+collection reference is a resolved model reference. Browse the codes with `list glyphs`
+(`list glyphs like 'star'` searches by name, `describe glyph 57350` goes the
+other way), or use `Icon: Atlas_Core.Atlas.<name>` and list the names with
 `describe icon collection Atlas_Core.Atlas`.
 
 The icon-collection form is a **qualified name** — a model reference, written
@@ -157,13 +162,13 @@ like every other reference in MDL, not a string:
 ```sql
 create or replace navigation Responsive
   home page MyModule.Home_Web
-  menu (
-    menu item 'Home' page MyModule.Home_Web icon Atlas_Core.Atlas.home;
-    menu 'Orders' icon Atlas_Core.Atlas."shopping-cart" (
-      menu item 'All Orders' page Orders.Order_Overview
-        icon Atlas_Core.Atlas."list-bullets";
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
+    menu 'Orders' ( Icon: Atlas_Core.Atlas."shopping-cart" ) {
+      menu item 'All Orders' ( OnClick: show page Orders.Order_Overview,
+        Icon: Atlas_Core.Atlas."list-bullets" )
+    }
+  };
 ```
 
 **Hyphenated names are double-quoted** (`Atlas_Core.Atlas."align-center"`) —
@@ -174,7 +179,7 @@ collections: `Atlas` (outline), `Atlas_Filled`, and `Atlas_Styling`. List what
 is actually available in your project rather than guessing a name:
 
 ```sql
-show icon collection;
+list icon collections;
 describe icon collection Atlas_Core.Atlas;
 ```
 
@@ -182,11 +187,11 @@ describe icon collection Atlas_Core.Atlas;
 *glyph* icon (a numeric character code) or an *image* icon (pointing into an
 image collection). Those are different elements with different fields, so MDL
 does not write them — and `describe navigation` reports them as a comment rather
-than emitting an `icon` clause that would silently convert one into the other on
+than emitting an `Icon:` that would silently convert one into the other on
 replay:
 
 ```
-menu item 'Close' page MyModule.Close;
+menu item 'Close' ( OnClick: show page MyModule.Close )
 -- icon System.Images.Close (Forms$ImageIcon) is not reproducible by CREATE NAVIGATION; set it in Studio Pro
 ```
 
@@ -239,7 +244,7 @@ doubled — and a stored constraint already carries Mendix's own escaping, so th
 two compose into runs of six quotes. `describe navigation` emits the bracket
 form. This is the general problem tracked as `mendixlabs/mxcli#750`.
 
-**The block replaces the stored list**, the way `menu (...)` replaces the menu.
+**The block replaces the stored list**, the way the `{ ... }` menu block replaces the menu.
 Omitting it leaves the stored configuration alone.
 
 **Ask the catalog which entities sync, rather than reading the profile.**
@@ -253,7 +258,7 @@ And before changing an entity, ask which profiles download it — an offline
 change reaches every device that already synced:
 
 ```
-show references to MyModule.Order
+list references to MyModule.Order
 ```
 
 The `sync` row names the profile. Every mode produces one, **including the
@@ -280,12 +285,12 @@ silently dropped.
 
 ### Clear the Menu
 
-An empty `menu ()` block removes all menu items:
+An empty `{ }` menu block removes all menu items:
 
 ```sql
 create or replace navigation Responsive
   home page MyModule.Home_Web
-  menu ();
+  {};
 ```
 
 ### Not-Found Page
@@ -317,10 +322,10 @@ describe navigation Responsive;
 create or replace navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login
-  menu (
-    menu item 'Home' page MyModule.Home_Web;
-    menu item 'New Feature' page MyModule.NewFeature;
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyModule.Home_Web )
+    menu item 'New Feature' ( OnClick: show page MyModule.NewFeature )
+  };
 
 -- Step 3: Verify
 describe navigation Responsive;
@@ -339,13 +344,13 @@ from CATALOG.REFS
 where RefKind in ('home_page', 'menu_item', 'login_page');
 
 -- What references point to a specific page?
-show references to MyModule.Home_Web;
+list references to MyModule.Home_Web;
 
 -- Impact analysis: what breaks if I change this page?
-show impact of MyModule.Home_Web;
+list impact of MyModule.Home_Web;
 
 -- Full context for a page (includes navigation references)
-show context of MyModule.Home_Web;
+describe context of MyModule.Home_Web;
 ```
 
 ## Common Patterns
@@ -370,9 +375,9 @@ create page MyModule.Home_Web
 -- Configure navigation
 create or replace navigation Responsive
   home page MyModule.Home_Web
-  menu (
-    menu item 'Home' page MyModule.Home_Web;
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyModule.Home_Web )
+  };
 ```
 
 ### Adding a New Page to Navigation
@@ -387,13 +392,13 @@ describe navigation Responsive;
 create or replace navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login
-  menu (
-    menu item 'Home' page MyModule.Home_Web;
-    menu item 'Customers' page MyModule.Customer_Overview;  -- new
-    menu 'Admin' (
-      menu item 'Users' page Administration.Account_Overview;
-    );
-  );
+  {
+    menu item 'Home' ( OnClick: show page MyModule.Home_Web )
+    menu item 'Customers' ( OnClick: show page MyModule.Customer_Overview )  -- new
+    menu 'Admin' {
+      menu item 'Users' ( OnClick: show page Administration.Account_Overview )
+    }
+  };
 ```
 
 ## Menu Documents (standalone, reusable)
@@ -406,27 +411,31 @@ menu widget on a page points at it. Atlas_Core ships `Phone_Menu` and
 Tell them apart by which command reads them:
 
 ```sql
-show navigation menu;                    -- the menu inside each profile
+list navigation menu;                    -- the menu inside each profile
 describe menu Atlas_Core.Phone_Menu;     -- a standalone menu document
 ```
 
-Menu documents use the same item syntax as the profile `menu (...)` block:
+Menu documents use the same item syntax as the profile's `{ ... }` menu block:
 
 ```sql
-create or modify menu MyModule.Main_Menu (
-  menu item 'Home' page MyModule.Home_Web icon Atlas_Core.Atlas.home;
-  menu item 'Run' microflow MyModule.DoThing;
-  menu 'Admin' (
-    menu item 'Accounts' page Administration.Account_Overview;
-  );
-  menu item 'Plain';
-);
+create or modify menu MyModule.Main_Menu {
+  menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
+  menu item 'Run' ( OnClick: call microflow MyModule.DoThing )
+  menu 'Admin' {
+    menu item 'Accounts' ( OnClick: show page Administration.Account_Overview )
+  }
+  menu item 'Plain'
+};
 
 drop menu MyModule.Main_Menu;
 ```
 
 `describe menu` emits a re-executable `create or modify` statement, so
-describe → edit → exec is the normal editing loop.
+describe → edit → exec is the normal editing loop for a menu your MDL scripts own.
+Menus and navigation have no patch statement, so for one maintained in Studio Pro
+keep the edit to the items you mean to change, then `describe` it again after
+`exec` and compare with the original; a difference you did not make is a loss (see
+[choose-edit-mode](../choose-edit-mode/SKILL.md)).
 
 **`or modify` replaces the whole item list.** An omitted item is a removed item,
 exactly as with `create or replace navigation`. The document's identity and
@@ -450,9 +459,9 @@ An offline profile is created the same way as any other:
 ```sql
 create or replace navigation TabletOffline
   home page Maintenance.Request_Overview
-  menu (
-    menu item 'Requests' page Maintenance.Request_Overview;
-  );
+  {
+    menu item 'Requests' ( OnClick: show page Maintenance.Request_Overview )
+  };
 ```
 
 Two things about it are worth knowing before you do.
@@ -499,18 +508,18 @@ stored. MDL does not author per-entity sync modes — set those in Studio Pro.
 - [ ] For an **offline** profile, no page it can reach binds an attribute across more than one association (CE6206)
 - [ ] All PAGE/MICROFLOW targets are fully qualified (`Module.Name`)
 - [ ] Role references in `for` clauses are fully qualified (`Module.Role`)
-- [ ] Every `menu item` and `menu 'caption' (...)` ends with `;`
-- [ ] Sub-menu items are wrapped in `menu 'caption' ( ... );`
-- [ ] `icon` is a qualified name (not a string); hyphenated segments are double-quoted
+- [ ] Menu items are in `{ }` with no `;` between them; sub-menu items in `menu 'caption' { ... }`
+- [ ] A menu item's action is `( OnClick: show page M.P )`, `call microflow M.F` or `sign out`
+- [ ] `Icon:` is a qualified name (not a string); hyphenated segments are double-quoted
 - [ ] The icon exists — check with `describe icon collection Module.Name`, do not guess
 - [ ] Use `describe navigation` to verify changes after applying
-- [ ] For a **menu document**, confirm you want `create menu` and not a profile menu — `show navigation menu` vs `describe menu` tells them apart
+- [ ] For a **menu document**, confirm you want `create menu` and not a profile menu — `list navigation menu` vs `describe menu` tells them apart
 - [ ] No menu item targets a page with required parameters (CE1571)
 
 ## Offline synchronization (`CREATE NAVIGATION … SYNC (…)`)
 
-an offline navigation profile downloads **nothing** until each entity has a sync mode, so a profile mxcli created built, routed and installed as a PWA and showed an **empty app** — with `mxcli check`, `exec` and `mx check` all clean. The six mode words are the members Mendix stores, **not** Studio Pro's captions (its "All Objects" is `ALL`, its "By XPath" is `WHERE`), and a caption is refused rather than written — the CE0463 gallery defect wearing a different hat. `WHERE` takes the XPath in **brackets**, verbatim: the quoted form doubles every quote, and a stored constraint already carries Mendix's own escaping, so the two compose into runs of six (mendixlabs/mxcli#750, and `PROPOSAL_first_class_expressions.md`). The write is an **overlay keyed by entity**, so `CompatibilityMode` — stored, unauthorable — survives a rewrite; every reference config carries `false`, so only a synthetic `true` case distinguishes a correct writer from one that always emits `false`. `DownloadMode`/`ShouldDownload` are deliberately **not** written though gen declares them: zero occurrences in ako/TestApp, and a property Studio Pro fills in on load is one whose emission makes a document Studio Pro cannot open. Creating the *profile* stays modelsdk-only (a fourteen-key document pinned to a Studio Pro reference); the SYNC block works on both engines. `ON SYNC ERROR THROW|CONTINUE` writes `ThrowPartialSyncError`, a property **neither generated source declares** (zero occurrences in gen and in generated/metamodel), so it is read from `element.Base.Raw()` and written as a raw key. The spec field is a **pointer**: the property is a bare bool with no unset value, so a non-pointer would reset it on every rewrite that never mentions the clause. Absent reads as **true**, matching every reference profile and Studio Pro's checked-by-default box. Both halves are in the catalog: `CATALOG.OFFLINE_ENTITY_CONFIGS` holds one row per configured entity (the profile's `OfflineEntityCount` said how many and nothing else), and a configured entity emits a **`sync` edge** into `CATALOG.REFS` so `show references to Mod.Entity` names the profiles that download it. Every mode gets an edge, **including the ones that download nothing** — a profile with `sync X never` still names X, so renaming or dropping it leaves the config dangling, which is exactly what the edge exists to reveal. and `docs/11-proposals/PROPOSAL_offline_sync_configuration.md`
+an offline navigation profile downloads **nothing** until each entity has a sync mode, so a profile mxcli created built, routed and installed as a PWA and showed an **empty app** — with `mxcli check`, `exec` and `mx check` all clean. The six mode words are the members Mendix stores, **not** Studio Pro's captions (its "All Objects" is `ALL`, its "By XPath" is `WHERE`), and a caption is refused rather than written — the CE0463 gallery defect wearing a different hat. `WHERE` takes the XPath in **brackets**, verbatim: the quoted form doubles every quote, and a stored constraint already carries Mendix's own escaping, so the two compose into runs of six (mendixlabs/mxcli#750, and `PROPOSAL_first_class_expressions.md`). The write is an **overlay keyed by entity**, so `CompatibilityMode` — stored, unauthorable — survives a rewrite; every reference config carries `false`, so only a synthetic `true` case distinguishes a correct writer from one that always emits `false`. `DownloadMode`/`ShouldDownload` are deliberately **not** written though gen declares them: zero occurrences in ako/TestApp, and a property Studio Pro fills in on load is one whose emission makes a document Studio Pro cannot open. Creating the *profile* stays modelsdk-only (a fourteen-key document pinned to a Studio Pro reference); the SYNC block works on both engines. `ON SYNC ERROR THROW|CONTINUE` writes `ThrowPartialSyncError`, a property **neither generated source declares** (zero occurrences in gen and in generated/metamodel), so it is read from `element.Base.Raw()` and written as a raw key. The spec field is a **pointer**: the property is a bare bool with no unset value, so a non-pointer would reset it on every rewrite that never mentions the clause. Absent reads as **true**, matching every reference profile and Studio Pro's checked-by-default box. Both halves are in the catalog: `CATALOG.OFFLINE_ENTITY_CONFIGS` holds one row per configured entity (the profile's `OfflineEntityCount` said how many and nothing else), and a configured entity emits a **`sync` edge** into `CATALOG.REFS` so `list references to Mod.Entity` names the profiles that download it. Every mode gets an edge, **including the ones that download nothing** — a profile with `sync X never` still names X, so renaming or dropping it leaves the config dangling, which is exactly what the edge exists to reveal. and `docs/11-proposals/PROPOSAL_offline_sync_configuration.md`
 
 ## Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU)
 
-standalone `Menus$MenuDocument`, the reusable menu a menu widget points at (Atlas_Core's `Phone_Menu`/`Tablet_Menu`) — **not** the menu inside a navigation profile, though both are built from the same items, so the item syntax is shared with `CREATE NAVIGATION`'s `MENU (...)` block. DESCRIBE is round-trippable. Written through gen+codec, which is load-bearing: Studio Pro's menu documents carry typed-array marker **3** on the item collection and each item's sub-items (the codec default), while the navigation writers hand-build items with marker **1** — unverified whether that is a latent navigation bug or a real difference, so navigation is left alone. Authoring is modelsdk-only; legacy refuses. Two traps: a menu item cannot open a page with required parameters (**CE1571**), and only `Forms$IconCollectionIcon` round-trips (glyph/image icons are flagged by DESCRIBE, not dropped silently)
+standalone `Menus$MenuDocument`, the reusable menu a menu widget points at (Atlas_Core's `Phone_Menu`/`Tablet_Menu`) — **not** the menu inside a navigation profile, though both are built from the same items, so the item syntax is shared with `CREATE NAVIGATION`'s `{ ... }` menu block. DESCRIBE is round-trippable. Written through gen+codec, which is load-bearing: Studio Pro's menu documents carry typed-array marker **3** on the item collection and each item's sub-items (the codec default), while the navigation writers hand-build items with marker **1** — unverified whether that is a latent navigation bug or a real difference, so navigation is left alone. Authoring is modelsdk-only; legacy refuses. Two traps: a menu item cannot open a page with required parameters (**CE1571**), and only `Forms$IconCollectionIcon` round-trips (glyph/image icons are flagged by DESCRIBE, not dropped silently)

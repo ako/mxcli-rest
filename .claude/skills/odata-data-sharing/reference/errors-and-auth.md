@@ -202,7 +202,7 @@ BEGIN
   RETURN $User;
 END;
 
-create odata service ProductApi.Api ( ... )
+create published odata service ProductApi.Api ( ... )
 authentication microflow ProductApi.Authenticate
 { ... };
 ```
@@ -219,9 +219,9 @@ Two build rules to know before you reach for it:
   authentication". `mxcli check` flags this as `MDL-ODATA04`.
 - **App security must be on.** With security off, Mendix reports **CE6600**
   "App security is off, but custom authentication is enabled for this service".
-  Set it with `alter project security level prototype` (or `production`).
+  Set it with `alter app security ( SecurityLevel: prototype )` (or `production`).
 
-If custom authentication is more than you need, `ALTER SETTINGS MODEL
+If custom authentication is more than you need, `ALTER SETTINGS RUNTIME
 BcryptCost = 8` shrinks the hash instead of removing it. Each step down halves
 the cost; the default is 12. That is a judgement about the accounts in *that*
 app — appropriate for machine accounts with generated passwords, not for a
@@ -252,7 +252,7 @@ end;
 Reference it in the client:
 
 ```sql
-create odata client ProductClient.ProductDataApiClient (
+create consumed odata service ProductClient.ProductDataApiClient (
   ...
   ConfigurationMicroflow: microflow ProductClient.SetClientHeaders
 );

@@ -267,7 +267,7 @@ The expression inside `[...]` is parsed as XPath and stored in BSON as the `Xpat
 datagrid dg (
   datasource: database from Module.Entity where [State != 'Cancelled'] sort by Name asc
 ) {
-  column col1 (attribute: Name, caption: 'Name')
+  column (attribute: Name, caption: 'Name')
 }
 ```
 
@@ -286,16 +286,17 @@ datasource: database from Module.Entity where [IsActive = true] or [Stock > 10]
 
 ### GRANT Entity Access (Security)
 
-For security rules, XPath is passed as a **string literal** (not parsed):
+Security rules take the XPath in brackets, like every other XPath, so quotes
+inside it are written once:
 
 ```mdl
-grant Module.Role on Module.Entity (
-  read *,
-  write *
-) where '[System.owner = ''[%CurrentUser%]'']';
+grant read *, write * on entity Module.Entity to Module.Role
+  where [System.owner = '[%CurrentUser%]'];
 ```
 
-Note the double single-quotes for escaping inside the string literal.
+Sibling groups (`where [a][b]`) are kept as one constraint. The old quoted form
+`grant Module.Role on Module.Entity (...) where '[...]'` still parses, warns
+MDL-DEPR030, and `mxcli fmt --upgrade` rewrites it.
 
 ## Enumeration Attributes
 
@@ -375,7 +376,7 @@ retrieve $MyItems from Module.Item
   where [System.owner = '[%CurrentUser%]'];
 
 -- In security rule
-grant Module.User on Module.Item (read all) where '[System.owner = ''[%CurrentUser%]'']';
+grant read * on entity Module.Item to Module.User where [System.owner = '[%CurrentUser%]'];
 ```
 
 ## Validation

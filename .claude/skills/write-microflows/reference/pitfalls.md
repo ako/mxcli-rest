@@ -22,7 +22,7 @@ declare $Product as Test.Product;          -- AS keyword also not supported
 create microflow Test.Save ($Product: Test.Product) returns boolean as $ok ...
 
 -- from a retrieve (single object)
-retrieve $Product from Test.Product where Code = $Code limit 1;
+retrieve $Product from Test.Product where Code = $Code first;
 
 -- from a create object
 $Product = create Test.Product (Name = $Name);
@@ -361,16 +361,20 @@ rollback $Order refresh;
 
 **Use Case**: Revert uncommitted changes to an object. Useful when validation fails and you want to restore the object to its database state.
 
-### RETRIEVE with LIMIT (Supported!)
+### RETRIEVE: `first` for an object, `limit` for a list
 
 ```mdl
--- CORRECT: LIMIT is supported
-retrieve $Product from Module.Product where IsActive = true limit 1;
+-- FIRST binds a single object (Mendix's "First object" range)
+retrieve $Product from Module.Product where IsActive = true first;
 
--- LIMIT 1 returns a single entity (not a list)
--- Without LIMIT, returns a list
+-- Without a range, or with LIMIT/OFFSET, it binds a list
 retrieve $ProductList from Module.Product where IsActive = true;
+retrieve $Page from Module.Product sort by Name asc limit 20 offset 40;
 ```
+
+`limit 1` without `offset` changes meaning with the language version: a list of
+one under `mdl 1;`, but in a script without the header the object, with warning
+`MDL-V1-LIMIT1`. Write `first` whenever you mean the object.
 
 ### WHILE Loop
 
@@ -394,7 +398,7 @@ end loop;
 above for the correct form. What is not supported is the SQL-flavoured spelling of
 it: quoted values, an `else` fallback, and an `AS` alias all fail.
 
-```mdl
+```text
 -- WRONG: case values are not string literals (parse error)
 case $Order/Status
   when 'Active' then set $Result = 1;
@@ -410,12 +414,14 @@ case $Order/Status as s
   when Active then set $Result = 1;
 end case;
 
--- WRONG: no else branch (MDL008 → mxbuild CE0079 + CE0773)
+-- WRONG: no else branch — an enumeration split has no default flow (parse error)
 case $Order/Status
   when Active then set $Result = 1;
   else set $Result = 0;
 end case;
+```
 
+```mdl
 -- CORRECT: bare enum values, one branch per value, including (empty)
 case $Order/Status
   when Active then set $Result = 1;
@@ -439,9 +445,9 @@ CATCH
 end TRY;
 
 -- CORRECT: Use ON ERROR on specific activities
-commit $Order on error {
+commit $Order on error begin
   log error 'Commit failed';
-};
+end error;
 ```
 
 ### BREAK/CONTINUE in Loops

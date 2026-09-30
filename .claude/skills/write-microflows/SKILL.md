@@ -20,7 +20,7 @@ beside it, and is worth opening when you hit one of these:
   association and list; XPath navigation.
 - [`reference/integration.md`](reference/integration.md) — `rest call` and
   `send rest request`, legacy SOAP, calling Java actions (including the `empty`
-  argument and microflow-typed parameters), and file downloads.
+  argument and microflow-typed parameters), `execute database query`, file downloads.
 - [`reference/pitfalls.md`](reference/pitfalls.md) — **read this when
   `mxcli check` rejects something you believe is correct.** The anti-patterns, the
   CE0111 duplicate-variable trap, the syntax that looks plausible and does not
@@ -35,6 +35,20 @@ Use this skill when:
 - Understanding microflow control flow and structure
 
 If you're not sure whether the logic belongs in a microflow or a nanoflow, read the next section first. The mirror lives in [write-nanoflows](../write-nanoflows/SKILL.md) — keep both copies in sync.
+
+## Changing an Existing Microflow
+
+Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mode/SKILL.md)):
+
+- **Created by your MDL scripts, and not edited in Studio Pro since:** edit the script
+  (or fresh `describe` output) and re-run `create or modify`.
+- **Authored in Studio Pro:** prefer `alter microflow X { insert/replace/drop … }`
+  (targets from `describe microflow X with handles`). `create or modify` of `describe`
+  output patches too: unchanged writes nothing; a statement, `return` value, header clause,
+  parameter (added/retyped; removed only if unused) or stated `@position`/`@start` change is
+  patched in place (a move keeps the node's flows). A redrawn `@anchor`/`@curve`, loop body,
+  error handler or `return` added/taken away rebuilds under mdl 0 (`MDL-V1-REBUILD`: IDs
+  renumbered, merges and curves lost) and is refused under `mdl 1;`.
 
 ## When to Use a Microflow vs a Nanoflow
 
@@ -149,7 +163,7 @@ alternative. Java and JavaScript actions have one entry each and use the shorter
 
 `@excluded` before a `create microflow` marks the document **"Exclude from project"**
 (the same checkbox Studio Pro offers). The document stays in the `.mpr`, does not
-build, and `show microflows` reports it in the `Excluded` column.
+build, and `list microflows` reports it in the `Excluded` column.
 
 ```mdl
 @excluded
@@ -244,7 +258,7 @@ declare $status Enumeration(Module.OrderStatus) = Module.OrderStatus.Open;
 > not you give it an initializer. `mxcli check` now flags it as **MDL043**. There
 > is **no** "empty object variable" activity. Get objects from one of these:
 > - a microflow **parameter**: `create microflow M.Save ($Product: Test.Product) ...`
-> - a **retrieve**: `retrieve $Product from Test.Product where Code = $c limit 1;`
+> - a **retrieve**: `retrieve $Product from Test.Product where Code = $c first;`
 > - a **create object**: `$Product = create Test.Product (Name = $n);`
 > - a **loop iterator**: `loop $Product in $Products ...`
 
@@ -269,6 +283,14 @@ declare $status Enumeration(Module.OrderStatus) = Module.OrderStatus.Open;
 > ```
 > The `calendar*Between` functions (`calendarMonthsBetween`, `calendarYearsBetween`)
 > return whole units (Integer) and are fine to assign directly.
+
+### Changing a variable: always `set`
+
+`set $Counter = $Counter + 1;` changes a variable. `$x = …` without `set` is an
+activity that creates `$x` — required under `mdl 1;` (`MDL-V1-SET` otherwise).
+List operations and aggregates are one statement per activity and never nest:
+`$Open = filter $Orders by Status = M.Status.Open;` then `$N = count $Open;` —
+see [`reference/data-operations.md`](reference/data-operations.md#one-statement-per-activity).
 
 ### ❌ INCORRECT Syntax
 
@@ -461,7 +483,7 @@ call microflow Module.ACT_Refresh() in queue Module.RefreshQueue;
 call java action Module.RefreshData(Url = $Url) in queue Module.RefreshQueue;
 ```
 
-**Queued calls** — the queue must already exist (`create queue Module.RefreshQueue
+**Queued calls** — the queue must already exist (`create task queue Module.RefreshQueue
 (Parallelism: 2)`), and the called flow must return nothing: a queued
 **microflow with a `returns` clause** fails the build with CE7033 (`mxcli check`:
 MDL088), a queued **Java action must `returns void`** or it fails with CE7038. Rewriting a microflow that has a queued call must restate the
@@ -503,14 +525,15 @@ When calling microflows, always check the target's parameter list. Use `describe
 ### SHOW PAGE
 
 ```mdl
--- Open page with parameter (canonical syntax)
-show page Module.EditPage($Product = $Product);
-
--- Widget-style syntax also accepted in microflows
-show page Module.EditPage(Product: $Product);
+-- Open page with parameter
+show page Module.EditPage(Product = $Product);
 ```
 
-Both `($Param = $value)` and `(Param: $value)` syntaxes are accepted in microflow SHOW PAGE statements. Similarly, widget Action: properties accept both `show_page Module.Page(Param: $value)` and `show_page Module.Page($Param = $value)`.
+Every call site binds an argument as `Param = expression`, with no `$` on the
+parameter name: `call microflow`, `show page`, and widget actions
+(`action: show page Module.Page(Param = $value)`) alike. `$Param = $value` and
+`Param: $value` still parse but are deprecated (MDL-DEPR006/007); `mxcli fmt
+--upgrade` rewrites them.
 
 ### CLOSE PAGE
 
@@ -566,7 +589,7 @@ Before executing a microflow script, verify:
 ```mdl
 declare $primitive type = value;              -- Primitives (String/Integer/Decimal/Boolean/DateTime)
 declare $status Enumeration(Module.Enum) = …; -- Enumerations are primitives too
--- Objects: never declare. Use a parameter, retrieve (limit 1), `$obj = create Module.Entity(...)`, or a loop iterator.
+-- Objects: never declare. Use a parameter, retrieve (… first), `$obj = create Module.Entity(...)`, or a loop iterator.
 -- Lists:   never declare. Use a parameter, retrieve, or `$list = create list of Module.Entity;`
 ```
 
@@ -593,7 +616,7 @@ $var/Module.AssociationName/attribute   -- Chained
 
 ### Annotation Pattern
 ```mdl
-@position(200, 200)
+@position(200, 200)          -- optional: omit it and mxcli lays the flow out; to re-arrange an existing flow run `mxcli layout flows`
 @caption 'Persist order'
 @color Green
 @annotation 'Note about the next activity'
@@ -623,32 +646,9 @@ and the note goes 100px above the activity at 200×50, stacking 60px per extra
 note; DESCRIBE omits them again whenever they match, so an ordinary note keeps
 the short `@annotation 'text'` form.
 
-### Execute Database Query Pattern
-```mdl
--- Static query (3-part name: Module.Connection.Query)
-$Results = execute database query Module.Conn.QueryName;
-
--- Dynamic SQL override
-$Results = execute database query Module.Conn.QueryName
-  dynamic 'SELECT * FROM table LIMIT 10';
-
--- Parameterized query (names must match query PARAMETER definitions)
-$Results = execute database query Module.Conn.QueryName
-  (paramName = $Variable);
-
--- Runtime connection override
-$Results = execute database query Module.Conn.QueryName
-  connection (DBSource = $url, DBUsername = $user, DBPassword = $Pass);
-
--- Fire-and-forget (no output variable)
-execute database query Module.Conn.QueryName;
-```
-**Note:** Only `on error rollback` is supported (the default). `on error continue` is not available for this action.
-
 ### Page Navigation Pattern
 ```mdl
-show page Module.Page($Param = $value);               -- Canonical
-show page Module.Page(Param: $value);                  -- Widget-style (also valid)
+show page Module.Page(Param = $value);
 close page;
 show home page;
 ```
@@ -657,24 +657,24 @@ show home page;
 ```mdl
 call microflow ... on error continue;                  -- Ignore error
 call microflow ... on error rollback;                  -- Rollback on error
-call microflow ... on error { log ...; return ...; };  -- Custom handler
-call microflow ... on error without rollback { ... };  -- No rollback
+call microflow ... on error begin log ...; return ...; end error;  -- Custom handler
+call microflow ... on error without rollback begin ... end error;  -- No rollback
 ```
 
 The clause goes on whichever activity may fail, not only on calls:
 
 ```mdl
-declare $Name String = 'default' on error { return 'could not initialise'; };
-$Name = $Other/Name on error { return 'lookup failed'; };
-change $Order (Status = Shipped) on error { log error 'could not ship'; return; };
-log info node 'App' 'starting' on error { return; };
-show message 'saved' on error { return; };
+declare $Name String = 'default' on error begin return 'could not initialise'; end error;
+$Name = $Other/Name on error begin return 'lookup failed'; end error;
+change $Order (Status = Shipped) on error begin log error 'could not ship'; return; end error;
+log info node 'App' 'starting' on error begin return; end error;
+show message 'saved' on error begin return; end error;
 
 -- BLOCKING halts the client until dismissed; after `objects`, before `on error`.
-show message 'Hello {1}' type Warning objects [$Name] blocking;
-validation feedback $Order/Total message 'must be positive' on error { return; };
-show page Module.Page on error { return; };
-close page on error { return; };
+show message 'Hello {1}' type Warning with ({1} = $Name) blocking;
+validation feedback $Order/Total message 'must be positive' on error begin return; end error;
+show page Module.Page on error begin return; end error;
+close page on error begin return; end error;
 ```
 
 **Two limits, both reported rather than silently ignored:**
@@ -685,8 +685,8 @@ close page on error { return; };
   of them; `continue` is fine on `declare`, `set`, `retrieve`, `delete` and
   `call microflow`. Measured on 11.14.0 — note that create-*variable* and
   change-*variable* accept `continue` while change-*object* does not.
-- **The list-operation and aggregate forms of `set`** (`$x = head($l)`,
-  `$n = count($l)`) have no error handling in Mendix at all — **MDL077**.
+- **List operations and aggregates** (`$x = head $l;`, `$n = count $l;`)
+  have no error handling in Mendix at all — **MDL077**.
 
 **In a nanoflow, almost none of them take a clause at all.** `change`, `log`,
 `show page`, `close page`, `show message` and `validation feedback` are CE6035

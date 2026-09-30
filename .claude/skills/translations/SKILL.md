@@ -64,7 +64,7 @@ A stock app makes this easy to hit by accident: it enables **one** language whil
 its marketplace modules ship translations in **nine**, so "other languages
 already have translations here" is true and misleading.
 
-> `show languages` lists languages that have **translations**, not the enabled
+> `list languages` lists languages that have **translations**, not the enabled
 > ones — a stock app reports 8 while 1 is enabled. `describe settings` has the
 > enabled list.
 

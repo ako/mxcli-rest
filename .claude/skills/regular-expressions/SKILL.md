@@ -23,9 +23,9 @@ list regular expressions;
 list regular expressions in Val;
 describe regular expression Val.EmailAddress;   -- re-executable MDL
 
+/** A, not too restrictive, email address regular expression */
 create regular expression Val.EmailAddress (
-  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+',
-  Documentation: 'A, not too restrictive, email address regular expression'
+  Expression: '\w+((-|\+|\.)\w+)*@\w+([\.-]?\w+)*(\.\w{2,})+'
 );
 
 drop regular expression Val.EmailAddress;
@@ -73,7 +73,7 @@ create regular expression Val.EmailAddress (
 
 create validation rule for Val.Person.Email
   regex Val.EmailAddress
-  feedback 'Enter a valid email address';
+  error message 'Enter a valid email address';
 ```
 
 Create the pattern first. The rule stores a **reference by qualified name**, so
@@ -84,9 +84,9 @@ Ranges use the same statement. Bounds are inclusive and either may be omitted;
 Mendix has no strict `<` or `>`, so there is no exclusive form:
 
 ```sql
-create validation rule for Val.Booking.Guests range from 1 to 100 feedback '…';
-create validation rule for Val.Product.Price  range from 0        feedback '…';
-create validation rule for Val.Order.Discount range to 100        feedback '…';
+create validation rule for Val.Booking.Guests range from 1 to 100 error message '…';
+create validation rule for Val.Product.Price  range from 0        error message '…';
+create validation rule for Val.Order.Discount range to 100        error message '…';
 ```
 
 Re-running a rule replaces the one of the **same type** on that attribute and
@@ -98,12 +98,12 @@ constraints:
 
 ```sql
 create entity Val.Person (
-  Email: String(200) not null error 'Email is required',
-  Code:  String(20)  unique error 'Code must be unique'
+  Email: String(200) not null error message 'Email is required',
+  Code:  String(20)  unique error message 'Code must be unique'
 );
 
-alter entity Val.Person modify attribute Email String(200)
-  not null error 'Email is required';
+alter entity Val.Person modify attribute Email: String(200)
+  not null error message 'Email is required';
 ```
 
 ### What still cannot be authored
@@ -121,7 +121,7 @@ do — the constraint would vanish and the build would still pass.
 ## Finding out who uses one
 
 ```sql
-show references to Val.EmailAddress;
+list references to Val.EmailAddress;
 ```
 
 lists the entities whose validation rules use that pattern — worth checking
@@ -151,4 +151,4 @@ select QualifiedName, Expression from CATALOG.REGULAR_EXPRESSIONS;
 
 ## Regular expressions (LIST/DESCRIBE/CREATE [OR MODIFY]/DROP REGULAR EXPRESSION)
 
-named patterns that attribute validation rules reference **by qualified name**, which is why they are documents. `modelsdk/gen` is **wrong** about the pattern's key — it binds `RegEx` where every Studio Pro document stores `Expression` (`generated/metamodel` agrees with the documents), so both engines share one raw-BSON codec in `mdl/regularexpressions`; a reader keyed on gen's name returns an empty pattern for every real document. Pinned against five Studio Pro-authored documents (Email Connector 6.4.2, Community Commons 11.5.1). Mendix validates with .NET's engine, so a pattern Go's RE2 cannot compile (lookaround — the Email Connector ships one) is stored unchanged and reported "not verifiable", never "invalid". A `validate` edge into `CATALOG.REFS` makes `show references to <regex>` list the entities using it
+named patterns that attribute validation rules reference **by qualified name**, which is why they are documents. `modelsdk/gen` is **wrong** about the pattern's key — it binds `RegEx` where every Studio Pro document stores `Expression` (`generated/metamodel` agrees with the documents), so both engines share one raw-BSON codec in `mdl/regularexpressions`; a reader keyed on gen's name returns an empty pattern for every real document. Pinned against five Studio Pro-authored documents (Email Connector 6.4.2, Community Commons 11.5.1). Mendix validates with .NET's engine, so a pattern Go's RE2 cannot compile (lookaround — the Email Connector ships one) is stored unchanged and reported "not verifiable", never "invalid". A `validate` edge into `CATALOG.REFS` makes `list references to <regex>` list the entities using it

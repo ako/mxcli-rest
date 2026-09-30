@@ -253,8 +253,9 @@ with these deltas:
   against the host name rather than the listen address:
 
   ```sql
-  alter settings configuration 'Default'
-    ApplicationRootUrl = 'http://backend.local:8080/';
+  alter settings configuration 'Default' (
+    ApplicationRootUrl: 'http://backend.local:8080/'
+  );
   ```
 
   `run --local` picks that up at boot and prints which configuration it came from.
@@ -273,11 +274,11 @@ with these deltas:
   appear grouped in the hub overview instead of as unrelated previews.
 
 **Wire the integration in dependency order — the producer must be running first.**
-`CREATE ODATA CLIENT` fetches the `$metadata` at the moment you create it and caches
+`CREATE CONSUMED ODATA SERVICE` fetches the `$metadata` at the moment you create it and caches
 it in the model; if the URL is unreachable it warns and leaves the client unvalidated,
 with no external entities to import. So: publish on the producer
-(`CREATE ODATA SERVICE … publish entity …`), boot it (`run --local`), and only then,
-on the consumer, `CREATE ODATA CLIENT … MetadataUrl: 'http://backend.local:8080/odata/…/$metadata'`
+(`CREATE PUBLISHED ODATA SERVICE … publish entity …`), boot it (`run --local`), and only then,
+on the consumer, `CREATE CONSUMED ODATA SERVICE … MetadataUrl: 'http://backend.local:8080/odata/…/$metadata'`
 followed by `CREATE EXTERNAL ENTITIES FROM …`. Use the hostname here too, so the
 cached contract and the constant below agree with what the browser sees. Point
 `ServiceUrl` at a **constant** (`ServiceUrl: @Module.SvcUrl`) so the address can be
@@ -320,7 +321,7 @@ flags it. The cost lands later, on someone else.
   `GROUP BY`, `SUM`/`COUNT` — returning rows a page binds to directly. The microflow
   version pulls every object into memory to produce one number, and it gets slower
   exactly as the app succeeds, which is the worst possible failure curve. Needs
-  **Mendix 10.18+** (`show features` confirms it). `create view entity Mod.Name (…)
+  **Mendix 10.18+** (`list features` confirms it). `create view entity Mod.Name (…)
   as ( select … )` — see `mxcli syntax view-entity` for the shape, its `oql` and
   `association` subtopics for the rules that bite (every column needs an `AS`
   alias; `ORDER BY` needs a `LIMIT`; selecting an id under an alias makes an

@@ -149,7 +149,7 @@ Three things about the output are deliberate:
 Use the CLI's `--json` flag for a row per document (`Module, Folder, Kind, Document`)
 when comparing against a checked-in layout.
 
-Do **not** reach for `show structure` here: it groups by document type at every
+Do **not** reach for `describe structure` here: it groups by document type at every
 depth and never shows which folder a document sits in.
 
 ## Moving Documents
@@ -192,7 +192,7 @@ Cross-module moves change the qualified name (e.g., `OldModule.CustomerPage` bec
 **Always check impact before cross-module moves:**
 
 ```mdl
-show impact of OldModule.CustomerPage;
+list impact of OldModule.CustomerPage;
 -- Review the output, then move if safe:
 move page OldModule.CustomerPage to NewModule;
 ```
@@ -213,19 +213,19 @@ spells it:
 | Group | Types |
 |-------|-------|
 | Pages | `page`, `snippet`, `building block`, `layout`, `menu` |
-| Logic | `microflow`, `nanoflow`, `workflow`, `queue`, `scheduled event` |
+| Logic | `microflow`, `nanoflow`, `workflow`, `task queue`, `scheduled event` |
 | Domain | `enumeration`, `constant`, `regular expression` |
 | Mappings | `json structure`, `import mapping`, `export mapping` |
 | Code | `java action`, `javascript action`, `database connection`, `data transformer` |
 | Resources | `image collection`, `icon collection` |
-| Integration | `rest client`, `published rest service`, `odata client`, `odata service`, `business event service` |
+| Integration | `consumed rest service`, `published rest service`, `consumed odata service`, `published odata service`, `business event service` |
 | AI | `model`, `agent`, `knowledge base`, `consumed mcp service` |
 
 `move entity` is the exception: an entity lives inside a domain model, so it
 moves between **modules** only, never into a folder.
 
 If the named document turns out to be a different type, the statement is refused
-and the error names what it really is — `move queue Mod.JSON_Order` reports that
+and the error names what it really is — `move task queue Mod.JSON_Order` reports that
 `Mod.JSON_Order` is a json structure.
 
 ### FOLDER on Create
@@ -245,7 +245,7 @@ the clause goes depends on the statement's shape:
 create import mapping CRM.IMM_Order folder 'Private/Import mappings'
   with json structure CRM.JSON_Order { create CRM.Order { Id = id } };
 
-create queue CRM.Q_Orders folder 'Private/Queues' ( Parallelism: 3 );
+create task queue CRM.Q_Orders folder 'Private/Queues' ( Parallelism: 3 );
 
 create java action CRM.JA_Sync folder 'Private/Java' () returns string
   as $$return null;$$;
@@ -279,11 +279,11 @@ move microflow CRM.ACT_Order_Save to folder 'Order';
 move microflow CRM.ACT_Order_Process to folder 'Order/Processing';
 
 -- Move shared artifacts to a Shared folder or common module
-show impact of CRM.Header_Snippet;
+list impact of CRM.Header_Snippet;
 move snippet CRM.Header_Snippet to folder 'Shared' in Common;
 
 -- Move entity to different module
-show impact of CRM.Customer;
+list impact of CRM.Customer;
 move entity CRM.Customer to CustomerModule;
 
 -- Move enumeration to different module
@@ -328,7 +328,7 @@ drop folder 'Processing' in MyModule;
 
 - [ ] Folder paths use `/` separator (not `\`)
 - [ ] FOLDER keyword placement is correct (before BEGIN for microflows, inside properties for pages)
-- [ ] Cross-module moves: checked impact with `show impact of` first
+- [ ] Cross-module moves: checked impact with `list impact of` first
 - [ ] Folder naming is consistent across modules
 - [ ] DROP FOLDER: verify folder is empty before dropping
 - [ ] After a batch of moves: `list folders in MyModule` to confirm the layout

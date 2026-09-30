@@ -97,25 +97,25 @@ then stops part-way through.
 
 ```sql
 -- Project-wide security overview
-show project security;
+describe app security;
 
 -- Module roles (all or filtered)
-show module roles;
-show module roles in MyModule;
+list module roles;
+list module roles in MyModule;
 
 -- User roles and demo users
-show user roles;
-show demo users;
+list user roles;
+list demo users;
 
 -- Access on specific elements
-show access on microflow MyModule.ProcessOrder;
-show access on page MyModule.CustomerOverview;
-show access on entity MyModule.Customer;
-show access on MyModule.Customer;        -- a bare name means the entity
+list access on microflow MyModule.ProcessOrder;
+list access on page MyModule.CustomerOverview;
+list access on entity MyModule.Customer;
+list access on MyModule.Customer;        -- a bare name means the entity
 
 -- Full security matrix
-show security matrix;
-show security matrix in MyModule;
+describe security matrix;
+describe security matrix in MyModule;
 ```
 
 ### Describe Commands
@@ -126,6 +126,12 @@ describe module role MyModule.Admin;
 describe user role Administrator;
 describe demo user 'demo_admin';
 ```
+
+`describe demo user` never prints the password. It emits
+`create or modify demo user 'demo_admin' password '***' …`, where `'***'` means
+*keep the stored password*: replaying the output on the same project leaves the
+password as it is, and on a project without that user the statement is refused
+until you replace `'***'` with a real password.
 
 ### Catalog Queries (SQL)
 
@@ -172,8 +178,9 @@ create module role MyModule.Viewer description 'Read-only access';
 -- whole security script stays re-runnable rather than needing a run-once file.
 create or modify module role MyModule.ApiUser description 'API consumer';
 
--- Remove a module role
+-- Remove a module role (`if exists` makes it a no-op when the role is gone)
 drop module role MyModule.Viewer;
+drop module role if exists MyModule.Legacy;
 ```
 
 ### Microflow Access
@@ -196,7 +203,7 @@ grant execute on nanoflow MyModule.NF_ValidateCart to MyModule.User, MyModule.Ad
 revoke execute on nanoflow MyModule.NF_ValidateCart from MyModule.User;
 
 -- Show current access
-show access on nanoflow MyModule.NF_ValidateCart;
+list access on nanoflow MyModule.NF_ValidateCart;
 ```
 
 > **Note:** Security roles persist through DROP+CREATE of the same nanoflow name within a session (by design, for refactor-in-place workflows).
@@ -220,8 +227,8 @@ as `.Admin` and refused by MxBuild with **CE1613**. `mxcli check` reports it as
 **MDL-GRANT02** without needing a project.
 
 ```sql
-grant Admin on MyModule.Customer (read *);            -- ✗ MDL-GRANT02
-grant MyModule.Admin on MyModule.Customer (read *);   -- ✓
+grant read * on entity MyModule.Customer to Admin;            -- ✗ MDL-GRANT02
+grant read * on entity MyModule.Customer to MyModule.Admin;   -- ✓
 ```
 
 ### Entity Access (CRUD)
@@ -238,31 +245,33 @@ does not narrow the first.
 
 ```sql
 -- Full access (all CRUD + all members)
-grant MyModule.Admin on MyModule.Customer (create, delete, read *, write *);
+grant create, delete, read *, write * on entity MyModule.Customer to MyModule.Admin;
 
 -- Read-only (all members)
-grant MyModule.Viewer on MyModule.Customer (read *);
+grant read * on entity MyModule.Customer to MyModule.Viewer;
 
 -- Selective member access
-grant MyModule.User on MyModule.Customer (read (Name, Email), write (Email));
+grant read (Name, Email), write (Email) on entity MyModule.Customer to MyModule.User;
 
 -- Additive: adds Phone to existing read access (Name, Email preserved)
-grant MyModule.User on MyModule.Customer (read (Phone));
+grant read (Phone) on entity MyModule.Customer to MyModule.User;
 
--- With XPath constraint
-grant MyModule.User on MyModule.Order (read *, write *) where '[Status = ''Open'']';
+-- With XPath constraint: in [ ] like every XPath, quotes written once.
+-- The old `grant MyModule.User on MyModule.Order (…) where '[…]'` still parses
+-- but warns MDL-DEPR030; `mxcli fmt --upgrade` rewrites it.
+grant read *, write * on entity MyModule.Order to MyModule.User where [Status = 'Open'];
 
 -- Revoke entity access entirely
-revoke MyModule.Viewer on MyModule.Customer;
+revoke all on entity MyModule.Customer from MyModule.Viewer;
 
 -- Partial revoke: remove read on specific attribute
-revoke MyModule.User on MyModule.Customer (read (Phone));
+revoke read (Phone) on entity MyModule.Customer from MyModule.User;
 
 -- Partial revoke: downgrade write to read-only
-revoke MyModule.User on MyModule.Customer (write (Email));
+revoke write (Email) on entity MyModule.Customer from MyModule.User;
 
 -- Partial revoke: remove structural permission
-revoke MyModule.User on MyModule.Customer (delete);
+revoke delete on entity MyModule.Customer from MyModule.User;
 ```
 
 #### Members added later
@@ -298,13 +307,13 @@ create persistent entity Docs.Contract extends Docs.DocumentBase (
 );
 
 -- DocName is inherited, ContractNumber is Contract's own — name both the same way
-grant Docs.Viewer on Docs.Contract (read (DocName, ContractNumber));
+grant read (DocName, ContractNumber) on entity Docs.Contract to Docs.Viewer;
 
 -- Attachment inherits the file members from System.FileDocument
 create persistent entity Docs.Attachment extends System.FileDocument (
   Category: String(50)
 );
-grant Docs.Viewer on Docs.Attachment (read (Category, "Name", Size));
+grant read (Category, "Name", Size) on entity Docs.Attachment to Docs.Viewer;
 ```
 
 An access rule must carry an entry for **every** member, own and inherited —
@@ -369,21 +378,33 @@ automatically:
 create persistent entity Docs.Employee extends System.User (
   EmployeeNo: String(20)
 );
-grant Docs.Viewer on Docs.Employee (read (EmployeeNo));   -- not Name/Blocked
+grant read (EmployeeNo) on entity Docs.Employee to Docs.Viewer;   -- not Name/Blocked
 ```
 
 ### User Roles
 
 ```sql
 -- Create with module roles
-create user role RegularUser (MyModule.User, OtherModule.Reader);
+create user role RegularUser ( ModuleRoles: (MyModule.User, OtherModule.Reader) );
 
 -- Create with manage all roles permission
-create user role SuperAdmin (MyModule.Admin) manage all roles;
+create user role SuperAdmin ( ModuleRoles: (MyModule.Admin), ManageAllRoles: true );
 
--- Add/remove module roles
+-- Every property is optional: Description, CheckSecurity, ManageableRoles,
+-- ManageUsersWithoutRoles. `create user role Guest;` has no module roles.
+-- `create or modify` adds the listed module roles and sets only the stated
+-- properties. The positional `create user role R (M.A) manage all roles`
+-- is deprecated (MDL-DEPR710); `mxcli fmt --upgrade` rewrites it.
+create or modify user role Manager (
+  ModuleRoles: (MyModule.Manager),
+  Description: 'Approves orders',
+  ManageableRoles: (RegularUser),
+  CheckSecurity: true
+);
+
+-- Add/drop module roles
 alter user role RegularUser add module roles (MyModule.Viewer);
-alter user role RegularUser remove module roles (MyModule.Viewer);
+alter user role RegularUser drop module roles (MyModule.Viewer);
 
 -- Remove user role
 drop user role RegularUser;
@@ -393,13 +414,13 @@ drop user role RegularUser;
 
 ```sql
 -- Set security level
-alter project security level off;
-alter project security level prototype;
-alter project security level production;
+alter app security ( SecurityLevel: off );
+alter app security ( SecurityLevel: prototype );
+alter app security ( SecurityLevel: production );
 
 -- Enable/disable demo users
-alter project security demo users on;
-alter project security demo users off;
+alter app security ( EnableDemoUsers: true );
+alter app security ( EnableDemoUsers: false );
 ```
 
 ### Guest (Anonymous) Access
@@ -411,23 +432,23 @@ the important half: **whatever that role can read is the app's public surface.**
 ```sql
 -- The role anonymous visitors are given. System.User is what lets an
 -- unauthenticated session exist at all.
-create user role Anonymous (Shop.Viewer, System.User);
+create user role Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );
 
-alter project security guest access on role Anonymous;
+alter app security ( EnableGuestAccess: true, GuestUserRole: Anonymous );
 
 -- Now grant exactly what should be public — and nothing else.
-grant Anonymous on Shop.Product (read *);
+grant read * on entity Shop.Product to Anonymous;
 
 -- Re-enabling later does not need the role retyped; the stored one is used.
-alter project security guest access off;
-alter project security guest access on;
+alter app security ( EnableGuestAccess: false );
+alter app security ( EnableGuestAccess: true );
 ```
 
 Three things worth knowing:
 
 - **The role is mandatory.** Mendix fails the build with **CE0133** ("No user role
   for anonymous users selected even though the feature anonymous users is
-  enabled") when access is on with no role. `guest access on` is refused unless a
+  enabled") when access is on with no role. `EnableGuestAccess: true` is refused unless a
   role is given or one is already stored.
 - **Mendix does not check the role exists**, so mxcli does. A misspelled role
   would otherwise build with zero errors and leave anonymous visitors with no
@@ -443,10 +464,10 @@ internet (DIVD-2022-00019). Add an XPath constraint or do not grant it.
 
 ```sql
 -- Create demo user (auto-detects entity that generalizes System.User)
-create demo user 'demo_admin' password 'Admin123!' (Administrator, SuperAdmin);
+create demo user 'demo_admin' ( Password: 'Admin123!', UserRoles: (Administrator, SuperAdmin) );
 
 -- Create demo user with explicit entity
-create demo user 'demo_admin' password 'Admin123!' entity Administration.Account (Administrator, SuperAdmin);
+create demo user 'demo_admin' ( Password: 'Admin123!', Entity: Administration.Account, UserRoles: (Administrator, SuperAdmin) );
 
 -- Remove demo user
 drop demo user 'demo_admin';
@@ -480,9 +501,9 @@ create module role Shop.Admin description 'Administrative access';
 create module role Shop.Viewer description 'Read-only access';
 
 -- 2. Grant entity access
-grant Shop.Admin on Shop.Customer (create, delete, read *, write *);
-grant Shop.User on Shop.Customer (read (Name, Email), write (Email));
-grant Shop.Viewer on Shop.Customer (read *);
+grant create, delete, read *, write * on entity Shop.Customer to Shop.Admin;
+grant read (Name, Email), write (Email) on entity Shop.Customer to Shop.User;
+grant read * on entity Shop.Customer to Shop.Viewer;
 
 -- 3. Grant microflow access
 grant execute on microflow Shop.ACT_Customer_Create to Shop.User, Shop.Admin;
@@ -493,11 +514,11 @@ grant view on page Shop.Customer_Overview to Shop.User, Shop.Admin, Shop.Viewer;
 grant view on page Shop.Customer_Edit to Shop.User, Shop.Admin;
 
 -- 5. Create user roles (project-level)
-create user role AppUser (Shop.User);
-create user role AppAdmin (Shop.Admin) manage all roles;
+create user role AppUser ( ModuleRoles: (Shop.User) );
+create user role AppAdmin ( ModuleRoles: (Shop.Admin), ManageAllRoles: true );
 
 -- 6. Verify
-show security matrix in Shop;
+describe security matrix in Shop;
 describe user role AppAdmin;
 ```
 
@@ -517,7 +538,7 @@ ones that are easy to overlook:
 | `owner` / `changedBy` | — | emitted automatically as `System.owner` / `System.changedBy` |
 
 Audit members are the one case where naming a member cannot change its rights:
-`grant R on M.E (write *, read (createdDate))` is refused, because Mendix has no
+`grant write *, read (createdDate) on entity M.E to R` is refused, because Mendix has no
 member access to write for it and a rule that carries one fails CE0066. Let the
 rule's default cover it, or change the default.
 
@@ -534,7 +555,7 @@ rule's default cover it, or change the default.
 After setting up security, verify with:
 ```bash
 # check security matrix
-mxcli -p app.mpr -c "show security matrix in MyModule"
+mxcli -p app.mpr -c "describe security matrix in MyModule"
 
 # Validate with Mendix
 mxcli docker check -p app.mpr

@@ -17,6 +17,26 @@ Use this skill when:
 
 If you're not sure whether the logic belongs in a nanoflow or a microflow, read the next section first. The mirror lives in [write-microflows](../write-microflows/SKILL.md) — keep both copies in sync.
 
+## Changing an Existing Nanoflow
+
+Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode/SKILL.md)):
+
+- **Created by your MDL scripts, and not edited in Studio Pro since:** edit the script
+  (or fresh `describe` output) and re-run `create or modify`.
+- **Authored in Studio Pro:** prefer `alter nanoflow X { insert/replace/drop … }`
+  (targets by output variable, caption or statement pattern). `create or modify` of `describe`
+  output also works as a patch: an unchanged definition writes nothing, and an inserted,
+  replaced or dropped statement (at the top level or in an `if` branch) is spliced in,
+  leaving every other node, merge and curve as stored; a changed `return` value is set on
+  the stored end event, and a body without a trailing `return` means the stored end. The
+  header (documentation, return type, parameters added, retyped or — when unused —
+  removed) is set on the stored document, and a stated `@position` or `@start` moves the
+  stored node, keeping its flows. A change it cannot patch — anything inside a loop body
+  or error handler, a redrawn `@anchor`/`@curve`, a `return` added or taken away —
+  rebuilds the whole nanoflow under mdl 0
+  (warning `MDL-V1-REBUILD`: element IDs renumbered, merges removed, curves reset) and
+  is refused under `mdl 1;`.
+
 ## When to Use a Nanoflow vs a Microflow
 
 | Scenario | Use |
@@ -104,7 +124,7 @@ $JsResult = CALL JAVASCRIPT ACTION NanoflowCommons.SignIn (userName = $Name, pas
 
 ### UI Activities
 ```mdl
-SHOW PAGE Sales.CartDetail ($Cart = $Cart);
+SHOW PAGE Sales.CartDetail (Cart = $Cart);
 CLOSE PAGE;
 SHOW MESSAGE WARNING 'Connection unavailable. Working offline.';
 VALIDATION FEEDBACK $Item/Quantity MESSAGE 'Quantity must be at least 1';
@@ -139,7 +159,7 @@ IF $Cart/ItemCount = 0 THEN
   VALIDATION FEEDBACK $Cart/ItemCount MESSAGE 'Cart is empty';
   RETURN false;
 ELSE
-  SHOW PAGE Sales.Checkout ($Cart = $Cart);
+  SHOW PAGE Sales.Checkout (Cart = $Cart);
   RETURN true;
 END IF;
 ```
@@ -200,11 +220,11 @@ CREATE OR MODIFY NANOFLOW Inventory.NAV_OpenProductDetail (
 )
 FOLDER 'Navigation'
 BEGIN
-  $IsValid = CALL NANOFLOW Inventory.NAV_ValidateProduct ($Product = $Product);
+  $IsValid = CALL NANOFLOW Inventory.NAV_ValidateProduct (Product = $Product);
   IF NOT ($IsValid) THEN
     RETURN;
   END IF;
-  SHOW PAGE Inventory.ProductDetail ($Product = $Product);
+  SHOW PAGE Inventory.ProductDetail (Product = $Product);
 END;
 ```
 
@@ -511,9 +531,9 @@ synchronize unsynchronized;      -- only objects with uncommitted offline change
 synchronize $Order, $Lines;      -- named objects/lists ("Specific" mode)
 
 synchronize all on error continue;
-synchronize all on error without rollback {
+synchronize all on error without rollback begin
   log error 'sync failed';
-};
+end error;
 ```
 
 The mode is always written out, including `all` — the statement says what it does
@@ -577,13 +597,13 @@ REVOKE EXECUTE ON NANOFLOW Shop.NAV_Filter FROM Shop.User;
 ## Management Commands
 
 ```mdl
-SHOW NANOFLOWS
-SHOW NANOFLOWS IN MyModule
+LIST NANOFLOWS
+LIST NANOFLOWS IN MyModule
 DESCRIBE NANOFLOW MyModule.NAV_ShowDetails
 DROP NANOFLOW MyModule.NAV_ShowDetails;
 RENAME NANOFLOW MyModule.NAV_OldName TO NAV_NewName;
 MOVE NANOFLOW Sales.NAV_OpenCart TO FOLDER 'UI/Navigation';
-SHOW ACCESS ON NANOFLOW MyModule.NAV_ShowDetails;
+LIST ACCESS ON NANOFLOW MyModule.NAV_ShowDetails;
 ```
 
 ## Common Mistakes

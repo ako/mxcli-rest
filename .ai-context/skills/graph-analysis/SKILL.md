@@ -111,7 +111,7 @@ ORDER BY ModuleName, ObjectType
 | `IVK_*` microflows | Called by external systems via published REST/web services |
 | `SCH_*` microflows | Called by scheduled events — no code edge |
 
-Safe to delete: pages, snippets, and microflows with no inbound edges that do **not** match any of the patterns above, and that are not referenced in navigation (check `SHOW NAVIGATION`).
+Safe to delete: pages, snippets, and microflows with no inbound edges that do **not** match any of the patterns above, and that are not referenced in navigation (check `LIST NAVIGATION`).
 
 ---
 
