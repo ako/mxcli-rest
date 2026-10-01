@@ -54,14 +54,15 @@ list navigation menu;             -- all profiles
 list navigation homes;
 ```
 
-## CREATE OR REPLACE NAVIGATION (Full Replacement)
+## CREATE OR MODIFY NAVIGATION (Full Replacement)
 
 This command fully replaces a navigation profile's configuration. All clauses are optional — omitted clauses clear that section. The output from `describe navigation` can be pasted back directly.
 
 ### Basic: Set Home and Login Page
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login;
 ```
@@ -72,7 +73,8 @@ Add `for <UserRole>` to override the home page for specific user roles. The
 role is a **bare name** — user roles are project-level and have no module part:
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   home page MyModule.AdminDashboard for Administrator
   home page MyModule.CustomerPortal for Customer
@@ -100,7 +102,8 @@ roles called `Administrator` in three modules. List the real ones with
 The menu items are the profile's children, in `{ ... }` after its clauses, like a page's widgets — no `;` between them. The block replaces the entire menu. Use `menu item 'Caption' ( OnClick: … )` for leaf items and `menu 'caption' { ... }` for sub-menus. The action is `OnClick:` in the words a page action uses: `show page M.P`, `call microflow M.F`, or `sign out`:
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login
   {
@@ -160,7 +163,8 @@ The icon-collection form is a **qualified name** — a model reference, written
 like every other reference in MDL, not a string:
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   {
     menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
@@ -203,7 +207,8 @@ shows an empty screen. That is the single most common way an offline profile
 looks broken while every check passes.
 
 ```sql
-create or replace navigation PhoneOffline
+mdl 1;
+create or modify navigation PhoneOffline
   home page MyModule.Mobile_Dashboard
   sync (
     sync MyModule.Setting online;
@@ -258,7 +263,7 @@ And before changing an entity, ask which profiles download it — an offline
 change reaches every device that already synced:
 
 ```
-list references to MyModule.Order
+list references to MyModule.Order;
 ```
 
 The `sync` row names the profile. Every mode produces one, **including the
@@ -269,7 +274,8 @@ so renaming or dropping it leaves the configuration dangling.
 server rejects objects during synchronization"* checkbox:
 
 ```sql
-create or replace navigation PhoneOffline
+mdl 1;
+create or modify navigation PhoneOffline
   home page MyModule.Mobile_Dashboard
   on sync error continue;      -- default is `throw`
 ```
@@ -288,7 +294,8 @@ silently dropped.
 An empty `{ }` menu block removes all menu items:
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   {};
 ```
@@ -296,7 +303,8 @@ create or replace navigation Responsive
 ### Not-Found Page
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   not found page MyModule.Custom404;
 ```
@@ -306,7 +314,8 @@ create or replace navigation Responsive
 Use `home microflow` instead of `home page` to run a microflow on login:
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home microflow MyModule.ACT_ShowHome;
 ```
 
@@ -315,11 +324,12 @@ create or replace navigation Responsive
 The DESCRIBE output is directly executable. Use this pattern to inspect, modify, and re-apply:
 
 ```sql
+mdl 1;
 -- Step 1: Inspect current state
 describe navigation Responsive;
 
 -- Step 2: Copy the output, modify as needed, paste back
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login
   {
@@ -360,6 +370,7 @@ describe context of MyModule.Home_Web;
 Set up navigation for a freshly created project:
 
 ```sql
+mdl 1;
 -- Create home page
 create page MyModule.Home_Web
 (
@@ -370,10 +381,10 @@ create page MyModule.Home_Web
   container ctnMain {
     dynamictext txtWelcome (content: 'Welcome!')
   }
-}
+};
 
 -- Configure navigation
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page MyModule.Home_Web
   {
     menu item 'Home' ( OnClick: show page MyModule.Home_Web )
@@ -385,11 +396,12 @@ create or replace navigation Responsive
 After creating a new page, add it to the menu:
 
 ```sql
+mdl 1;
 -- First inspect current menu
 describe navigation Responsive;
 
 -- Then re-apply with the new item added (copy existing + add new)
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login
   {
@@ -404,7 +416,7 @@ create or replace navigation Responsive
 ## Menu Documents (standalone, reusable)
 
 A profile menu lives *inside* a navigation profile and is edited with
-`create or replace navigation`. A **menu document** is its own document, and a
+`create or modify navigation`. A **menu document** is its own document, and a
 menu widget on a page points at it. Atlas_Core ships `Phone_Menu` and
 `Tablet_Menu`.
 
@@ -418,6 +430,7 @@ describe menu Atlas_Core.Phone_Menu;     -- a standalone menu document
 Menu documents use the same item syntax as the profile's `{ ... }` menu block:
 
 ```sql
+mdl 1;
 create or modify menu MyModule.Main_Menu {
   menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
   menu item 'Run' ( OnClick: call microflow MyModule.DoThing )
@@ -438,7 +451,7 @@ keep the edit to the items you mean to change, then `describe` it again after
 [choose-edit-mode](../choose-edit-mode/SKILL.md)).
 
 **`or modify` replaces the whole item list.** An omitted item is a removed item,
-exactly as with `create or replace navigation`. The document's identity and
+exactly as with `create or modify navigation`. The document's identity and
 export level are preserved, so menu widgets pointing at it keep working.
 
 ### Gotchas
@@ -457,7 +470,8 @@ export level are preserved, so menu widgets pointing at it keep working.
 An offline profile is created the same way as any other:
 
 ```sql
-create or replace navigation TabletOffline
+mdl 1;
+create or modify navigation TabletOffline
   home page Maintenance.Request_Overview
   {
     menu item 'Requests' ( OnClick: show page Maintenance.Request_Overview )

@@ -29,7 +29,7 @@ Generate correct OQL (Object Query Language) queries for Mendix VIEW entities. T
 
 Every column in the SELECT clause must have an alias that matches the entity attribute name:
 
-```sql
+```text
 -- ❌ WRONG - Missing aliases
 create view entity Finance.CashFlowProjection (
   ProjectionDate: datetime,
@@ -42,7 +42,10 @@ create view entity Finance.CashFlowProjection (
     fl.ProjectedExpense           -- Missing AS alias
   from Finance.ForecastLine as fl
 );
+```
 
+```sql
+mdl 1;
 -- ✅ CORRECT - All columns have explicit aliases
 create view entity Finance.CashFlowProjection (
   ProjectionDate: datetime,
@@ -104,6 +107,7 @@ subtotals). Column count and types must line up across branches; `ORDER BY` (wit
 its `LIMIT`) applies to the whole unioned result, not a single branch.
 
 ```sql
+mdl 1;
 create or modify view entity Ledger.CategoryAndSubtotals (
   Label: string(100), Amount: decimal
 ) as (
@@ -183,7 +187,7 @@ t.Status != 'VOID'
 ```
 
 ### 5. Division Operator (Colon, not Slash)
-```sql
+```text
 -- ❌ WRONG - Using / causes parsing errors
 select amount / quantity as price
 select (total - discount) * 100.0 / total as percentage
@@ -194,7 +198,7 @@ select (total - discount) * 100.0 : total as percentage
 ```
 
 ### 6. ORDER BY with Aliases
-```sql
+```text
 -- ❌ WRONG - Using expressions in ORDER BY
 ORDER by datepart(YEAR, t.TransactionDate) desc
 
@@ -211,7 +215,7 @@ ORDER by OrderYear desc
 leave that attribute empty. Mendix emits the ordering with no null placement, so
 the database default applies — on PostgreSQL, `DESC` means **NULLS FIRST**.
 
-```sql
+```text
 -- ❌ MISLEADING - the empty rows come back first, so a top-N is not the top N
 select g.Label as Label from Sudoku.Game as g
 order by g.DealtAt desc
@@ -263,7 +267,7 @@ where t.Priority in ('HIGH', 'CRITICAL')  -- Not 'High', 'Critical'
 ```
 
 ### 9. Subqueries (Scalar and Correlated)
-```sql
+```text
 -- ✅ Scalar subquery in SELECT (returns single value)
 select
   p.Name as ProductName,
@@ -353,7 +357,7 @@ create view entity Module.ViewName (
 
 Mendix OQL accepts the select list in either position, and mxcli reads both:
 
-```sql
+```text
 -- Select-first. Write new views this way; the rest of this skill assumes it.
 select c.Name as Name, count(o.ID) as Orders
 from Shop.Customer as c
@@ -382,6 +386,7 @@ column is **not** one of the view entity's attributes — so do not declare one
 for it:
 
 ```sql
+mdl 1;
 create view entity Sales.OrdersVE (
   order_date: DateTime              -- one attribute…
 ) as (
@@ -474,7 +479,7 @@ select sum(amount) from ...
 ```
 
 ### ❌ Mistake 2: Using count(*)
-```sql
+```text
 -- WRONG
 select count(*) from Finance.Transaction
 
@@ -492,7 +497,7 @@ where t.Status = 'ACTIVE'
 ```
 
 ### ❌ Mistake 4: Slash for Division
-```sql
+```text
 -- WRONG
 select total / count as average
 
@@ -501,7 +506,7 @@ select total : count as average
 ```
 
 ### ❌ Mistake 5: Missing Column Aliases
-```sql
+```text
 -- WRONG
 select
   fl.ForecastDate,

@@ -6,6 +6,7 @@ Supporting reference for [write-oql-queries](../SKILL.md).
 
 ### Pattern 1: Date-based Aggregation
 ```sql
+mdl 1;
 create view entity Finance.MonthlySummary (
   Year: integer,
   Month: integer,
@@ -25,6 +26,7 @@ create view entity Finance.MonthlySummary (
 
 ### Pattern 2: Conditional Aggregation
 ```sql
+mdl 1;
 create view entity Finance.CategorySummary (
   Category: string(200),
   Income: decimal,
@@ -45,6 +47,7 @@ create view entity Finance.CategorySummary (
 
 ### Pattern 3: Association Navigation
 ```sql
+mdl 1;
 create view entity Shop.OrderDetails (
   OrderId: long,
   CustomerName: string(400),
@@ -65,6 +68,7 @@ create view entity Shop.OrderDetails (
 
 ### Pattern 4: Calculations with Division
 ```sql
+mdl 1;
 create view entity Finance.BudgetVariance (
   Category: string(200),
   Budget: decimal,
@@ -86,6 +90,7 @@ create view entity Finance.BudgetVariance (
 
 ### Pattern 5: IN Expression with Value List
 ```sql
+mdl 1;
 create view entity Shop.HighPriorityTasks (
   TaskId: integer,
   TaskTitle: string(200),
@@ -102,6 +107,7 @@ create view entity Shop.HighPriorityTasks (
 
 ### Pattern 6: IN Expression with Subquery
 ```sql
+mdl 1;
 create view entity Shop.CustomersWithOrders (
   CustomerId: integer,
   CustomerName: string(200)
@@ -120,6 +126,7 @@ create view entity Shop.CustomersWithOrders (
 
 ### Pattern 7: Scalar Subquery in SELECT
 ```sql
+mdl 1;
 create view entity Shop.ProductsAboveAverage (
   ProductId: integer,
   Name: string(200),
@@ -138,6 +145,7 @@ create view entity Shop.ProductsAboveAverage (
 
 ### Pattern 8: Correlated Subquery
 ```sql
+mdl 1;
 create view entity Shop.OrdersWithCustomerStats (
   OrderId: integer,
   OrderNumber: string(50),
@@ -155,6 +163,7 @@ create view entity Shop.OrdersWithCustomerStats (
 
 ### Pattern 9: Correlated Subquery via Association
 ```sql
+mdl 1;
 -- Get the latest price for each product using association traversal
 create view entity Shop.ProductCurrentPrice (
   ProductId: string(50),
@@ -184,6 +193,7 @@ create view entity Shop.ProductCurrentPrice (
 
 ### Pattern 10: JOIN with ON Clause (Non-Association)
 ```sql
+mdl 1;
 -- When joining on arbitrary conditions (not Mendix associations)
 create view entity Shop.ProductComparison (
   ProductId: integer,
@@ -206,6 +216,7 @@ create view entity Shop.ProductComparison (
 
 ### Response
 ```sql
+mdl 1;
 /**
  * Monthly revenue summary with order statistics
  *

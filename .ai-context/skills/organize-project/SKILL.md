@@ -58,6 +58,7 @@ Adapt to your project's conventions. The key is consistency across modules.
 Use the `folder` keyword after the return type, before `begin`:
 
 ```mdl
+mdl 1;
 create microflow MyModule.ACT_ProcessOrder ($Order: MyModule.Order)
 returns boolean as $success
 folder 'Order'
@@ -72,27 +73,25 @@ end;
 Use the `folder` property inside the page properties:
 
 ```sql
-create page MyModule.Customer_Overview
+mdl 1;
+create page MyModule.Customer_Overview folder 'Customer'
 (
   title: 'Customer Overview',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'Customer'
+  layout: Atlas_Core.Atlas_Default
 )
 {
   -- widgets
-}
+};
 ```
 
 ### Snippets
 
 ```sql
-create snippet MyModule.CustomerCard
-(
-  folder: 'Customer'
-)
+mdl 1;
+create snippet MyModule.CustomerCard folder 'Customer'
 {
   -- widgets
-}
+};
 ```
 
 ### Nested Folders
@@ -100,6 +99,7 @@ create snippet MyModule.CustomerCard
 Use `/` to create nested folder paths. Missing folders are created automatically:
 
 ```mdl
+mdl 1;
 -- Creates 'Order', then 'Order/Batch' if they don't exist
 create microflow MyModule.ACT_BatchProcess ($list: list of MyModule.Order)
 folder 'Order/Batch'
@@ -159,6 +159,7 @@ The `move` command relocates existing documents between folders and modules.
 ### Move to a Folder (Same Module)
 
 ```mdl
+mdl 1;
 move page MyModule.CustomerEdit to folder 'Customer';
 move microflow MyModule.ACT_ProcessOrder to folder 'Order';
 move snippet MyModule.NavigationMenu to folder 'Shared';
@@ -169,12 +170,14 @@ move enumeration MyModule.OrderStatus to folder 'Shared';
 ### Move to Module Root (Out of Folder)
 
 ```mdl
+mdl 1;
 move page MyModule.CustomerEdit to MyModule;
 ```
 
 ### Move Across Modules
 
 ```mdl
+mdl 1;
 -- Move to another module's root
 move page OldModule.CustomerPage to NewModule;
 
@@ -192,6 +195,7 @@ Cross-module moves change the qualified name (e.g., `OldModule.CustomerPage` bec
 **Always check impact before cross-module moves:**
 
 ```mdl
+mdl 1;
 list impact of OldModule.CustomerPage;
 -- Review the output, then move if safe:
 move page OldModule.CustomerPage to NewModule;
@@ -242,6 +246,7 @@ the clause goes depends on the statement's shape:
 | Everything else | `folder 'path'` — a keyword, straight after the qualified name |
 
 ```mdl
+mdl 1;
 create import mapping CRM.IMM_Order folder 'Private/Import mappings'
   with json structure CRM.JSON_Order { create CRM.Order { Id = id } };
 
@@ -263,6 +268,7 @@ rather than into the module root.
 ## Example: Reorganize a Module
 
 ```mdl
+mdl 1;
 -- Group all Customer artifacts together
 move page CRM.Customer_Overview to folder 'Customer';
 move page CRM.Customer_NewEdit to folder 'Customer';
@@ -295,6 +301,7 @@ move enumeration CRM.OrderStatus to SharedModule;
 Use `move folder` to reorganize folders. Syntax matches document moves: `Module.FolderName`.
 
 ```sql
+mdl 1;
 -- Move a folder into another folder
 move folder MyModule.Resources to folder 'Archive';
 
@@ -313,6 +320,7 @@ move folder MyModule.Templates to folder 'Shared' in CommonModule;
 Use `drop folder` to remove empty folders. The folder must not contain any documents or sub-folders.
 
 ```sql
+mdl 1;
 -- Drop an empty folder
 drop folder 'OldPages' in MyModule;
 

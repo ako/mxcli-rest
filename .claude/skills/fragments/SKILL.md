@@ -27,6 +27,7 @@ Fragments are **script-scoped, transient** widget groups:
 ### CREATE FRAGMENT
 
 ```mdl
+mdl 1;
 create fragment SaveCancelFooter as {
   footer footer1 {
     actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
@@ -38,6 +39,7 @@ create fragment SaveCancelFooter as {
 Multiple top-level widgets:
 
 ```mdl
+mdl 1;
 create fragment CustomerFields as {
   textbox txtName (label: 'Name', attribute: Name)
   textbox txtEmail (label: 'Email', attribute: Email)
@@ -50,6 +52,7 @@ create fragment CustomerFields as {
 Inside a page or snippet body:
 
 ```mdl
+mdl 1;
 create page Module.CustomerEdit
 (
   params: ( $Customer: Module.Customer ),
@@ -79,6 +82,7 @@ panel, or section) whose body varies per use. Declare a `slot` where the caller'
 widgets should land, then fill it with the `use fragment X { … }` payload form:
 
 ```mdl
+mdl 1;
 create fragment Card as {
   container cardWrap (class: 'card', designproperties: ('Card style': on)) {
     container cardBody (class: 'card-body') {
@@ -118,6 +122,7 @@ its value at the use site. This turns a shell into a real reusable component —
 one panel bound to a different entity and a different handler per use.
 
 ```mdl
+mdl 1;
 create fragment DataPanel($data: datasource, $onEdit: action) as {
   container panelWrap (class: 'card') {
     listview lvItems (datasource: $data) {

@@ -69,6 +69,7 @@ Same type system as Java actions:
 Simple action (Web default):
 
 ```sql
+mdl 1;
 CREATE JAVASCRIPT ACTION MyFirstModule.JSA_IsOnline () RETURNS Boolean
 AS $$
     return Promise.resolve(navigator.onLine);
@@ -78,6 +79,7 @@ $$;
 Parameters + return:
 
 ```sql
+mdl 1;
 CREATE JAVASCRIPT ACTION MyFirstModule.JSA_Add (
     A: Integer NOT NULL,
     B: Integer NOT NULL
@@ -90,6 +92,7 @@ $$;
 Exposed toolbox action, native platform:
 
 ```sql
+mdl 1;
 CREATE JAVASCRIPT ACTION MyFirstModule.JSA_ShowToast (
     Message: String NOT NULL,
     Duration: Integer
@@ -105,6 +108,7 @@ $$;
 Idempotent update (UUID preserved):
 
 ```sql
+mdl 1;
 CREATE OR MODIFY JAVASCRIPT ACTION MyFirstModule.JSA_Add (
     A: Integer NOT NULL,
     B: Integer NOT NULL,
@@ -118,6 +122,7 @@ $$;
 Drop (removes the unit and the `.js` file):
 
 ```sql
+mdl 1;
 DROP JAVASCRIPT ACTION MyFirstModule.JSA_Add;
 ```
 

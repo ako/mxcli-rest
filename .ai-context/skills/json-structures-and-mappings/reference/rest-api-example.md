@@ -15,6 +15,7 @@ exporting country data back to JSON.
 ### Step 1: JSON Structures
 
 ```sql
+mdl 1;
 -- Single country (flat object)
 create json structure Integration.JSON_Country
   sample '{"name": "Netherlands", "officialName": "Kingdom of the Netherlands", "capital": "Amsterdam", "region": "Europe", "population": 18100436, "flagUrl": "https://flagcdn.com/w320/nl.png"}';
@@ -27,6 +28,7 @@ create json structure Integration.JSON_CountryList
 ### Step 2: Import — Single Country
 
 ```sql
+mdl 1;
 create non-persistent entity Integration.Country (
   Name: string,
   OfficialName: string,
@@ -35,7 +37,6 @@ create non-persistent entity Integration.Country (
   Population: integer,
   FlagUrl: string
 );
-/
 
 create import mapping Integration.IMM_Country
   with json structure Integration.JSON_Country
@@ -56,13 +57,13 @@ create import mapping Integration.IMM_Country
 For a list response, the import mapping maps the array item directly (no container):
 
 ```sql
+mdl 1;
 create non-persistent entity Integration.CountryListItem (
   Name: string,
   Capital: string,
   Region: string,
   Population: integer
 );
-/
 
 create import mapping Integration.IMM_CountryList
   with json structure Integration.JSON_CountryList
@@ -81,6 +82,7 @@ create import mapping Integration.IMM_CountryList
 For the flat country, the same entity works for both import and export:
 
 ```sql
+mdl 1;
 create export mapping Integration.EMM_Country
   with json structure Integration.JSON_Country
 {
@@ -100,9 +102,9 @@ create export mapping Integration.EMM_Country
 For exporting a list, the export domain model needs a root container + item entities:
 
 ```sql
+mdl 1;
 -- Container entity wrapping the array
 create non-persistent entity Integration.ExCountryList;
-/
 
 -- Item entity for each country in the array
 create non-persistent entity Integration.ExCountryItem (
@@ -111,12 +113,10 @@ create non-persistent entity Integration.ExCountryItem (
   Region: string,
   Population: integer
 );
-/
 
 create association Integration.ExCountryItem_ExCountryList
   from Integration.ExCountryItem
   to Integration.ExCountryList;
-/
 
 create export mapping Integration.EMM_CountryList
   with json structure Integration.JSON_CountryList
@@ -135,6 +135,7 @@ create export mapping Integration.EMM_CountryList
 ### Step 6: Microflow — Fetch, Import, Process, Export
 
 ```sql
+mdl 1;
 create microflow Integration.GetCountryInfo ()
 returns string as $json
 begin
@@ -154,7 +155,6 @@ begin
 
   return $json;
 end;
-/
 ```
 
 ---

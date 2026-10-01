@@ -1,6 +1,6 @@
 ---
 name: choose-edit-mode
-description: "Decide how to change a document that already exists: ALTER, describe → edit → CREATE OR MODIFY, or a new document. The answer depends on who owns the document (your MDL scripts or Studio Pro). Use before editing anything in an existing app, before re-executing DESCRIBE output, and before touching a Studio Pro-authored microflow or nanoflow."
+description: "Decide how to change a document that already exists: ALTER, describe → edit → CREATE OR MODIFY, or a new document. The answer depends on who owns the document (your MDL scripts or Studio Pro). Use before editing anything in an existing app, before editing a project script that has no `mdl 1;` header, before re-executing DESCRIBE output, and before touching a Studio Pro-authored microflow or nanoflow."
 ---
 
 # Choose the Edit Mode by Who Owns the Document
@@ -31,6 +31,35 @@ MDL has two ways to change a document, and each is safe in a different situation
    gets new identities. For an entity, the runtime then drops its table and its rows.
 
 Not sure who owns it? Treat it as Studio Pro-owned.
+
+## Scripts are `mdl 1` — upgrade a headerless file before you edit it
+
+Every script you write starts with `mdl 1;`. A project script **without** that
+header is `mdl 0`, the alpha language: some statements mean something else there
+(`limit 1`, a reassignment without `set`, a backslash in a string) and some
+spellings `mdl 1` refuses. So **never mix dialects in one file.** Adding `mdl 1`
+statements to a headerless file runs them under `mdl 0` rules, and typing the
+header in by hand changes the meaning of the lines already there.
+
+Before you edit a headerless project script, upgrade that file:
+
+```bash
+./mxcli fmt --upgrade --header -p app.mpr -w script.mdl   # rewrite to mdl 1 and add the header
+./mxcli check script.mdl -p app.mpr                       # reports what exec would refuse
+```
+
+`fmt` rewrites every spelling and construct whose meaning the header changes, and
+declines the header for the file when a construct has no mechanical rewrite or
+when `exec` would then refuse a statement — it names each one. Fix those by hand,
+or leave that file at `mdl 0` and put the new work in a new file that starts with
+`mdl 1;`.
+
+Then edit, `exec`, and **`exec` the same script a second time**: the second run
+must write nothing — every statement reported unchanged, or "already in sync". That
+needs re-runnable statements: `create or modify`, or `create … if not exists`, not
+a bare `create`, which refuses an existing document. A write on the second run
+means the script and the stored model disagree — find out why before you hand the
+change over.
 
 ## Which document types have `alter`
 

@@ -83,6 +83,7 @@ retrieve $Items from Module.Item where ...;    -- or populate from the database
 ## Parameter vs Variable
 
 ```mdl
+mdl 1;
 create microflow Module.Example (
   $Input: string,              -- Parameter: auto-declared
   $entity: Module.Customer     -- Parameter: auto-declared
@@ -97,7 +98,6 @@ begin
 
   return $Result;
 end;
-/
 ```
 
 ## Variable Scope

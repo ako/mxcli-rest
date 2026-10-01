@@ -2427,3 +2427,80 @@ Moving the `drop` above the doc comment restored all six and lint returned to
 describe the document again and diff it… anything else that changed is a loss,
 not your edit"* — is the step that pays for itself here, and a lint total is a
 cheap standing version of it.
+
+## 66. mdl 1 is frozen, and #64's check/exec split is closed
+
+`nightly-783-g2b73b824`, 120 commits. The corpus migrated in #65 needs no
+changes: 14 scripts check clean with 0 deprecations, `exec` clean on two passes,
+`mx check` 0 errors, lint 278 — the same baseline — and the rates lane still
+imports at runtime.
+
+### `check` now predicts the refusal
+
+#64's complaint was that `fmt --upgrade --header` wrote scripts `check` called
+clean and `exec` then refused. `check`'s closing line now reads
+
+```
+✓ Expression types OK, no unstated member drops, no flow change exec would refuse
+```
+
+and it means it. Reconstructing the #64 condition — drop the deliberate
+`drop microflow` and bare the commit inside the loop again — `check` fails with
+**exec's own message**, prefixed:
+
+```
+✗ exec would refuse this statement: create or modify microflow
+  RestLab.ACT_Catalog_GetProducts: this change cannot be spliced into the stored
+  flow: the Loop at (1180, 200) changes inside its body … [MDL-V1-REBUILD]
+1 issues: 1 errors, 0 warnings, 0 info
+```
+
+That is the gap this file has recorded five times in different places (#60's
+`ALTER PAGE`, #61's access rules, #64's migration path) closed where it mattered
+most.
+
+### `fmt --upgrade` now does #65's manual fix, and does it per commit
+
+The thing that cost the most work in #65 was discovering that the corpus's 15
+bare commits stored **two different behaviours** — 12 events-off, 3 events-on —
+with nothing in the source to say which. `fmt --upgrade` now resolves each one
+against the project:
+
+| pre-migration script | stored | fmt wrote |
+| --- | --- | --- |
+| `05-microflows` | without events | `COMMIT $X WITHOUT EVENTS;` |
+| `09-transformer-lane` | with events | left bare (which is *with* events under mdl 1) |
+
+Both outputs then pass `check` against the stored model. So the per-commit
+distinction I had to establish by writing each spelling and watching the diff go
+to zero is now read out of the project automatically. Had this landed a day
+earlier, #65 would have been a mechanical pass.
+
+### What is not fixed
+
+`fmt --upgrade --header` still writes the header on a script whose result `exec`
+would refuse — it reported `rewrote … MDL-V1-SLASH x9` and emitted `mdl 1;` for a
+pre-migration script, saying nothing. The difference is that `check` is now the
+gate that catches it, which is a coherent pipeline rather than a silent one, and
+this project already runs `check` after every edit by its own rule. Worth
+knowing for anyone who upgrades and execs without checking in between.
+
+### The freeze, and what it costs this repo
+
+`59e76305 feat(langver): freeze mdl 1 — describe/fmt emit it, REPL and -c default
+to it`. Visible immediately:
+
+- `describe` emits `mdl 1;` as its first line, so describe → exec round-trips in
+  the frozen language by default.
+- `-c` defaults to mdl 1: `show entity RestLab.CallLog` is now refused —
+  *"`show entity` is not in mdl 1: write `describe entity` for the definition, or
+  `list entities` for the summary columns"*.
+
+I expected that to invalidate `CLAUDE.md`'s command tables, which are written in
+`SHOW …` throughout. **It does not.** Tested all 27 documented forms through
+`-c`: 26 still work, because the plural listings (`SHOW ENTITIES IN M`,
+`SHOW MICROFLOWS`, `SHOW NAVIGATION`, `SHOW SECURITY MATRIX` …) remain accepted
+aliases of `list`. The single refused form is `SHOW ENTITY <X>` — the summary
+that no statement prints any more — and `CLAUDE.md` never documented it. No doc
+change needed, which is worth recording precisely because the changelog's prose
+reads as though it would be.

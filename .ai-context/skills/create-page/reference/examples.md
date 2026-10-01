@@ -7,7 +7,8 @@ Supporting reference for [create-page](../SKILL.md).
 ### Customer Edit Page
 
 ```sql
-create or replace page CRM.CustomerEdit
+mdl 1;
+create or modify page CRM.CustomerEdit
 (
   params: ( $Customer: CRM.Customer ),
   title: 'Edit Customer',
@@ -35,12 +36,13 @@ create or replace page CRM.CustomerEdit
       }
     }
   }
-}
+};
 ```
 
 ### Order Overview Page
 
 ```sql
+mdl 1;
 create page Orders.OrderOverview
 (
   title: 'Orders',
@@ -63,12 +65,13 @@ create page Orders.OrderOverview
       }
     }
   }
-}
+};
 ```
 
 ### Master-Detail Page
 
 ```sql
+mdl 1;
 create page CRM.Customer_MasterDetail
 (
   title: 'Customer Management',
@@ -104,5 +107,5 @@ create page CRM.Customer_MasterDetail
       }
     }
   }
-}
+};
 ```

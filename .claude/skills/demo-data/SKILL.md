@@ -41,6 +41,7 @@ For full credentials (username, password):
 
 Example output:
 ```sql
+mdl 1;
 alter settings configuration 'Default' (
   DatabaseType: 'PostgreSql',
   DatabaseUrl: 'localhost:5434',
@@ -148,7 +149,7 @@ from "tasklist$task";
 
 Query `mendixsystem$association` to see how each association is stored:
 
-```sql
+```text
 select association_name, table_name, child_column_name, storage_format
 from mendixsystem$association
 where table_name like 'tasklist%';
@@ -431,6 +432,7 @@ writing manual INSERT statements. It handles ID generation, sequence updates, an
 `mxobjectversion` automatically:
 
 ```sql
+mdl 1;
 -- Connect to external database
 sql connect postgres 'postgres://user:pass@host:5432/legacydb' as source;
 

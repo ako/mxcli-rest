@@ -21,6 +21,7 @@ task queue. Its own concurrency control is `OnOverlap`.
 Mendix's cron: run a microflow on a repeating schedule.
 
 ```sql
+mdl 1;
 -- Inspect
 list scheduled events;
 list scheduled events in Ops;
@@ -90,6 +91,7 @@ Optional on any repeat:
 ### More examples
 
 ```sql
+mdl 1;
 -- Every two hours, 23 minutes past
 create scheduled event Ops.HourlyPing (
   Microflow: Ops.SE_Ping,
@@ -125,6 +127,7 @@ A task queue bounds how many queued calls run at once. Binding a call to it
 is a separate step — see [`IN QUEUE`](#binding-a-call-to-a-queue--in-queue).
 
 ```sql
+mdl 1;
 list task queues;
 describe task queue Ops.OrderProcessing;
 
@@ -162,6 +165,7 @@ trailing `in queue` clause, in the same position on both — after the argument
 list, before any `on error`:
 
 ```sql
+mdl 1;
 create or modify microflow Ops.ACT_Enqueue ()
 begin
   call microflow Ops.ACT_Process(Order = $Order) in queue Ops.OrderProcessing;
@@ -181,6 +185,7 @@ the script creates the microflow, and under `--references` for one already store
 Drop the `returns` clause (and the `return` value) from the worker microflow:
 
 ```sql
+mdl 1;
 create microflow Ops.ACT_Work ($Note: String)   -- no `returns`
 begin
   log info node 'Ops' 'working';
@@ -193,6 +198,7 @@ of 'Nothing'."* mxcli's default return type for `create java action` is
 **Boolean**, so `returns void` is required, not optional:
 
 ```sql
+mdl 1;
 create java action Ops.RefreshData(Url: string not null) returns void
 as $$ return; $$;
 ```
@@ -208,7 +214,7 @@ mxcli wrote and the error appears, naming both the queue and the activity.
 
 ### A Rewrite Must Restate the Queue
 
-`create or replace|modify microflow` rebuilds the microflow from the statement,
+`create or modify microflow` rebuilds the microflow from the statement,
 so a binding the script does not restate is gone. mxcli refuses rather than drop
 it:
 
@@ -247,8 +253,9 @@ Use `Core.microflowCall(...)` when the unit of work really is a microflow.
 Both take a `folder` clause on `create`, straight after the qualified name:
 
 ```mdl
+mdl 1;
 create scheduled event Ops.SE_Nightly folder 'Private/Scheduled events'
-  ( Microflow: Ops.ACT_Nightly, Repeat: Day, StartDateTime: '2026-01-01T02:00:00Z' );
+  ( Microflow: Ops.ACT_Nightly, Repeat: Daily, StartDateTime: '2026-01-01T02:00:00Z' );
 
 create task queue Ops.Q_Imports folder 'Private/Queues' ( Parallelism: 3 );
 ```

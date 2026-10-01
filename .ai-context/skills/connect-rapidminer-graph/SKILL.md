@@ -88,13 +88,13 @@ Each row in `bindings` is an object of `{var: {type, value}}`. A JSLT transforme
 ### 1. Persistent target entity
 
 ```sql
+mdl 1;
 @position(100, 100)
 create persistent entity MyModule.Customer (
   CustomerUri:  string(500),
   CustomerId:   string(50),
   CustomerName: string(200)
 );
-/
 ```
 
 ### 2. Non-persistent wrapper (for the import mapping only)
@@ -102,17 +102,16 @@ create persistent entity MyModule.Customer (
 Import mappings need a single root entity. A tiny non-persistent wrapper with one dummy attribute is enough:
 
 ```sql
+mdl 1;
 @position(400, 100)
 create non-persistent entity MyModule.CustomerImport (
   DummyAttr: string(10)
 );
-/
 
 create association MyModule.CustomerImport_Customer
   from MyModule.CustomerImport
   to   MyModule.Customer
   type ReferenceSet;
-/
 ```
 
 ### 3. Data Transformer (JSLT) — flatten SPARQL response
@@ -120,6 +119,7 @@ create association MyModule.CustomerImport_Customer
 Take the nested `results.bindings[].*.value` shape and emit a flat `customers[]` array:
 
 ```sql
+mdl 1;
 create data transformer MyModule.SimplifyCustomers
 source json '{"head":{"vars":["customer","customerId","customerName"]},"results":{"bindings":[{"customer":{"type":"uri","value":"http://.../Customer/0"},"customerId":{"type":"literal","value":"CUST001"},"customerName":{"type":"literal","value":"Global Tech Solutions Inc."}}]}}'
 {
@@ -151,6 +151,7 @@ source json '{"head":{"vars":["customer","customerId","customerName"]},"results"
 The JSON structure represents the **transformed** shape (after JSLT), not the raw SPARQL response:
 
 ```sql
+mdl 1;
 create json structure MyModule.JSON_Customers
 sample '{"customers":[{"customerUri":"http://example.com/Customer/0","customerId":"CUST001","customerName":"Global Tech Solutions Inc."}]}';
 
@@ -170,6 +171,7 @@ create import mapping MyModule.IMM_Customers
 ### 5. Microflow — the actual API call
 
 ```sql
+mdl 1;
 create microflow MyModule.ACT_RefreshCustomers ()
 returns boolean as $success
 begin
@@ -202,12 +204,12 @@ begin
 
   return true;
 end;
-/
 ```
 
 ### 6. Page
 
 ```sql
+mdl 1;
 create page MyModule.Customer_Overview (
   title:  'Customers (from Graph Mart)',
   layout: Atlas_Core.Atlas_Default
@@ -219,8 +221,7 @@ create page MyModule.Customer_Overview (
     column (attribute: CustomerName, caption: 'Name')
     column  (attribute: CustomerUri,  caption: 'URI')
   }
-}
-/
+};
 ```
 
 ## Gotchas (things that burned an hour during development)

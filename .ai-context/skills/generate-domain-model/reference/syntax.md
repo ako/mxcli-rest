@@ -15,6 +15,7 @@ Every CREATE statement (modules, entities, associations, enumerations, microflow
 ### Module Creation
 
 ```sql
+mdl 1;
 /**
  * Module for financial transaction management
  *
@@ -66,6 +67,7 @@ Use `-- MARK: Section Name` comments to create collapsible sections in code edit
 ### Enumerations
 
 ```sql
+mdl 1;
 /**
  * Transaction type classification
  *
@@ -84,6 +86,7 @@ create enumeration Module.TransactionType (
 (a drop is blocked while the enum is referenced by an attribute):
 
 ```sql
+mdl 1;
 alter enumeration Module.TransactionType add value REFUND caption 'Refund';
 alter enumeration Module.TransactionType rename value INCOME to CREDIT;      -- changes the name/key
 alter enumeration Module.TransactionType modify value EXPENSE caption 'Expense / Debit'; -- caption only, name unchanged
@@ -96,6 +99,7 @@ already-present value leaves every later statement in the file unapplied. The
 same pair as `add attribute` / `add index`:
 
 ```sql
+mdl 1;
 alter enumeration Module.TransactionType add value if not exists REFUND caption 'Refund';
 alter enumeration Module.TransactionType drop value if exists REFUND;
 ```
@@ -142,6 +146,7 @@ remember the coordinate is the box's **CENTRE**, not its top-left corner:
 are set with `@anchor`, as a **percentage of the box** (0..100, whole numbers):
 
 ```sql
+mdl 1;
 @anchor(from: (0, 54), to: (100, 54))
 create association Sales.Order_Customer
   from Sales.Order to Sales.Customer;
@@ -154,6 +159,7 @@ right, `(50, 100)` the bottom centre.
 Retune a line without restating the association:
 
 ```sql
+mdl 1;
 alter association Sales.Order_Customer set anchor from (50, 100) to (50, 0);
 ```
 
@@ -169,6 +175,7 @@ Cross-module associations have no anchors at all — Mendix stores none, and
 #### Persistent Entity
 
 ```sql
+mdl 1;
 /**
  * Entity description
  *
@@ -179,8 +186,8 @@ Cross-module associations have no anchors at all — Mendix stores none, and
  */
 @position(100, 100)
 create persistent entity Module.EntityName (
-  /** Unique identifier */
-  Id: long not null error message 'ID is required' unique error message 'ID must be unique',
+  /** Unique business key (`Id` itself is reserved by Mendix) */
+  Code: long not null error message 'Code is required' unique error message 'Code must be unique',
   /** Attribute description */
   attributename: string(200) not null error message 'Attribute name is required',
   /** Numeric value */
@@ -212,6 +219,7 @@ Indexes improve query performance for frequently filtered or sorted columns. Add
 
 **Syntax:**
 ```sql
+mdl 1;
 create persistent entity Module.Transaction (
   TransactionDate: datetime not null,
   status: enumeration(Module.Status) not null,
@@ -243,6 +251,7 @@ index (IsRecurring);
 Use `extends` to inherit from a parent entity. Common for file/image storage using System entities.
 
 ```sql
+mdl 1;
 -- Correct: EXTENDS before (
 create persistent entity Module.ProductPhoto extends System.Image (
   PhotoCaption: string(200),
@@ -276,11 +285,14 @@ build time. `mxcli check --references` resolves it against the project plus the
 script:
 
 ```sql
+mdl 1;
 -- Fine: the parent is created LATER in the same script. A generalization is
 -- resolved lazily, so order does not matter.
 create persistent entity Module.Manager extends Module.Person (Reports: integer);
 create persistent entity Module.Person (Name: string(100));
+```
 
+```text
 -- Refused: no such entity.        CE1613 "The selected entity … no longer exists"
 create persistent entity Module.X extends System.Thumbnail (N: integer);
 
@@ -312,6 +324,7 @@ Mendix supports four built-in auditing properties on persistent entities. Declar
 | `autochangeddate` | `ChangedDate` (DateTime) | Every commit |
 
 ```sql
+mdl 1;
 /**
  * Order with full audit trail
  */
@@ -329,6 +342,7 @@ create persistent entity Sales.Order (
 To enable/disable on existing entities, use ALTER ENTITY ADD/DROP ATTRIBUTE:
 
 ```sql
+mdl 1;
 alter entity Sales.Order add attribute owner: autoowner;
 alter entity Sales.Order add attribute ChangedDate: autochangeddate;
 alter entity Sales.Order drop attribute ChangedBy;
@@ -345,6 +359,7 @@ alter entity Sales.Order drop attribute ChangedBy;
 **IMPORTANT: Non-persistent entities cannot have validation rules** (`not null error`, `unique error`) on attributes. They can only have `default` values.
 
 ```sql
+mdl 1;
 /**
  * Non-persistent entity description
  *
@@ -361,6 +376,7 @@ create non-persistent entity Module.TemporaryData (
 #### View Entity (with OQL)
 
 ```sql
+mdl 1;
 /**
  * View entity description
  *
@@ -402,6 +418,7 @@ where e.Status != 'Cancelled'   -- Wrong: this is the caption
 Microflows can run before/after entity Create, Commit, Delete, or Rollback. Use the optional `raise error` clause to make a handler act as a validation microflow — if it returns false, the operation is aborted.
 
 ```sql
+mdl 1;
 -- In CREATE ENTITY (handlers go after attributes/indexes)
 create persistent entity Sales.Order (
   Total: decimal,
@@ -437,12 +454,15 @@ Think of it like this:
 
 **Common Patterns**:
 
-```sql
+```text
 -- ❌ INCORRECT: Account doesn't store transaction references
 create association Finance.Account_Transaction
 from Finance.Account to Finance.Transaction
 type reference;
+```
 
+```sql
+mdl 1;
 -- ✅ CORRECT: Transaction stores the account reference (foreign key)
 create association Finance.Transaction_Account
 from Finance.Transaction to Finance.Account
@@ -463,6 +483,7 @@ owner both;
 **Full Association Syntax**:
 
 ```sql
+mdl 1;
 /**
  * Association description
  *
@@ -483,6 +504,7 @@ any associations defined *after* it are never created). Two spellings fix that,
 and they mean different things:
 
 ```sql
+mdl 1;
 -- Converge on this definition, replacing whatever is stored.
 create or modify association Module.Child_Parent
 from Module.Child to Module.Parent
@@ -533,6 +555,7 @@ Calculated attributes derive their value from a microflow at runtime. Use `calcu
 **IMPORTANT: CALCULATED attributes are only supported on PERSISTENT entities.** Using CALCULATED on non-persistent entities will produce a validation error.
 
 ```sql
+mdl 1;
 @position(100, 100)
 create persistent entity Module.OrderLine (
   /** Unit price */
@@ -598,6 +621,7 @@ its signature is not checked; the build has the last word on those.
 Each constraint can have a custom error message using `error 'message'` syntax:
 
 ```sql
+mdl 1;
 create persistent entity Module.Customer (
   /** Customer name - required with custom error */
   Name: string(200) not null error message 'Name is required',
@@ -640,6 +664,7 @@ Priority: enumeration(Module.Priority) default Module.Priority.Normal
 **Best practice: Always quote all identifiers** (entity names, attribute names) with double quotes. This escapes every **MDL parser** keyword conflict — quotes are stripped automatically by the parser. So `"create"`, `"status"`, `"end"` become valid attribute names.
 
 ```sql
+mdl 1;
 create persistent entity Module."VATRate" (
   "create": datetime,
   "Rate": decimal,
@@ -675,6 +700,7 @@ Both `"Name"` and `` `Name` `` syntax are supported. Prefer double quotes for co
 
 **Boolean attributes** auto-default to `false` when no `default` is specified:
 ```sql
+mdl 1;
 create persistent entity Module.Item (
   IsActive: boolean,           -- auto-defaults to false
   IsPublished: boolean default true

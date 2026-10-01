@@ -8,6 +8,7 @@ an XML schema (an imported `.xsd`) or a web service (a WSDL), it holds nothing
 external: it is a **selection over the domain model**.
 
 ```sql
+mdl 1;
 create message definition collection Sales.MD_Order
   folder 'Messages'
 {
@@ -57,6 +58,7 @@ Real definitions nest deeply, so a whole-document rewrite is a poor tool for
 rest alone:
 
 ```sql
+mdl 1;
 alter message definition Sales.MD_Order.OrderMessage add member Total;
 alter message definition Sales.MD_Order.OrderMessage add member LastName in Customer;
 alter message definition Sales.MD_Order.OrderMessage set member Total as 'GrandTotal';

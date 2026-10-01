@@ -18,6 +18,7 @@ Complete syntax reference for creating entities, attributes, and associations.
 ## Persistent Entity
 
 ```mdl
+mdl 1;
 /**
  * Customer entity for storing customer data
  */
@@ -47,7 +48,6 @@ create persistent entity Module.Customer (
   -- CE7247 "Value cannot be empty")
   CustomerNumber: autonumber default 1
 );
-/
 ```
 
 ## Non-Persistent Entity
@@ -55,6 +55,7 @@ create persistent entity Module.Customer (
 Used for temporary data, form parameters, or calculated values.
 
 ```mdl
+mdl 1;
 /**
  * Search parameters for customer search form
  */
@@ -64,7 +65,6 @@ create non-persistent entity Module.CustomerSearchParams (
   MinCreditLimit: decimal,
   IncludeInactive: boolean default false
 );
-/
 ```
 
 ## Attribute Types
@@ -97,6 +97,7 @@ create non-persistent entity Module.CustomerSearchParams (
 **CRITICAL: EXTENDS goes BEFORE the opening parenthesis, not after!**
 
 ```mdl
+mdl 1;
 /**
  * Base entity
  */
@@ -104,7 +105,6 @@ create persistent entity Module.Person (
   PersonName: string(100) not null,
   Email: string(200)
 );
-/
 
 /**
  * Customer extends Person - EXTENDS before (
@@ -113,11 +113,11 @@ create persistent entity Module.Customer extends Module.Person (
   CustomerCode: string(20),
   CreditLimit: decimal
 );
-/
 ```
 
 Common parent entities for file/image storage:
 ```mdl
+mdl 1;
 -- Image entity (inherits Name, Size, Contents, thumbnail)
 create persistent entity Module.ProductPhoto extends System.Image (
   PhotoCaption: string(200),
@@ -143,13 +143,13 @@ create persistent entity Module.Photo (
 ### Reference (Many-to-One)
 
 ```mdl
+mdl 1;
 /**
  * Order belongs to one Customer
  */
 create association Module.Order_Customer
 from Module.Order to Module.Customer
 type reference;
-/
 ```
 
 Direction: `from` the entity that holds the foreign key (the "many" / child side) `to`
@@ -158,6 +158,7 @@ the entity being referenced (the "one" / parent side). Name convention is `Child
 ### Reference Set (Many-to-Many)
 
 ```mdl
+mdl 1;
 /**
  * Product can be in many Categories
  * Category can have many Products
@@ -166,12 +167,12 @@ create association Module.Product_Category
 from Module.Product to Module.Category
 type ReferenceSet
 owner both;
-/
 ```
 
 ### Association with Delete Behavior
 
 ```mdl
+mdl 1;
 /**
  * Delete orders when their customer is deleted
  */
@@ -179,7 +180,6 @@ create association Module.Order_Customer
 from Module.Order to Module.Customer
 type reference
 on delete cascade;
-/
 ```
 
 Delete behaviors (applied to the referenced `to` entity):
@@ -190,6 +190,7 @@ Delete behaviors (applied to the referenced `to` entity):
 ## Enumerations
 
 ```mdl
+mdl 1;
 /**
  * Order status values
  */
@@ -201,12 +202,12 @@ create enumeration Module.OrderStatus (
   Delivered 'Delivered',
   Cancelled 'Cancelled'
 );
-/
 ```
 
 ## View Entity (OQL)
 
 ```mdl
+mdl 1;
 /**
  * Monthly sales summary by customer
  */
@@ -225,7 +226,6 @@ as
   from Module.Customer c
   left join c/Module.Order_Customer/Module.Order o
   GROUP by c.Name;
-/
 ```
 
 **Derived string columns must be `string(200)`.** A plain pass-through column
@@ -239,16 +239,17 @@ Query."** `mxcli check` catches this pre-build as **MDL031** with a suggested
 fix:
 
 ```mdl
+mdl 1;
 create view entity Module.TicketLabel (
   StatusLabel: string(200)          -- derived → must be 200, not string(30)
 ) as
   select cast(t.Status as string) as StatusLabel from Module.Ticket t;
-/
 ```
 
 ## Entity with Index
 
 ```mdl
+mdl 1;
 /**
  * Product with search index
  */
@@ -260,7 +261,6 @@ create persistent entity Module.Product (
 )
 index (Code)
 index (Category);
-/
 ```
 
 > A Mendix index has **no name** — its columns, in order and direction, are its
@@ -273,6 +273,7 @@ index (Category);
 ## Complete Domain Model Example
 
 ```mdl
+mdl 1;
 -- Enumeration
 create enumeration Shop.OrderStatus (
   Draft 'Draft',
@@ -280,7 +281,6 @@ create enumeration Shop.OrderStatus (
   Shipped 'Shipped',
   Delivered 'Delivered'
 );
-/
 
 -- Customer entity
 create persistent entity Shop.Customer (
@@ -290,7 +290,6 @@ create persistent entity Shop.Customer (
   IsActive: boolean default true,
   CreatedDate: autocreateddate
 );
-/
 
 -- Product entity
 create persistent entity Shop.Product (
@@ -301,7 +300,6 @@ create persistent entity Shop.Product (
   Stock: integer default 0,
   IsAvailable: boolean default true
 );
-/
 
 -- Order entity
 create persistent entity Shop.Order (
@@ -311,7 +309,6 @@ create persistent entity Shop.Order (
   TotalAmount: decimal,
   Notes: string(500)
 );
-/
 
 -- Order line entity
 create persistent entity Shop.OrderLine (
@@ -319,24 +316,20 @@ create persistent entity Shop.OrderLine (
   UnitPrice: decimal not null,
   LineTotal: decimal
 );
-/
 
 -- Associations
 create association Shop.Order_Customer
 from Shop.Order to Shop.Customer
 type reference;
-/
 
 create association Shop.OrderLine_Order
 from Shop.OrderLine to Shop.Order
 type reference
 on delete cascade;
-/
 
 create association Shop.OrderLine_Product
 from Shop.OrderLine to Shop.Product
 type reference;
-/
 ```
 
 ## Changing an Existing Domain Model
@@ -346,6 +339,7 @@ An entity, association or enumeration authored in Studio Pro is changed with `al
 not by re-running `describe` output:
 
 ```mdl
+mdl 1;
 alter entity Shop.Order add attribute Note: string(200);
 alter association Shop.Order_Customer set on delete set null;
 alter enumeration Shop.OrderStatus add value Cancelled caption 'Cancelled';
@@ -386,6 +380,7 @@ association always shows `storage table`.
 
 ### Enumeration Syntax
 ```mdl
+mdl 1;
 create enumeration Module.Name (
   Value1 'Caption1',
   Value2 'Caption2'

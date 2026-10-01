@@ -12,6 +12,7 @@ Patterns for loops, aggregates, batch processing, and data transformation.
 ### Basic Loop
 
 ```mdl
+mdl 1;
 /**
  * Process all items in a list
  */
@@ -33,12 +34,12 @@ begin
   log info node 'Processing' 'Processed ' + $ProcessedCount + ' items';
   return true;
 end;
-/
 ```
 
 ### Loop with Filtering
 
 ```mdl
+mdl 1;
 /**
  * Process only active items
  */
@@ -61,12 +62,12 @@ begin
 
   return $count;
 end;
-/
 ```
 
 ### Loop with Accumulator
 
 ```mdl
+mdl 1;
 /**
  * Calculate total value of all orders
  */
@@ -84,7 +85,6 @@ begin
 
   return $Total;
 end;
-/
 ```
 
 ## Retrieve by Association
@@ -99,6 +99,7 @@ via association instead of a database XPath query. This is **required** for:
 ### Persistent Entity Example
 
 ```mdl
+mdl 1;
 /**
  * Get all orders for a customer via association
  */
@@ -110,12 +111,12 @@ begin
   retrieve $Orders from $Customer/Module.Order_Customer;
   return $Orders;
 end;
-/
 ```
 
 ### Non-Persistent Entity Example (NPE)
 
 ```mdl
+mdl 1;
 /**
  * Process imported rows from an in-memory result object.
  * Database RETRIEVE would return empty for NPEs — use association retrieve.
@@ -139,7 +140,6 @@ begin
 
   return $ValidCount;
 end;
-/
 ```
 
 ### When to Use Which Retrieve
@@ -155,15 +155,17 @@ end;
 
 ## Aggregate Patterns
 
-Aggregates use **function-call syntax** — there is no `AGGREGATE` keyword.
+Each aggregate is one statement: the operation's name, then the list variable
+(`by` an attribute, as in Studio Pro's Aggregate list activity). The old call form
+(`count($list)`, `sum($list.Attr)`) is deprecated (MDL-DEPR004).
 
 | Function | Syntax | Returns |
 |----------|--------|---------|
-| COUNT | `$n = count($list)` | Integer |
-| SUM | `$n = sum($list.Attr)` | Decimal |
-| AVERAGE | `$n = average($list.Attr)` | Decimal |
-| MINIMUM | `$n = minimum($list.Attr)` | Same as attribute |
-| MAXIMUM | `$n = maximum($list.Attr)` | Same as attribute |
+| COUNT | `$n = count $list;` | Integer |
+| SUM | `$n = sum $list by Attr;` | Decimal |
+| AVERAGE | `$n = average $list by Attr;` | Decimal |
+| MINIMUM | `$n = minimum $list by Attr;` | Same as attribute |
+| MAXIMUM | `$n = maximum $list by Attr;` | Same as attribute |
 
 **Important:** RETRIEVE implicitly declares its variable — do NOT add a separate DECLARE
 before RETRIEVE, or you'll get CE0111 "Duplicate variable name".
@@ -171,6 +173,7 @@ before RETRIEVE, or you'll get CE0111 "Duplicate variable name".
 ### Count Items
 
 ```mdl
+mdl 1;
 /**
  * Count active customers
  */
@@ -180,15 +183,15 @@ begin
   retrieve $Customers from Module.Customer
     where IsActive = true;
 
-  $count = count($Customers);
+  $count = count $Customers;
   return $count;
 end;
-/
 ```
 
 ### Sum Values
 
 ```mdl
+mdl 1;
 /**
  * Sum order amounts for a customer
  */
@@ -200,15 +203,15 @@ begin
   retrieve $Orders from Module.Order
     where Module.Order_Customer = $Customer;
 
-  $Total = sum($Orders.Amount);
+  $Total = sum $Orders by Amount;
   return $Total;
 end;
-/
 ```
 
 ### Average Calculation
 
 ```mdl
+mdl 1;
 /**
  * Calculate average order value
  */
@@ -217,17 +220,16 @@ returns decimal
 begin
   retrieve $Orders from Module.Order;
 
-  $average = average($Orders.Amount);
+  $average = average $Orders by Amount;
   return $average;
 end;
-/
 ```
 
 ### Min/Max
 
 ```mdl
-$MinPrice = minimum($Products.Price);
-$MaxPrice = maximum($Products.Price);
+$MinPrice = minimum $Products by Price;
+$MaxPrice = maximum $Products by Price;
 ```
 
 ## List Operations
@@ -239,7 +241,7 @@ activity stores its list as a **variable reference**. There is no slot for a
 nested computation, so this is not a shorter spelling — it is a list argument the
 model cannot hold:
 
-```mdl
+```text
 -- WRONG. mxcli check refuses this as MDL-LISTOP02.
 $n = count(filter($Requests, $currentObject/Status = Module.ENUM_Status.Approved));
 ```
@@ -256,8 +258,8 @@ Give the inner operation its own statement and pass the variable:
 
 ```mdl
 -- RIGHT
-$Approved = filter($Requests, $currentObject/Status = Module.ENUM_Status.Approved);
-$n        = count($Approved);
+$Approved = filter $Requests where $currentObject/Status = Module.ENUM_Status.Approved;
+$n        = count $Approved;
 ```
 
 The same applies to both operands of `union`/`intersect`/`subtract`, and to any
@@ -266,6 +268,7 @@ non-variable list argument — `count('nonsense')` fails the same way.
 ### Add to List
 
 ```mdl
+mdl 1;
 /**
  * Collect matching items into a list
  */
@@ -286,12 +289,12 @@ begin
 
   return $HighValue;
 end;
-/
 ```
 
 ### Remove from List
 
 ```mdl
+mdl 1;
 /**
  * Remove inactive items from list
  */
@@ -311,14 +314,13 @@ begin
   end loop;
 
   -- Remove collected items
-  loop $item in $ToRemove
+  loop $inactive in $ToRemove
   begin
-    remove $item from $Items;
+    remove $inactive from $Items;
   end loop;
 
   return $Items;
 end;
-/
 ```
 
 ## Batch Processing
@@ -326,6 +328,7 @@ end;
 ### Process in Batches
 
 ```mdl
+mdl 1;
 /**
  * Process large dataset in batches
  * Commits after each batch to avoid memory issues
@@ -362,7 +365,6 @@ begin
 
   return $Processed;
 end;
-/
 ```
 
 ## Data Transformation
@@ -370,6 +372,7 @@ end;
 ### Copy Entity
 
 ```mdl
+mdl 1;
 /**
  * Create a copy of an order
  */
@@ -391,12 +394,12 @@ begin
   commit $Copy;
   return $Copy;
 end;
-/
 ```
 
 ### Transform List
 
 ```mdl
+mdl 1;
 /**
  * Create summary records from detail records
  */
@@ -419,7 +422,6 @@ begin
 
   return $Summaries;
 end;
-/
 ```
 
 ## Error Handling in Loops
@@ -427,6 +429,7 @@ end;
 ### Continue on Error
 
 ```mdl
+mdl 1;
 /**
  * Process items, log errors but continue
  */
@@ -453,7 +456,6 @@ begin
   log info node 'Process' 'Completed: ' + $Processed + ' processed, ' + $Errors + ' errors';
   return $Processed;
 end;
-/
 ```
 
 ## Best Practices

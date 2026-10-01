@@ -32,8 +32,8 @@ This skill provides reference for writing XPath constraint expressions in MDL RE
 > is a parse error (Mendix XPath has no arithmetic on the value side). Compute the
 > value first, then compare against the variable:
 > ```mdl
-> $Next = $Game/MoveSeq + 1;
-> retrieve $M from Mod.Move where [Seq = $Next] limit 1;
+> declare $Next integer = $Game/MoveSeq + 1;
+> retrieve $M from Mod.Move where [Seq = $Next] first;
 > ```
 > `mxcli check` explains this and shows the workaround when it sees `+`/`*`/`div`/
 > `mod` inside a constraint.
@@ -51,7 +51,7 @@ This skill provides reference for writing XPath constraint expressions in MDL RE
 > date tokens (`[%CurrentDateTime%]`, `[%BeginOfCurrentDay%]`, …), or compute the
 > cut-off in a variable first and compare against that:
 > ```mdl
-> $Cutoff = addDays([%CurrentDateTime%], -7);
+> declare $Cutoff datetime = addDays([%CurrentDateTime%], -7);
 > retrieve $L from Mod.T where [DueDate > $Cutoff];
 > ```
 
@@ -290,6 +290,7 @@ Security rules take the XPath in brackets, like every other XPath, so quotes
 inside it are written once:
 
 ```mdl
+mdl 1;
 grant read *, write * on entity Module.Entity to Module.Role
   where [System.owner = '[%CurrentUser%]'];
 ```
@@ -343,6 +344,7 @@ If a RETRIEVE returns empty unexpectedly when filtering by an enum attribute:
 ### Parameterized Search
 
 ```mdl
+mdl 1;
 create microflow Module.Search ($query: string, $ActiveOnly: boolean)
 returns boolean
 begin

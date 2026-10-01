@@ -131,6 +131,7 @@ and ModuleName = 'Integration';
 ### Bulk import (all or filtered)
 
 ```sql
+mdl 1;
 -- Import all entity types at once
 create external entities from MyModule.SalesforceAPI;
 
@@ -163,6 +164,7 @@ create or modify external entities from MyModule.SalesforceAPI;
 
 4. Copy, customize (remove unwanted attributes), and execute:
    ```sql
+   mdl 1;
    create external entity MyModule.PurchaseOrder
    from consumed odata service MyModule.SalesforceAPI (
        EntitySet: 'PurchaseOrders',

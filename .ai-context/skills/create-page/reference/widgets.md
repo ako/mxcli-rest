@@ -111,8 +111,8 @@ must exist in the icon collection or MxBuild rejects it (CE1613).
 `add`, not `plus`). List them:
 
 ```
-list icon collections                              -- the project's icon sets
-describe icon collection Atlas_Core.Atlas_Filled   -- every icon + its reference form
+list icon collections;                              -- the project's icon sets
+describe icon collection Atlas_Core.Atlas_Filled;   -- every icon + its reference form
 ```
 
 **Action Bindings:**
@@ -319,13 +319,13 @@ Only non-default column properties appear in `describe page` output.
 ```sql
 datagrid gridName (datasource: database from Module.Entity) {
   -- Decimal with 2 decimals + thousands separator: renders e.g. "Amt: -1,234.50"
-  column amount (
+  column (
     Caption: 'Amount',
     ShowContentAs: dynamicText,
     Content: 'Amt: {1}',
     ContentParams: ({1} = Amount format (decimalPrecision: 2, groupDigits: true))
   )
-  column due (attribute: DueOn, caption: 'Due')
+  column (attribute: DueOn, caption: 'Due')
 }
 ```
 
@@ -601,7 +601,7 @@ datagrid dg (datasource: database Module.Entity) {
 }
 
 gallery g (datasource: database Module.Entity) {
-  filter flt { textfilter f1 }                         -- the gallery form
+  filter { textfilter f1 }                             -- the gallery form
 }
 ```
 
@@ -1052,6 +1052,7 @@ one row per category) and picks X/Y attributes on that datasource. Requires the
 Charts widget installed (`widgets/Charts.mpk`); run `mxcli widget init -p app.mpr`.
 
 ```sql
+mdl 1;
 -- Aggregated view entity = the chart's data source
 create view entity Sales.ByRegion (Region: string(100), Total: decimal) as
   select s.Region as Region, sum(s.Amount) as Total
@@ -1067,7 +1068,7 @@ create page Sales.Dashboard (Title: 'Revenue', Layout: Atlas_Core.Atlas_Default)
       staticName: 'Revenue'
     )
   }
-}
+};
 ```
 
 Notes:

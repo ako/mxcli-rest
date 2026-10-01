@@ -60,6 +60,7 @@ three.
 refreshing is a re-run of the statement you already have:
 
 ```mdl
+mdl 1;
 -- after refreshing ./contracts/live-now-metadata.xml from the running backend
 CREATE OR MODIFY CONSUMED ODATA SERVICE F1Now.NowApi (
   ODataVersion: OData4,
@@ -106,6 +107,7 @@ refused with nothing written; without the header it still writes, with warning
 
 **Correct:**
 ```sql
+mdl 1;
 CREATE CONSTANT ProductClient.ProductDataApiLocation
   ( Type: String, DefaultValue: 'http://localhost:8080/odata/productdataapi/v1/' );
 
@@ -118,6 +120,7 @@ CREATE CONSUMED ODATA SERVICE ProductClient.ProductDataApiClient (
 
 **Incorrect:**
 ```sql
+mdl 1;
 CREATE CONSUMED ODATA SERVICE ProductClient.ProductDataApiClient (
   ODataVersion: OData4,
   MetadataUrl: 'https://api.example.com/$metadata',

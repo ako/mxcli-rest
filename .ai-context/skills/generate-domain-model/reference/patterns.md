@@ -5,6 +5,7 @@ Supporting reference for [generate-domain-model](../SKILL.md).
 ## Example: E-Commerce Domain Model
 
 ```sql
+mdl 1;
 -- ============================================================================
 -- E-Commerce Domain Model
 -- ============================================================================
@@ -115,12 +116,13 @@ owner both;
 
 ### One-to-Many Relationship
 ```sql
+mdl 1;
 -- Parent entity
-create persistent entity Module.Parent (Id: long not null unique);
+create persistent entity Module.Parent (Number: long not null unique);
 
 -- Child entity
 create persistent entity Module.Child (
-  Id: long not null unique,
+  Number: long not null unique,
   ChildData: string(200)
 );
 
@@ -133,11 +135,12 @@ owner both;
 
 ### Many-to-Many Relationship
 ```sql
+mdl 1;
 -- Entity A
-create persistent entity Module.EntityA (Id: long not null unique);
+create persistent entity Module.EntityA (Number: long not null unique);
 
 -- Entity B
-create persistent entity Module.EntityB (Id: long not null unique);
+create persistent entity Module.EntityB (Number: long not null unique);
 
 -- Bidirectional association
 create association Module.EntityA_EntityB
@@ -151,11 +154,12 @@ owner both;
 **IMPORTANT: Self-referencing associations must use `owner default`** (one-to-many). Using `owner both` is not supported for self-references.
 
 ```sql
+mdl 1;
 /**
  * Category with parent-child hierarchy
  */
 create persistent entity Module.Category (
-  Id: long not null unique,
+  Number: long not null unique,
   CategoryName: string(200) not null
 );
 
@@ -173,6 +177,7 @@ owner default;
 Use `alter entity` to make targeted changes to existing entities without redefining the entire entity:
 
 ```sql
+mdl 1;
 -- Add a new attribute
 alter entity Module.Customer
   add attribute PhoneNumber: string(20);
@@ -256,6 +261,7 @@ column 1 (x=50):          column 2 (x=400):
 ```
 
 ```sql
+mdl 1;
 -- Position entities after creation
 alter entity Module.EntityA set position (50, 50);
 alter entity Module.EntityB set position (50, 180);
@@ -268,6 +274,7 @@ alter entity Module.EntityD set position (400, 380);
 Use `create or modify` to update existing entities without losing data. The REPL computes differences and applies incremental changes.
 
 ```sql
+mdl 1;
 /**
  * Customer entity migration - rename CustomerName to FullName
  */
@@ -295,6 +302,7 @@ create or modify persistent entity Module.Customer (
 
 ### Status-Driven Entity
 ```sql
+mdl 1;
 -- Status enumeration
 create enumeration Module.TaskStatus (
   Todo 'To Do',
@@ -304,7 +312,7 @@ create enumeration Module.TaskStatus (
 
 -- Entity with status
 create persistent entity Module.Task (
-  Id: long not null unique,
+  Number: long not null unique,
   TaskName: string(200) not null,
   status: enumeration(Module.TaskStatus) not null
 );

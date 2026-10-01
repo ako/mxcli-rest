@@ -45,6 +45,7 @@ While most words are no longer reserved, using descriptive names is still recomm
 ### Example
 
 ```mdl
+mdl 1;
 create persistent entity MyModule.FormField (
   check: boolean default false,  -- Works unquoted
   text: string(500),             -- Works unquoted
@@ -66,9 +67,7 @@ MDL scripts execute statements sequentially. Items created in one statement can 
 ### Recommended Script Structure
 
 ```mdl
--- check-skip: the PHASE 3 page block uses shorthand pseudo-syntax
--- (layout/title/parameter/widgets, dataview source, INPUT ...) to sketch the
--- migrated UI concept; it is not runnable MDL. See create-page / overview-pages.
+mdl 1;
 -- ============================================
 -- PHASE 1: Domain Model (Entities & Associations)
 -- ============================================
@@ -89,7 +88,6 @@ create persistent entity MyModule.Order (
 create association MyModule.Order_Customer
 from MyModule.Order to MyModule.Customer
 type reference;
-/
 
 -- ============================================
 -- PHASE 2: Microflows (Business Logic)
@@ -114,33 +112,28 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 -- ============================================
 -- PHASE 3: Pages (User Interface)
 -- ============================================
 
 -- Now this page can reference the microflow created above
-create page MyModule.Customer_Edit
-layout Atlas_Default
-title 'Edit Customer'
-parameter $Customer: MyModule.Customer
-widgets (
-  dataview source $Customer (
-    INPUT 'CustomerCode' attribute CustomerCode label 'Customer Code',
-    INPUT 'CustomerName' attribute CustomerName label 'Name',
-    INPUT 'Email' attribute Email label 'Email',
-
-    container 'ButtonBar' (
-      -- Reference to microflow created in Phase 2
-      button 'Save' call microflow MyModule.ACT_Customer_Save (
-        Customer = $Customer
-      ),
-      button 'Cancel' on CLICK close page
-    )
-  )
-);
-/
+create page MyModule.Customer_Edit (
+  Title: 'Edit Customer',
+  Layout: Atlas_Core.PopupLayout,
+  Params: ( $Customer: MyModule.Customer )
+) {
+  dataview dvCustomer (DataSource: $Customer) {
+    textbox txtCode (Label: 'Customer Code', Attribute: CustomerCode)
+    textbox txtName (Label: 'Name', Attribute: CustomerName)
+    textbox txtEmail (Label: 'Email', Attribute: Email)
+    footer footer1 {
+      -- Reference to the microflow created in Phase 2
+      actionbutton btnSave (Caption: 'Save', Action: call microflow MyModule.ACT_Customer_Save(Customer = $Customer), ButtonStyle: Primary)
+      actionbutton btnCancel (Caption: 'Cancel', Action: close page)
+    }
+  }
+};
 ```
 
 ## Validation Feedback
@@ -172,6 +165,7 @@ validation feedback $Order/OrderDate message 'Order date cannot be in the future
 ### Complete Validation Pattern
 
 ```mdl
+mdl 1;
 /**
  * Validates order before save
  * Replaces Oracle Forms WHEN-VALIDATE-RECORD trigger
@@ -201,7 +195,6 @@ begin
 
   return $IsValid;
 end;
-/
 ```
 
 ## PL/SQL to Microflow Mapping
@@ -253,6 +246,7 @@ end;
 
 **Mendix MDL:**
 ```mdl
+mdl 1;
 create microflow MyModule.ACT_ProcessPendingOrders ()
 returns string as $Result
 begin
@@ -281,7 +275,6 @@ begin
   set $Result = 'Processed ' + toString($count) + ' orders';
   return $Result;
 end;
-/
 ```
 
 ## UI Component Mapping
