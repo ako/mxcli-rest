@@ -47,6 +47,7 @@ Use this skill when:
 In MDL, reference System entities with the `System.` prefix:
 
 ```mdl
+mdl 1;
 -- Association to the current user. The direction is not a style choice: YOUR
 -- entity must be the FROM side (see "The FROM entity must be yours" below).
 create association MyModule.Order_CreatedBy
@@ -213,6 +214,7 @@ Base entity for all file storage. Specialize this entity to create custom file t
 **Usage:** Create a specialization to store typed files:
 
 ```mdl
+mdl 1;
 create persistent entity MyModule.Attachment extends System.FileDocument (
   description: string(500),
   Category: MyModule.AttachmentCategory
@@ -235,6 +237,7 @@ Extends `System.FileDocument` with image-specific features.
 **Usage:** Specialize for application images:
 
 ```mdl
+mdl 1;
 create persistent entity MyModule.ProductPhoto extends System.Image (
   PhotoCaption: string(200),
   SortOrder: integer default 0
@@ -442,6 +445,7 @@ System.Error (non-persistent)
 **Key point for MDL:** When creating entities that store files or images, use `extends`:
 
 ```mdl
+mdl 1;
 create persistent entity MyModule.Document extends System.FileDocument (
   title: string(200),
   version: integer default 1
@@ -457,6 +461,7 @@ create persistent entity MyModule.Photo extends System.Image (
 ### Audit Trail (CreatedBy / ModifiedBy)
 
 ```mdl
+mdl 1;
 create association MyModule.Order_CreatedBy
 from MyModule.Order to System.User
 type reference;
@@ -469,6 +474,7 @@ type reference;
 ### File Attachments
 
 ```mdl
+mdl 1;
 create persistent entity MyModule.Attachment extends System.FileDocument (
   description: string(500)
 );
@@ -481,6 +487,7 @@ type ReferenceSet;
 ### Workflow Context Object
 
 ```mdl
+mdl 1;
 -- Application entity that serves as workflow context
 create persistent entity MyModule.ExpenseReport (
   Amount: decimal,

@@ -60,6 +60,7 @@ that **declares** it, which is the reference Studio Pro needs to show the field
 mapped.
 
 ```sql
+mdl 1;
 create persistent entity Docs.DocumentBase (
   DocName: String(200),
   Confidential: Boolean
@@ -101,12 +102,14 @@ An export mapping converts Mendix entity objects into a JSON string. It maps ent
 ### Create
 
 ```sql
+mdl 1;
 create json structure Module.JSON_Pet
   sample '{"id": 1, "name": "Fido", "status": "available"}';
 ```
 
 For multi-line JSON, use dollar-quoting:
 ```sql
+mdl 1;
 create json structure Module.JSON_Order
   sample $${
   "orderId": 100,
@@ -117,6 +120,7 @@ create json structure Module.JSON_Order
 
 Custom name mapping (rename JSON fields):
 ```sql
+mdl 1;
 create json structure Module.JSON_Pet
   sample '{"id": 1, "name": "Fido"}'
   CUSTOM NAME map ('id' as '_id');
@@ -127,6 +131,7 @@ anonymous `[...]` entry, so it has no JSON key and the plain form cannot reach
 it; left alone it gets a derived name like `LinesItem`:
 
 ```sql
+mdl 1;
 create json structure Module.JSON_Invoice
   sample '{"lines": [{"sku": "A1"}], "tags": ["urgent"]}'
   CUSTOM NAME map (
@@ -150,6 +155,7 @@ this structure carries, and it is one of the two names a member resolves by.
 ### Browse
 
 ```sql
+mdl 1;
 list json structures;
 list json structures in module;
 describe json structure Module.JSON_Pet;
@@ -163,6 +169,7 @@ in the demo corpus (22.6%), and the only non-JSON source MDL can create. It
 holds nothing external: it is a **selection over the domain model**.
 
 ```sql
+mdl 1;
 create message definition collection Sales.MD_Order {
   definition OrderMessage for Sales.Order as 'Orders' {
     OrderId,
@@ -188,39 +195,36 @@ deliberately does not guess:
 For import mappings, associations point FROM the child entity TO the parent:
 
 ```sql
+mdl 1;
 create non-persistent entity Module.OrderResponse (
   OrderId: integer
 );
-/
 
 create non-persistent entity Module.CustomerInfo (
   Name: string,
   Email: string
 );
-/
 
 create non-persistent entity Module.OrderItem (
   Sku: string,
   Quantity: integer,
   Price: decimal
 );
-/
 
 -- Child entity owns the FK (FROM child TO parent)
 create association Module.CustomerInfo_OrderResponse
   from Module.CustomerInfo
   to Module.OrderResponse;
-/
 
 create association Module.OrderItem_OrderResponse
   from Module.OrderItem
   to Module.OrderResponse;
-/
 ```
 
 ### Simple Import Mapping (flat JSON)
 
 ```sql
+mdl 1;
 create import mapping Module.IMM_Pet
   with json structure Module.JSON_Pet
 {
@@ -237,6 +241,7 @@ create import mapping Module.IMM_Pet
 Arrays map directly to the item entity — no intermediate container needed:
 
 ```sql
+mdl 1;
 create import mapping Module.IMM_Order
   with json structure Module.JSON_Order
 {
@@ -272,6 +277,7 @@ Append `overridable` to let the caller override the backup at import time:
 `find Module.PetResponse or create overridable`.
 
 ```sql
+mdl 1;
 create import mapping Module.IMM_UpsertPet
   with json structure Module.JSON_Pet
 {
@@ -321,6 +327,7 @@ the element; the microflow's parameters are named with their sources:
 the header — import mappings only:
 
 ```sql
+mdl 1;
 create import mapping Module.IMM_Embed
   with json structure Module.JSON_Embed
   parameter GenAICommons.ChunkCollection
@@ -349,22 +356,20 @@ build checks as CE0282.
 Export mappings require entities that **mirror the JSON structure**. Arrays need an intermediate container entity:
 
 ```sql
+mdl 1;
 -- Root entity (matches top-level JSON object)
 create non-persistent entity Module.ExRoot (
   OrderId: integer
 );
-/
 
 -- Nested object entity (1-1 relationship, use OWNER Both)
 create non-persistent entity Module.ExCustomer (
   Name: string,
   Email: string
 );
-/
 
 -- Array CONTAINER entity (no attributes, just links parent to items)
 create non-persistent entity Module.ExItems;
-/
 
 -- Array ITEM entity (attributes for each array element)
 create non-persistent entity Module.ExItemsItem (
@@ -372,29 +377,26 @@ create non-persistent entity Module.ExItemsItem (
   Quantity: integer,
   Price: decimal
 );
-/
 
 -- Associations: child FROM, parent TO
 create association Module.ExCustomer_ExRoot
   from Module.ExCustomer
   to Module.ExRoot
   owner both;   -- 1-1 for nested objects
-/
 
 create association Module.ExItems_ExRoot
   from Module.ExItems
   to Module.ExRoot;   -- 1-* for arrays
-/
 
 create association Module.ExItemsItem_ExItems
   from Module.ExItemsItem
   to Module.ExItems;   -- 1-* for array items
-/
 ```
 
 ### Simple Export Mapping (flat JSON)
 
 ```sql
+mdl 1;
 create export mapping Module.EMM_Pet
   with json structure Module.JSON_Pet
 {
@@ -411,6 +413,7 @@ create export mapping Module.EMM_Pet
 Arrays have TWO levels: container entity + item entity:
 
 ```sql
+mdl 1;
 create export mapping Module.EMM_Order
   with json structure Module.JSON_Order
 {
@@ -452,6 +455,7 @@ arrays** — the mapping is then rooted at the array's item, so it yields one
 object per entry.
 
 ```sql
+mdl 1;
 create import mapping RootDemo.IMM_Choices
   with json structure RootDemo.JSON_Completion root response/choices/message
 { create RootDemo.Message { Role = role, Content = content } };
@@ -511,6 +515,7 @@ $JsonOutput = export to mapping Module.EMM_Pet($PetResponse);
 ### Complete Pipeline
 
 ```sql
+mdl 1;
 create microflow Module.ProcessData ()
 begin
   declare $json string = $latestHttpResponse/content;
@@ -519,7 +524,6 @@ begin
   $Output = export to mapping Module.EMM_Pet($PetResponse);
   log info node 'Integration' 'Result: ' + $Output;
 end;
-/
 ```
 
 ---
@@ -546,6 +550,7 @@ Export mappings work on non-persistent entity (NPE) structures that mirror the t
 3. **Export to mapping** to serialize the NPE tree to JSON
 
 ```sql
+mdl 1;
 -- Example: build NPE tree from persistent Order data, then export
 create microflow Module.ExportOrder ($Order: Module.Order)
 returns string as $json
@@ -561,7 +566,6 @@ begin
   $json = export to mapping Module.EMM_Order($Root);
   return $json;
 end;
-/
 ```
 
 ### Shortcut with View Entities
@@ -569,13 +573,16 @@ end;
 View Entities (OQL-backed) can retrieve data directly into the export-ready structure, skipping the manual NPE assembly:
 
 ```sql
+mdl 1;
 create view entity Module.ExOrderView (
   OrderId: integer,
   CustomerName: string,
   CustomerEmail: string
-) as select o.OrderId, c.Name, c.Email
-   from Module.Order o
-   join Module.Order_Customer/Module.Customer c;
+) as (
+  select o.OrderId as OrderId, c.Name as CustomerName, c.Email as CustomerEmail
+  from Module.Order as o
+  join o/Module.Order_Customer/Module.Customer as c
+);
 ```
 
 This can reduce the microflow to a single retrieve + export step.
@@ -595,6 +602,7 @@ Every one of these documents takes a `folder` clause on `create`, straight after
 the qualified name. Missing folders in the path are created:
 
 ```mdl
+mdl 1;
 create json structure Sales.JSON_Order folder 'Private/JSON structures'
   sample '{"id": 1, "total": 9.99}';
 

@@ -17,6 +17,7 @@ Create and manage external database connections in Mendix using the External Dat
 
 > **Tip:** Use `generate connector` to auto-create all constants, entities, and queries from a database schema:
 > ```
+> mdl 1;
 > SQL CONNECT postgres 'postgres://user:pass@host/db' AS source;
 > SQL source GENERATE CONNECTOR INTO MyModule;
 > -- Or generate for specific tables and execute immediately:
@@ -34,6 +35,7 @@ Create and manage external database connections in Mendix using the External Dat
 Database query results must be mapped to NON-PERSISTENT entities. Create these first:
 
 ```sql
+mdl 1;
 -- Entity to hold query results
 create non-persistent entity MyModule.EmployeeRecord (
   EmployeeId: integer,
@@ -47,6 +49,7 @@ create non-persistent entity MyModule.EmployeeRecord (
 Connection credentials should be stored in constants:
 
 ```sql
+mdl 1;
 /** JDBC connection string for external database */
 create constant MyModule.DbConnectionString ( Type: string, DefaultValue: 'jdbc:oracle:thin:@//hostname:1521/SERVICENAME' );
 
@@ -62,6 +65,7 @@ create constant MyModule.DbPassword ( Type: string, DefaultValue: '' );
 ### Basic Connection Structure
 
 ```sql
+mdl 1;
 create database connection Module.ConnectionName (
   Type: '<database-type>',
   ConnectionString: @Module.ConnectionStringConstant,
@@ -134,6 +138,7 @@ connection and returned real rows — the runtime accepts it, not just the edito
 The driver JAR has to be *resolved*, and declaring it is not resolving it:
 
 ```sql
+mdl 1;
 ALTER MODULE MyModule ADD JAR DEPENDENCY (
   group = 'org.duckdb', artifact = 'duckdb_jdbc', version = '1.5.5.1', included = true
 );
@@ -231,6 +236,7 @@ Parameters: ( optionalDate: datetime null )
 ### Example 1: Oracle HR Database Connection
 
 ```sql
+mdl 1;
 -- Step 1: Create module
 create module OracleDemo;
 
@@ -279,6 +285,7 @@ create database connection OracleDemo.HRDatabase (
 ### Example 2: PostgreSQL Connection
 
 ```sql
+mdl 1;
 create constant Inventory.PgConnectionString ( Type: string, DefaultValue: 'jdbc:postgresql://localhost:5432/inventory_db' );
 
 create constant Inventory.PgUser ( Type: string, DefaultValue: 'inventory_app' );
@@ -469,6 +476,7 @@ $Results = execute database query Module.Connection.QueryName
 ### Complete Example
 
 ```sql
+mdl 1;
 -- Set up non-persistent entity, constants, and connection
 create non-persistent entity HR.EmployeeRecord (
   EmpId: integer,
@@ -516,6 +524,7 @@ To bulk-import data from an external database directly into the Mendix app's Pos
 database (bypassing the runtime), use `import from` instead of the Database Connector:
 
 ```sql
+mdl 1;
 sql connect postgres 'postgres://user:pass@host:5432/legacydb' as source;
 import from source query 'SELECT name, email FROM employees'
   into HRModule.Employee

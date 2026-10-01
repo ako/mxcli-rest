@@ -83,6 +83,7 @@ update widgets
 Always preview changes first:
 
 ```sql
+mdl 1;
 -- See what would change without modifying
 update widgets
   set 'showLabel' = false
@@ -109,6 +110,7 @@ run without dry run to apply changes.
 Remove `dry run` to apply:
 
 ```sql
+mdl 1;
 update widgets
   set 'showLabel' = false
   where widgettype like '%combobox%'
@@ -127,6 +129,7 @@ update widgets
 ### Examples
 
 ```sql
+mdl 1;
 -- Hide labels on all comboboxes
 update widgets
   set 'showLabel' = false
@@ -185,6 +188,7 @@ To find the correct property names:
 ## Workflow Example
 
 ```sql
+mdl 1;
 -- 1. Build catalog
 refresh catalog full;
 

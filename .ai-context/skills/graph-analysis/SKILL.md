@@ -61,23 +61,23 @@ Run before modifying any entity, microflow, or association. Takes under a minute
 -- Is this element a god node? How many things depend on it?
 SELECT Asset, ObjectType, InDegree, OutDegree, Degree
 FROM CATALOG.GRAPH_GOD_NODES
-WHERE Asset = 'MyModule.MyEntity'
+WHERE Asset = 'MyModule.MyEntity';
 
 -- What layer is it in? (0 = leaf/data, higher = orchestration)
 SELECT AssetName, Layer
 FROM CATALOG.GRAPH_LAYERS
-WHERE AssetName = 'MyModule.MyMicroflow'
+WHERE AssetName = 'MyModule.MyMicroflow';
 
 -- Is it a bridge? Would breaking it disconnect subsystems?
 SELECT AssetName, PageRank, Betweenness
 FROM CATALOG.GRAPH_CENTRALITY
-WHERE AssetName = 'MyModule.MyMicroflow'
+WHERE AssetName = 'MyModule.MyMicroflow';
 
 -- Which community does it belong to? What else is in that cluster?
 SELECT c.AssetName, c.CommunityId, cs.Label
 FROM CATALOG.COMMUNITIES c
 JOIN CATALOG.COMMUNITY_SUMMARY cs ON c.CommunityId = cs.CommunityId
-WHERE c.AssetName = 'MyModule.MyEntity'
+WHERE c.AssetName = 'MyModule.MyEntity';
 ```
 
 **Interpretation:**
@@ -94,10 +94,10 @@ WHERE c.AssetName = 'MyModule.MyEntity'
 -- All unreferenced elements project-wide
 SELECT QualifiedName, ObjectType, ModuleName
 FROM CATALOG.GRAPH_DEAD_ASSETS
-WHERE ModuleName NOT IN ('System', 'Atlas_Core', 'Atlas_Web_Content',
+WHERE NOT (ModuleName IN ('System', 'Atlas_Core', 'Atlas_Web_Content',
     'Atlas_NativeMobile_Content', 'WorkflowCommons', 'CommunityCommons',
-    'NanoflowCommons', 'NativeMobileResources', 'WebActions', 'DataWidgets')
-ORDER BY ModuleName, ObjectType
+    'NanoflowCommons', 'NativeMobileResources', 'WebActions', 'DataWidgets'))
+ORDER BY ModuleName, ObjectType;
 ```
 
 **False positives to exclude before deleting:**
@@ -121,7 +121,7 @@ Safe to delete: pages, snippets, and microflows with no inbound edges that do **
 -- Cohesion per module: low % = module does too many things / should be split
 SELECT ModuleName, IntraEdges, InterEdges, CohesionPct
 FROM CATALOG.GRAPH_MODULE_COHESION
-ORDER BY CohesionPct ASC
+ORDER BY CohesionPct ASC;
 
 -- Cross-module coupling: find unexpected entanglements
 -- Filter to custom modules by replacing the IN list
@@ -129,13 +129,13 @@ SELECT SourceModule, TargetModule, Edges, RefKinds
 FROM CATALOG.GRAPH_MODULE_COUPLING
 WHERE SourceModule IN ('MyModule1', 'MyModule2', 'MyModule3')
   AND TargetModule IN ('MyModule1', 'MyModule2', 'MyModule3')
-ORDER BY Edges DESC
+ORDER BY Edges DESC;
 
 -- Dependency direction breakdown: what kinds of references cross module boundaries?
 SELECT SourceModule, TargetModule, RefKind, Edges
 FROM CATALOG.GRAPH_MODULE_DEPENDENCIES
 WHERE SourceModule = 'MyModule'
-ORDER BY Edges DESC
+ORDER BY Edges DESC;
 ```
 
 **Interpreting CohesionPct:**
@@ -160,14 +160,14 @@ ORDER BY Edges DESC
 -- What communities exist, how large are they, which modules do they span?
 SELECT CommunityId, Label, Size, Modules
 FROM CATALOG.COMMUNITY_SUMMARY
-ORDER BY Size DESC
+ORDER BY Size DESC;
 
 -- Which community does a specific element belong to?
 SELECT c.AssetName, c.CommunityId, cs.Label, cs.Size
 FROM CATALOG.COMMUNITIES c
 JOIN CATALOG.COMMUNITY_SUMMARY cs ON c.CommunityId = cs.CommunityId
 WHERE c.AssetName LIKE 'MyModule.%'
-ORDER BY c.CommunityId
+ORDER BY c.CommunityId;
 
 -- Elements from your module that landed in a foreign community
 -- (indicates tight coupling to that community's domain)
@@ -176,7 +176,7 @@ FROM CATALOG.COMMUNITIES c
 JOIN CATALOG.COMMUNITY_SUMMARY cs ON c.CommunityId = cs.CommunityId
 WHERE c.AssetName LIKE 'MyModule.%'
   AND cs.Label != 'MyModule'
-ORDER BY cs.Label
+ORDER BY cs.Label;
 ```
 
 **What to look for:**
@@ -196,14 +196,14 @@ FROM CATALOG.GRAPH_CENTRALITY
 WHERE AssetName LIKE 'MyModule.%'
    OR AssetName LIKE 'AnotherModule.%'
 ORDER BY Betweenness DESC
-LIMIT 20
+LIMIT 20;
 
 -- God nodes by PageRank (most influential, not just most-referenced)
 SELECT Asset, ObjectType, ModuleName, InDegree, OutDegree, Degree
 FROM CATALOG.GRAPH_GOD_NODES
 WHERE ModuleName IN ('MyModule1', 'MyModule2')
 ORDER BY Degree DESC
-LIMIT 20
+LIMIT 20;
 ```
 
 **Betweenness vs Degree:**
@@ -222,7 +222,7 @@ Use betweenness to find microflows where an interface change would require coord
 SELECT Entity, UsedByFlows, AcrossModules
 FROM CATALOG.GRAPH_ENTITY_HOTSPOTS
 WHERE Entity LIKE 'MyModule.%'
-ORDER BY UsedByFlows DESC
+ORDER BY UsedByFlows DESC;
 ```
 
 An entity appearing in `AcrossModules` with 3+ module names is a candidate for an explicit service layer — instead of every module reading it directly, route access through a `DS_` or `SUB_` microflow in the owning module.
@@ -235,7 +235,7 @@ An entity appearing in `AcrossModules` with 3+ module names is a candidate for a
 -- All cycles: self-references (size 1) and mutual references (size 2+)
 SELECT AssetName, ModuleName, CycleId, CycleSize
 FROM CATALOG.GRAPH_CYCLES
-ORDER BY CycleSize DESC, CycleId
+ORDER BY CycleSize DESC, CycleId;
 ```
 
 **Size 1**: self-referencing element (e.g. a workflow that references its own context entity — usually harmless).  
@@ -254,7 +254,7 @@ module table:
 ```sql
 SELECT ModuleName, CycleSize, RefKinds
 FROM CATALOG.GRAPH_MODULE_CYCLES
-ORDER BY CycleSize DESC, ModuleName
+ORDER BY CycleSize DESC, ModuleName;
 ```
 
 `RefKinds` names the kinds on that module's edges **into the rest of the cycle** —
@@ -270,7 +270,7 @@ tables act as though it were not there:
 
 ```sql
 SELECT RefKind, Edges, InAssetGraph FROM CATALOG.GRAPH_ANALYSIS_SCOPE
-ORDER BY InAssetGraph, Edges DESC
+ORDER BY InAssetGraph, Edges DESC;
 ```
 
 ---
@@ -288,11 +288,11 @@ For splitting a project into separate Mendix apps connected via OData, REST, or 
 -- Each cross-community edge becomes an integration contract after a split
 -- RefKind tells you what protocol would be needed
 SELECT * FROM CATALOG.GRAPH_INTEGRATION_SURFACE
-ORDER BY SourceCommunity, TargetCommunity
+ORDER BY SourceCommunity, TargetCommunity;
 
 -- 'generalize' edges are blockers — entity inheritance cannot cross app boundaries
 SELECT * FROM CATALOG.GRAPH_INTEGRATION_SURFACE
-WHERE RefKind = 'generalize'
+WHERE RefKind = 'generalize';
 ```
 
 **RefKind to integration protocol mapping** (matches the `Mechanism` column the view computes):

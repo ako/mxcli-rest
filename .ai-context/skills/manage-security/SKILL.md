@@ -169,6 +169,7 @@ describe CATALOG.ROLE_MAPPINGS;
 ### Module Roles
 
 ```sql
+mdl 1;
 -- Create module roles
 create module role MyModule.Admin description 'Full administrative access';
 create module role MyModule.User;
@@ -186,6 +187,7 @@ drop module role if exists MyModule.Legacy;
 ### Microflow Access
 
 ```sql
+mdl 1;
 -- Grant execute access (multiple roles supported)
 grant execute on microflow MyModule.ACT_Customer_Create to MyModule.User, MyModule.Admin;
 
@@ -196,6 +198,7 @@ revoke execute on microflow MyModule.ACT_Customer_Create from MyModule.User;
 ### Nanoflow Access
 
 ```sql
+mdl 1;
 -- Grant execute access (same syntax as microflows)
 grant execute on nanoflow MyModule.NF_ValidateCart to MyModule.User, MyModule.Admin;
 
@@ -211,6 +214,7 @@ list access on nanoflow MyModule.NF_ValidateCart;
 ### Page Access
 
 ```sql
+mdl 1;
 -- Grant view access
 grant view on page MyModule.Customer_Overview to MyModule.User, MyModule.Admin;
 
@@ -226,8 +230,12 @@ earlier statement has already been written) or, in `create user role`, is stored
 as `.Admin` and refused by MxBuild with **CE1613**. `mxcli check` reports it as
 **MDL-GRANT02** without needing a project.
 
-```sql
+```text
 grant read * on entity MyModule.Customer to Admin;            -- ✗ MDL-GRANT02
+```
+
+```sql
+mdl 1;
 grant read * on entity MyModule.Customer to MyModule.Admin;   -- ✓
 ```
 
@@ -244,6 +252,7 @@ naming it). So adding a `where` to an existing grant creates a second rule — i
 does not narrow the first.
 
 ```sql
+mdl 1;
 -- Full access (all CRUD + all members)
 grant create, delete, read *, write * on entity MyModule.Customer to MyModule.Admin;
 
@@ -297,6 +306,7 @@ Mendix inheritance is multi-table: a child adds attributes to its parent's, and
 entity's own — `read *` / `write *` cover them too:
 
 ```sql
+mdl 1;
 create persistent entity Docs.DocumentBase (
   DocName: String(200),
   Confidential: Boolean
@@ -329,6 +339,7 @@ rule normally cannot go stale through mxcli. `UPDATE SECURITY` is the repair for
 one that did — a model edited elsewhere, or an older mxcli:
 
 ```sql
+mdl 1;
 update security;                 -- every module the project owns
 update security RestLab;         -- one module (IN is optional)
 update security in RestLab;      -- the same thing
@@ -375,6 +386,7 @@ Grant only the entity's own members — mxcli leaves the platform ones out
 automatically:
 
 ```sql
+mdl 1;
 create persistent entity Docs.Employee extends System.User (
   EmployeeNo: String(20)
 );
@@ -384,6 +396,7 @@ grant read (EmployeeNo) on entity Docs.Employee to Docs.Viewer;   -- not Name/Bl
 ### User Roles
 
 ```sql
+mdl 1;
 -- Create with module roles
 create user role RegularUser ( ModuleRoles: (MyModule.User, OtherModule.Reader) );
 
@@ -413,6 +426,7 @@ drop user role RegularUser;
 ### Project Security Settings
 
 ```sql
+mdl 1;
 -- Set security level
 alter app security ( SecurityLevel: off );
 alter app security ( SecurityLevel: prototype );
@@ -430,14 +444,16 @@ can browse without signing in. It is one flag plus a user role, and the role is
 the important half: **whatever that role can read is the app's public surface.**
 
 ```sql
+mdl 1;
 -- The role anonymous visitors are given. System.User is what lets an
 -- unauthenticated session exist at all.
 create user role Anonymous ( ModuleRoles: (Shop.Viewer, System.User) );
 
 alter app security ( EnableGuestAccess: true, GuestUserRole: Anonymous );
 
--- Now grant exactly what should be public — and nothing else.
-grant read * on entity Shop.Product to Anonymous;
+-- Now grant exactly what should be public — and nothing else. Entity access
+-- goes to the module role the Anonymous user role carries.
+grant read * on entity Shop.Product to Shop.Viewer;
 
 -- Re-enabling later does not need the role retyped; the stored one is used.
 alter app security ( EnableGuestAccess: false );
@@ -463,6 +479,7 @@ internet (DIVD-2022-00019). Add an XPath constraint or do not grant it.
 ### Demo Users
 
 ```sql
+mdl 1;
 -- Create demo user (auto-detects entity that generalizes System.User)
 create demo user 'demo_admin' ( Password: 'Admin123!', UserRoles: (Administrator, SuperAdmin) );
 
@@ -495,6 +512,7 @@ See `write-lint-rules` for object property details.
 A typical security setup follows this order:
 
 ```sql
+mdl 1;
 -- 1. Create module roles
 create module role Shop.User description 'Regular user access';
 create module role Shop.Admin description 'Administrative access';

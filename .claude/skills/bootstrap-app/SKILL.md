@@ -149,13 +149,15 @@ drop the `./` if it came pre-installed on `PATH`.
    (caches MxBuild + runtime, starts Postgres, creates the app database).
 4. **Write the brief to `README.md`** at the repo root: the app name(s), the answers
    to Q3–Q5 **in the user's words**, and the theme and Mendix version used. For a
-   solution, say which app owns what and how they talk to each other. This is what
+   solution, say which app owns what and how they talk to each other. Say that the
+   project's MDL scripts are `mdl 1`: each one starts with `mdl 1;`. This is what
    tells the next session — after an idle reap, with none of this conversation — what
    it is building. Keep it short enough that it stays true.
 5. **Start a `FINDINGS.md`** at the repo root and keep appending to it as you work.
    Log anything surprising or broken: an mxcli command that errored, a workaround you
    applied, a `mxcli check` that passed but a real `mx check` later flagged. Note the
-   Mendix + mxcli versions and how each finding was verified. This is durable context
+   Mendix + mxcli versions, the MDL language version the scripts use (`mdl 1`), and
+   how each finding was verified. This is durable context
    for the next session, and the most useful thing to share back to improve mxcli.
 6. **Record the plan in the brain** — unless the user opted out at Q8:
 
@@ -253,6 +255,7 @@ with these deltas:
   against the host name rather than the listen address:
 
   ```sql
+  mdl 1;
   alter settings configuration 'Default' (
     ApplicationRootUrl: 'http://backend.local:8080/'
   );
@@ -333,6 +336,12 @@ are cheap to choose now and expensive to retrofit: the pages, security rules and
 tests all bind to whichever you picked.
 
 Show it as **MDL the user can read**, and wait for their go-ahead before executing it.
+Write it as a script in `mdlsource/` that **starts with `mdl 1;`** — this one and every
+script after it. A freshly bootstrapped project has no headerless (`mdl 0`) scripts, so
+there is nothing to upgrade and no dialect to mix; keep it that way (if you ever inherit
+a headerless file, the `choose-edit-mode` skill says how to upgrade it first). Use
+`create or modify` so it can be re-run. Run `check`, `exec`, then `exec` the same script
+again: the second run must write nothing (everything reported unchanged).
 Name the elements the same way the plan's anchors do — if a requirement is anchored
 `@<AppName>Module.ACT_Approve`, propose that name — so `./mxcli brain plan` starts
 counting the moment the work lands, without anyone editing the plan.

@@ -198,7 +198,7 @@ CREATE MICROFLOW ProductApi.Authenticate ($Headers: List of System.HttpHeader)
 BEGIN
   -- e.g. compare a shared secret from $Headers, then retrieve the service account
   retrieve $Users from System.User;
-  $User = head($Users);
+  $User = head $Users;
   RETURN $User;
 END;
 
@@ -231,6 +231,7 @@ database of human passwords.
 When the consumer needs to pass custom headers (e.g., for audit trails or user context), use a configuration microflow:
 
 ```sql
+mdl 1;
 /**
  * Adds current user name as custom header for audit logging.
  */

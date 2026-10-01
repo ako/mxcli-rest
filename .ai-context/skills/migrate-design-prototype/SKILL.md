@@ -7,14 +7,12 @@ description: "Reproduce a Claude Design prototype or design handoff (HTML/CSS, .
 
 ## When to Use This Skill
 
-Use this skill when you are given a **Claude Design prototype / design handoff** (an
-HTML/CSS prototype, a `*.dc.html` design-console export, a tokens file, a PRD, and/or
-screenshots) and need to reproduce that look in a Mendix app using **mxcli + MDL**.
+Use this skill when you are given a **Claude Design prototype / design handoff** (an HTML/CSS
+prototype, a `*.dc.html` design-console export, a tokens file, a PRD, and/or screenshots) and need to reproduce that look in a Mendix app using **mxcli + MDL**.
 
 It covers the two halves of the job:
 
-1. **Build the SCSS theme** — turn the prototype's design language (colours, fonts,
-   spacing, component styles) into a Mendix theme in `theme/web/main.scss`.
+1. **Build the SCSS theme** — turn the prototype's design language (colours, fonts, spacing, component styles) into a Mendix theme in `theme/web/main.scss`.
 2. **Apply it in pages** — attach the theme's classes to widgets with MDL
    (`Class:` / `DynamicClasses:` on `create page` / `alter page`).
 
@@ -389,7 +387,7 @@ mxcli -p baedemo.mpr -c "LIST NAVIGATION"              # profiles, home page, it
 mxcli -p baedemo.mpr -c "LIST NAVIGATION MENU Responsive"   # the menu tree
 ```
 
-Add or reorder items with `CREATE OR REPLACE NAVIGATION <Profile> …` (full-replacement — dump
+Add or reorder items with `CREATE OR MODIFY NAVIGATION <Profile> …` (full-replacement — dump
 the current profile first with `DESCRIBE NAVIGATION <Profile>`, edit, re-apply). See
 `manage-navigation` for the item syntax, home/login pages, and role-based homes.
 
@@ -474,7 +472,8 @@ widgets, which are far harder to drive from MDL.
 Space-join base + modifiers in a single `Class:` string:
 
 ```sql
-create or replace page ResourceScheduling.ResourceHeatmap (
+mdl 1;
+create or modify page ResourceScheduling.ResourceHeatmap (
   Title: 'Resource Heatmap', Layout: Atlas_Core.Atlas_Default
 ) {
   container heatmapPage (Class: 'ss-page') {
@@ -489,7 +488,7 @@ create or replace page ResourceScheduling.ResourceHeatmap (
       }
     }
   }
-}
+};
 ```
 
 ### State-driven styling — `DynamicClasses:` expression
@@ -537,9 +536,10 @@ steps is usually plenty).
 Use `alter page` to attach a class without rewriting the page (see `alter-page`):
 
 ```sql
+mdl 1;
 alter page ResourceScheduling.Approvals {
   set (Class: 'ss-appr-card ss-appr-card--conflict') on queueCard;
-}
+};
 ```
 
 To apply the same class across many widgets/pages at once, see `bulk-widget-updates`

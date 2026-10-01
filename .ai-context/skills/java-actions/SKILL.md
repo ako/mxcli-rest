@@ -42,6 +42,7 @@ MDL supports defining Java actions with inline Java code using `create java acti
 ### Basic Syntax
 
 ```mdl
+mdl 1;
 create java action Module.ActionName(param1: type, param2: type) returns ReturnType
 as $$
 // java code here
@@ -52,6 +53,7 @@ $$;
 **`AS $$ ... $$` is mandatory.** The body cannot be omitted even for placeholder or stub actions. Omitting it causes a parse error: `no viable alternative at input '...'`. Use a minimal body if the real implementation is not yet written:
 
 ```mdl
+mdl 1;
 create java action Module.Stub() returns boolean
 as $$
 return false;
@@ -63,6 +65,7 @@ $$;
 Type parameters let Java actions accept any entity type dynamically. Use `entity <pEntity>` in a parameter type to declare the type parameter inline. That parameter becomes the **entity type selector** (receives the entity type name, e.g., `'Module.Entity'`). Bare `pEntity` parameters become **parameterized entity** params (receive entity instances, e.g., `$Variable`).
 
 ```mdl
+mdl 1;
 -- ENTITY <pEntity> declares the type parameter; bare pEntity references it
 create java action Module.Validate(
   EntityType: entity <pEntity> not null,
@@ -76,6 +79,7 @@ $$;
 Multiple type parameters use separate `entity <...>` declarations:
 
 ```mdl
+mdl 1;
 create java action Module.Transform(
   SourceType: entity <pSource> not null,
   TargetType: entity <pTarget> not null,
@@ -94,6 +98,7 @@ A list of type-parameter instances is `list of pEntity` (Studio Pro's "List of <
 Type parameter names can be mixed with regular parameter types:
 
 ```mdl
+mdl 1;
 create java action Module.CopyAttributes(
   EntityType: entity <pEntity> not null,
   source: pEntity not null,
@@ -121,6 +126,7 @@ $Result = call java action Module.CopyAttributes(
 The `exposed as 'caption' in 'Category'` clause makes the Java action appear as a toolbox item in Studio Pro's microflow editor:
 
 ```mdl
+mdl 1;
 create java action Module.FormatCurrency(
   Amount: decimal not null,
   CurrencyCode: string not null
@@ -134,6 +140,7 @@ $$;
 Type parameters and EXPOSED AS can be combined:
 
 ```mdl
+mdl 1;
 create java action Module.DeepClone(
   EntityType: entity <pEntity> not null,
   Original: pEntity not null
@@ -219,6 +226,7 @@ from describe output has changed an action's export level to Public. Check it ag
 #### Simple Action (No Parameters)
 
 ```mdl
+mdl 1;
 /** Returns the current timestamp. */
 create java action MyModule.GetCurrentTimestamp() returns datetime
 as $$
@@ -229,6 +237,7 @@ $$;
 #### Action with Primitive Parameters
 
 ```mdl
+mdl 1;
 /** Calculates tax amount. */
 create java action Finance.CalculateTax(Amount: decimal, TaxRate: decimal) returns decimal
 as $$
@@ -242,6 +251,7 @@ $$;
 #### Action with StringTemplate (SQL/OQL)
 
 ```mdl
+mdl 1;
 /** Executes an OQL statement with parameterized query. */
 create java action Database.ExecuteOQLStatement(OqlStatement: stringtemplate(sql) not null) returns boolean
 as $$
@@ -254,6 +264,7 @@ $$;
 #### Action with NOT NULL Parameter
 
 ```mdl
+mdl 1;
 /** Validates an email address - email is required. */
 create java action Validation.ValidateEmail(EmailAddress: string not null) returns boolean
 as $$
@@ -265,6 +276,7 @@ $$;
 #### Action with Type Parameter (Generic)
 
 ```mdl
+mdl 1;
 /** Validates any entity - checks that required fields are filled. */
 create java action Validation.ValidateEntity(
   EntityType: entity <pEntity> not null,
@@ -279,6 +291,7 @@ $$;
 #### Action with Type Parameter + EXPOSED AS
 
 ```mdl
+mdl 1;
 /** Deep clones any entity (toolbox-visible). */
 create java action Utils.DeepClone(
   EntityType: entity <pEntity> not null,
@@ -356,6 +369,7 @@ $count = call java action Module.ExecuteOQL(
 #### Example 1: Simple Calculation
 
 ```mdl
+mdl 1;
 /**
  * Calculate tax using custom Java action
  */
@@ -381,6 +395,7 @@ end;
 #### Example 2: External API Integration
 
 ```mdl
+mdl 1;
 /**
  * Send notification via external service using Java action
  */
@@ -412,6 +427,7 @@ end;
 #### Example 3: OQL Bulk Operations (Mendix 11.6+)
 
 ```mdl
+mdl 1;
 /**
  * Bulk update using OQL via Java action
  */
@@ -457,6 +473,7 @@ end;
 #### Example 5: Returning Objects
 
 ```mdl
+mdl 1;
 /**
  * Create complex object structure using Java action
  */
@@ -517,15 +534,16 @@ Before deploying Java actions, verify:
 
 ### Java Action Definition Syntax
 ```mdl
+mdl 1;
 -- Basic Java action
-create java action Module.Name(Param: type not null) returns boolean
+create java action Module.JA_IsValid(Param: string not null) returns boolean
 as $$
 return true;
 $$;
 
 -- With type parameters (generics)
 -- ENTITY <pEntity> = entity type selector, bare pEntity = entity instances
-create java action Module.Name(
+create java action Module.JA_HasObject(
   EntityType: entity <pEntity> not null,
   Obj: pEntity not null
 ) returns boolean
@@ -534,14 +552,14 @@ return Obj != null;
 $$;
 
 -- With EXPOSED AS (toolbox visibility)
-create java action Module.Name(Amount: decimal) returns string
+create java action Module.JA_FormatAmount(Amount: decimal) returns string
 exposed as 'Format Amount' in 'Formatting'
 as $$
 return Amount.toString();
 $$;
 
 -- Combined type parameters + EXPOSED AS
-create java action Module.Name(
+create java action Module.JA_ValidateObject(
   EntityType: entity <pEntity> not null,
   Obj: pEntity not null
 ) returns boolean

@@ -45,6 +45,7 @@ Outputs a re-executable `ALTER MODULE ... ADD JAR DEPENDENCY (...)` block.
 ## Adding a Dependency
 
 ```sql
+mdl 1;
 ALTER MODULE MyModule
   ADD JAR DEPENDENCY (
     group    = 'com.fasterxml.jackson.core',
@@ -60,6 +61,7 @@ ALTER MODULE MyModule
 ## Updating a Dependency
 
 ```sql
+mdl 1;
 -- Change the version
 ALTER MODULE MyModule
   SET JAR DEPENDENCY 'com.fasterxml.jackson.core:jackson-databind' VERSION '2.21.3';
@@ -72,6 +74,7 @@ ALTER MODULE MyModule
 ## Managing Transitive Exclusions
 
 ```sql
+mdl 1;
 -- Exclude a transitive dependency
 ALTER MODULE MyModule
   SET JAR DEPENDENCY 'org.duckdb:duckdb_jdbc'
@@ -86,6 +89,7 @@ ALTER MODULE MyModule
 ## Removing a Dependency
 
 ```sql
+mdl 1;
 ALTER MODULE MyModule
   DROP JAR DEPENDENCY 'com.fasterxml.jackson.core:jackson-databind';
 ```

@@ -28,6 +28,7 @@ No API to call against yet — or one you would rather not depend on while build
 If the API has an OpenAPI 3.0 spec (JSON or YAML), generate the REST client in one command:
 
 ```sql
+mdl 1;
 -- From a local file (relative to the .mpr file)
 create or modify consumed rest service CapitalModule.CapitalAPI (
   OpenAPI: 'specs/capital.json'
@@ -76,6 +77,7 @@ Define the API once as a REST client document, then call its operations from mic
 ### Step 1 — Create the REST Client
 
 ```sql
+mdl 1;
 create consumed rest service Module.OpenMeteoAPI (
   BaseUrl: 'https://api.open-meteo.com/v1',
   authentication: none
@@ -230,6 +232,7 @@ as `String`.
 ### Step 2 — Call from a Microflow
 
 ```sql
+mdl 1;
 create microflow Module.ACT_GetWeather ()
 returns Module.WeatherInfo as $Weather
 begin
@@ -247,7 +250,6 @@ begin
 
   return $Weather;
 end;
-/
 ```
 
 **CRITICAL**: After `send rest request`, the response is in `$latestHttpResponse` (System.HttpResponse):
@@ -349,6 +351,7 @@ drop data transformer Module.Name;
 See [json-structures-and-mappings](../json-structures-and-mappings/SKILL.md) for full reference. Quick summary:
 
 ```sql
+mdl 1;
 -- JSON structure from snippet
 create json structure Module.JSON_Weather
 sample '{"temp": 12.8, "wind": 18.3, "lat": 52.52}';
@@ -359,7 +362,6 @@ create non-persistent entity Module.WeatherInfo (
   WindSpeed: decimal,
   Latitude: decimal
 );
-/
 
 -- Import mapping (JSON → entity)
 create import mapping Module.IMM_Weather
@@ -371,8 +373,11 @@ create import mapping Module.IMM_Weather
     Latitude = lat
   }
 };
+```
 
--- Use in microflow
+Use them in a microflow:
+
+```sql
 $Weather = import from mapping Module.IMM_Weather($JsonString);
 $JsonOutput = export to mapping Module.EMM_Weather($WeatherEntity);
 ```
@@ -384,6 +389,7 @@ $JsonOutput = export to mapping Module.EMM_Weather($WeatherEntity);
 Full example: call weather API → transform → import → show on page.
 
 ```sql
+mdl 1;
 -- 1. Entity
 create non-persistent entity Module.CurrentWeather (
   Temperature: decimal,
@@ -391,7 +397,6 @@ create non-persistent entity Module.CurrentWeather (
   Latitude: decimal,
   ObservationTime: datetime
 );
-/
 
 -- 2. Data Transformer (simplify API response)
 create data transformer Module.SimplifyWeather
@@ -447,7 +452,6 @@ begin
   $Weather = import from mapping Module.IMM_Weather($SimplifiedJson);
   return $Weather;
 end;
-/
 ```
 
 ---

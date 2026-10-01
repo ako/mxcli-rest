@@ -234,6 +234,7 @@ public java.lang.Boolean executeAction() throws Exception
 
 **MDL Usage:**
 ```mdl
+mdl 1;
 create microflow Customer.VAL_CustomerEmail($customer: Customer.Customer)
 returns boolean as $isValid
 begin
@@ -306,6 +307,7 @@ public java.math.BigDecimal executeAction() throws Exception
 
 **MDL Usage:**
 ```mdl
+mdl 1;
 create microflow Finance.ACT_ConvertCurrency(
     $amount: decimal,
     $fromCurrency: string,
@@ -313,8 +315,6 @@ create microflow Finance.ACT_ConvertCurrency(
 )
 returns decimal as $convertedAmount
 begin
-    declare $rate decimal;
-
     $rate = call java action Finance.JA_FetchExchangeRate(
         FromCurrency = $fromCurrency,
         ToCurrency = $toCurrency
@@ -361,6 +361,7 @@ public IMendixObject executeAction() throws Exception
 
 **MDL Usage:**
 ```mdl
+mdl 1;
 create microflow Sales.ACT_GenerateOrderPDF($order: Sales.Order)
 returns System.FileDocument as $pdfFile
 begin

@@ -37,6 +37,7 @@ register `ASU_AgentEditor` as an after-startup microflow.
 ### Model
 
 ```sql
+mdl 1;
 create ai model Module.MyModel (
   Provider: MxCloudGenAI,   -- default, can omit
   key: @Module.ApiKeyConst   -- must be a String constant
@@ -62,6 +63,7 @@ document Studio Pro created**, rather than from memory or from this file.
 ### Knowledge Base
 
 ```sql
+mdl 1;
 create knowledge base Module.ProductDocs (
   Provider: MxCloudGenAI,
   key: @Module.KBKeyConst
@@ -71,6 +73,7 @@ create knowledge base Module.ProductDocs (
 ### Consumed MCP Service
 
 ```sql
+mdl 1;
 create consumed mcp service Module.WebSearch (
   ProtocolVersion: v2025_03_26,
   version: '1.0',
@@ -82,6 +85,7 @@ create consumed mcp service Module.WebSearch (
 ### Agent (full syntax)
 
 ```sql
+mdl 1;
 create agent Module.MyAgent (
   UsageType: task,              -- Task | Conversational
   model: Module.MyModel,        -- must exist
@@ -120,6 +124,7 @@ prompt here.$$,
 All four agent-editor document types support `ALTER` for targeted partial updates (no need to re-specify the whole document):
 
 ```sql
+mdl 1;
 -- Model, Knowledge Base, Consumed MCP Service: SET-only (no collections)
 alter ai model Module.MyModel set DisplayName = 'GPT-4 Turbo', KeyName = 'OPENAI_KEY';
 
@@ -155,6 +160,7 @@ Each document has both a `qualifiedName` (e.g. `Module.MyModel`) and an opaque `
 ### Drop order
 Agents reference Model, Knowledge Base, and MCP Service documents. Always drop Agents before dropping their dependencies:
 ```sql
+mdl 1;
 drop agent Module.MyAgent;
 drop consumed mcp service Module.WebSearch;
 drop knowledge base Module.ProductDocs;
@@ -173,6 +179,7 @@ The feature uses `CustomBlobDocument` BSON type with a `Contents` field holding 
 
 ### Minimal agent (no tools)
 ```sql
+mdl 1;
 create ai model Module.M (Provider: MxCloudGenAI, key: @Module.K);
 create agent Module.A (
   UsageType: task,
@@ -219,9 +226,9 @@ $ChatContext = call java action AgentCommons.ChatContext_Create_ForAgent(
 Retrieve the `AgentCommons.Agent` entity by qualified name before calling:
 
 ```sql
-retrieve $agent from database AgentCommons.Agent
-  where AgentCommons.Agent/QualifiedName = 'Module.MyAgent'
-  limit 1;
+retrieve $agent from AgentCommons.Agent
+  where [QualifiedName = 'Module.MyAgent']
+  first;
 ```
 
 The `AgentCommons.Agent` entity is populated at runtime by `ASU_AgentEditor` from the agent documents you create with `create agent`.

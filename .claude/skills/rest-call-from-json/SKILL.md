@@ -25,6 +25,7 @@ JSON Structure → Non-persistent entities → Import Mapping → microflow.
 ## Step 1 — JSON Structure
 
 ```sql
+mdl 1;
 create json structure Module.JSON_MyStructure
   sample '{"key": "value", "count": 1}';
 ```
@@ -47,6 +48,7 @@ describe json structure Module.JSON_MyStructure;
 Derive one entity per JSON object type. Name them after what they represent (not after JSON keys).
 
 ```sql
+mdl 1;
 create non-persistent entity Module.MyRootObject (
   stringField   : string,
   intField      : integer,
@@ -80,6 +82,7 @@ create association Module.MyRootObject_MyNestedObject
 > **Full reference**: See [json-structures-and-mappings](../json-structures-and-mappings/SKILL.md) for complete import/export mapping syntax, domain model patterns, and common mistakes.
 
 ```sql
+mdl 1;
 create import mapping Module.IMM_MyMapping
   with json structure Module.JSON_MyStructure
 {
@@ -144,7 +147,7 @@ end;
     timeout 300
     returns mapping Module.IMM_MyMapping as Module.MyItem on error rollback;
   @position(565, 200)
-  $count = count($MyItem);
+  $count = count $MyItem;
 ```
 
 ---
@@ -176,6 +179,7 @@ $JsonOutput = export to mapping Module.EMM_Pet($PetResponse);
 ### Complete import → process → export microflow
 
 ```sql
+mdl 1;
 create microflow Module.ProcessPetData ()
 begin
   declare $ResponseContent string = $latestHttpResponse/content;
@@ -184,7 +188,6 @@ begin
   $JsonOutput = export to mapping Module.EMM_Pet($PetResponse);
   log info node 'Integration' 'Exported: ' + $JsonOutput;
 end;
-/
 ```
 
 ---
@@ -214,6 +217,7 @@ The expression is the file document's `Contents` **member**, not the document,
 and the content type goes on a header — the body clause carries only the bytes:
 
 ```sql
+mdl 1;
 create or modify microflow Module.POST_Document_Upload (
   $Doc: Module.UploadedFile
 )
@@ -228,7 +232,6 @@ begin
   set $Ok = $Response/StatusCode = 200;
   return $Ok;
 end;
-/
 ```
 
 `$Doc` must be a specialization of `System.FileDocument`. Downloading is the

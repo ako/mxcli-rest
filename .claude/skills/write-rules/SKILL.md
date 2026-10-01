@@ -51,18 +51,19 @@ through the microflow that evaluates it, and that microflow's security applies.
 ## Syntax
 
 ```
+mdl 1;
 create or modify rule Sales.Rule_IsSolvent ($pCustomer: Sales.Customer)
 returns Boolean
 folder 'Rules'
 begin
   return $pCustomer/Balance >= 0;
-end
-/
+end;
 ```
 
 An enumeration rule lets one decision fan out to several branches:
 
 ```
+mdl 1;
 create or modify rule Sales.Rule_Outcome ($pCustomer: Sales.Customer)
 returns enum Sales.Outcome
 begin
@@ -71,13 +72,13 @@ begin
   else
     return Sales.Outcome.Rejected;
   end if;
-end
-/
+end;
 ```
 
 Calling one — the only place a rule may be called:
 
 ```
+mdl 1;
 create or modify microflow Sales.MF_Screen ($pCustomer: Sales.Customer)
 begin
   if Sales.Rule_IsSolvent(pCustomer = $pCustomer) then
@@ -85,8 +86,7 @@ begin
   else
     return;
   end if;
-end
-/
+end;
 ```
 
 The argument names are the rule's parameter names, so
@@ -95,6 +95,7 @@ The argument names are the rule's parameter names, so
 ## Reading and managing rules
 
 ```
+mdl 1;
 list rules;                  -- `list rules` is the same statement
 list rules in Sales;
 describe rule Sales.Rule_IsSolvent;   -- round-trippable MDL

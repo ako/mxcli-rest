@@ -40,6 +40,7 @@ describe business event service Module.ServiceName;
 ### Create a Business Event Service
 
 ```sql
+mdl 1;
 create business event service Module.CustomerEventsApi
 (
   ServiceName: 'CustomerEventsApi',
@@ -59,6 +60,7 @@ Preserves the existing UUID so other documents that reference this service remai
 `OR REPLACE` is accepted as a synonym.
 
 ```sql
+mdl 1;
 create or modify business event service Module.CustomerEventsApi
 (
   ServiceName: 'CustomerEventsApi',
@@ -73,6 +75,7 @@ create or modify business event service Module.CustomerEventsApi
 ### Drop a Business Event Service
 
 ```sql
+mdl 1;
 drop business event service Module.CustomerEventsApi;
 ```
 

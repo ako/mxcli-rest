@@ -101,6 +101,7 @@ bare form, so it will disappear from round-tripped output.
 
 > **Binding a microflow to an entity event is MDL — you do NOT need to map it manually in Studio Pro.** After writing a handler microflow (e.g. a `BeforeCommit` validation), wire it directly:
 > ```mdl
+> mdl 1;
 > alter entity Sales.Order
 >   add event handler on before commit call Sales.ACT_ValidateOrder($currentObject) raise error;
 > ```

@@ -196,6 +196,7 @@ itself.** Mendix rejects the base type as a return type with `CE0362`, and
 MDL064 reports it before the write. Create one first:
 
 ```mdl
+mdl 1;
 create persistent entity MyModule.MyFile extends System.FileDocument ();
 
 create microflow MyModule.ACT_Download ($Location: String)

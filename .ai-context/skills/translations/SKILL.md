@@ -108,6 +108,7 @@ Warning: 1 source string(s) in the file matched nothing in the project.
 ## Common tasks
 
 ```sql
+mdl 1;
 -- what is still untranslated, and how much
 describe translations for de_DE;        -- ends with "N source string(s), M translated, K to go."
 

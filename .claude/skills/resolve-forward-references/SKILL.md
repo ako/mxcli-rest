@@ -53,17 +53,14 @@ A navigation snippet contains `show page` buttons (references pages) and pages i
 the snippet via `snippetcall` (references the snippet). Both sides reference each other.
 
 ```sql
+mdl 1;
 -- Step 1: placeholder snippet (minimal valid content)
 create snippet MyModule.NavMenu
-(
-  layout: Atlas_Core.Atlas_Default
-)
 {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     dynamictext loading (content: 'Loading...')
   }}}
-}
-/
+};
 
 -- Step 2: pages that embed the snippet (snippet already exists → resolves OK)
 create page MyModule.Customer_Overview
@@ -72,16 +69,15 @@ create page MyModule.Customer_Overview
   layout: Atlas_Core.Atlas_Default
 )
 {
-  layoutgrid g { row r {
-    column c1 (desktopwidth: 3) {
+  layoutgrid g { row {
+    column (desktopwidth: 3) {
       snippetcall nav (snippet: MyModule.NavMenu)
     }
-    column c2 (desktopwidth: 9) {
+    column (desktopwidth: 9) {
       datagrid dg (datasource: database MyModule.Customer) { }
     }
   }}
-}
-/
+};
 
 create page MyModule.Order_Overview
 (
@@ -89,25 +85,21 @@ create page MyModule.Order_Overview
   layout: Atlas_Core.Atlas_Default
 )
 {
-  layoutgrid g { row r {
-    column c1 (desktopwidth: 3) {
+  layoutgrid g { row {
+    column (desktopwidth: 3) {
       snippetcall nav (snippet: MyModule.NavMenu)
     }
-    column c2 (desktopwidth: 9) {
+    column (desktopwidth: 9) {
       datagrid dg (datasource: database MyModule.Order) { }
     }
   }}
-}
-/
+};
 
 -- Step 3: fill in the snippet with real content (pages now exist → show page resolves OK)
 -- Use CREATE OR MODIFY (preserves ID) or ALTER SNIPPET (in-place)
 create or modify snippet MyModule.NavMenu
-(
-  layout: Atlas_Core.Atlas_Default
-)
 {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     actionbutton btnCustomers (
       caption: 'Customers',
       action: show page MyModule.Customer_Overview
@@ -117,8 +109,7 @@ create or modify snippet MyModule.NavMenu
       action: show page MyModule.Order_Overview
     )
   }}}
-}
-/
+};
 ```
 
 ---
@@ -129,6 +120,7 @@ An overview page has a New button that opens a NewEdit page via `show page`. The
 page must exist before the overview can reference it.
 
 ```sql
+mdl 1;
 -- Solution: declare the target page first (even if empty), then the referencing page
 
 create page MyModule.Customer_NewEdit
@@ -145,8 +137,7 @@ create page MyModule.Customer_NewEdit
     actionbutton btnSave (caption: 'Save', action: save changes)
     actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
   }}}
-}
-/
+};
 
 -- Now the overview can safely reference the NewEdit page
 create page MyModule.Customer_Overview
@@ -164,8 +155,7 @@ create page MyModule.Customer_Overview
       column (caption: 'Name', attribute: Name)
     }
   }}}
-}
-/
+};
 ```
 
 For simple cases, reordering declarations is sufficient and no placeholder is needed.
@@ -175,6 +165,7 @@ For simple cases, reordering declarations is sufficient and no placeholder is ne
 ## Pattern 3 — Microflow References a Page Not Yet Created
 
 ```sql
+mdl 1;
 -- If the page is defined later in the script, create a placeholder or reorder.
 -- Easiest fix: declare the page before the microflow that shows it.
 
@@ -191,8 +182,7 @@ create page MyModule.Order_Detail
       textbox txtID (label: 'Order ID', attribute: OrderID)
     }
   }}}
-}
-/
+};
 
 -- Microflow after the page it references
 create microflow MyModule.ACT_OpenOrder ($Order: MyModule.Order)
@@ -201,7 +191,6 @@ begin
   show page MyModule.Order_Detail (Order = $Order);
   @position(400,200) return;
 end;
-/
 ```
 
 ---
@@ -235,13 +224,16 @@ Both preserve the snippet's ID. Use whichever fits:
 | `alter snippet` | Inserting or replacing specific widgets within an existing layout |
 
 ```sql
+mdl 1;
 -- ALTER SNIPPET: targeted widget replacement (keeps surrounding structure)
-alter snippet MyModule.NavMenu
-  replace activity loading
-  with actionbutton btnCustomers (
-    caption: 'Customers',
-    action: show page MyModule.Customer_Overview
-  );
+alter snippet MyModule.NavMenu {
+  replace loading with {
+    actionbutton btnCustomers (
+      caption: 'Customers',
+      action: show page MyModule.Customer_Overview
+    )
+  }
+};
 ```
 
 ---
@@ -249,6 +241,7 @@ alter snippet MyModule.NavMenu
 ## Script Template for a Full CRUD Module
 
 ```sql
+mdl 1;
 -- ============================================================
 -- MyModule CRUD scaffold
 -- Correct declaration order: snippets → pages → microflows → nav
@@ -256,13 +249,11 @@ alter snippet MyModule.NavMenu
 
 -- 1. Placeholder for shared navigation (will reference pages created below)
 create snippet MyModule.AppNav
-(layout: Atlas_Core.Atlas_Default)
 {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     dynamictext placeholder (content: '...')
   }}}
-}
-/
+};
 
 -- 2. NewEdit page (referenced by Overview's New button)
 create page MyModule.Customer_NewEdit
@@ -273,8 +264,7 @@ create page MyModule.Customer_NewEdit
 )
 {
   -- ... widgets ...
-}
-/
+};
 
 -- 3. Overview page (references NewEdit + NavMenu)
 create page MyModule.Customer_Overview
@@ -283,45 +273,42 @@ create page MyModule.Customer_Overview
   layout: Atlas_Core.Atlas_Default
 )
 {
-  layoutgrid g { row r {
-    column c1 (desktopwidth: 3) {
+  layoutgrid g { row {
+    column (desktopwidth: 3) {
       snippetcall nav (snippet: MyModule.AppNav)
     }
-    column c2 (desktopwidth: 9) {
+    column (desktopwidth: 9) {
       -- ... datagrid with New button calling ACT_Customer_New ...
     }
   }}
-}
-/
+};
 
 -- 4. Fill in navigation (pages now exist)
 create or modify snippet MyModule.AppNav
-(layout: Atlas_Core.Atlas_Default)
 {
-  layoutgrid g { row r { column c (desktopwidth: 12) {
+  layoutgrid g { row { column (desktopwidth: 12) {
     actionbutton btnCustomers (
       caption: 'Customers',
       action: show page MyModule.Customer_Overview
     )
   }}}
-}
-/
+};
 
 -- 5. Microflows (pages already exist)
 create microflow MyModule.ACT_Customer_New ()
 begin
-  @position(200,200)
-  $c = create MyModule.Customer;
-  @position(400,200)
+  $c = create MyModule.Customer ();
   show page MyModule.Customer_NewEdit (Customer = $c);
-  @position(600,200) return;
+  return;
 end;
-/
 
--- 6. Navigation (pages already exist)
-alter navigation Responsive
-  insert menu item 'Customers'
-    action show page MyModule.Customer_Overview;
+-- 6. Navigation (pages already exist). This statement sets the whole profile,
+-- its menu included: list every item the menu must keep.
+create or modify navigation Responsive
+  home page MyModule.Customer_Overview
+  {
+    menu item 'Customers' ( OnClick: show page MyModule.Customer_Overview )
+  };
 ```
 
 ---
