@@ -183,6 +183,22 @@ target entity** — the stored cardinality follows the direction of traversal an
 the association's type, so a `Reference` gives a single object one way and a list
 the other, while a `ReferenceSet` is a list both ways.
 
+**Mendix 11.15 removed collections.** Each definition is its own document, and
+a mapping names it in two parts. The collection form is refused on 11.15, and
+the document form below 11.15:
+
+```sql
+mdl 1;
+create message definition Sales.OrderMessage for Sales.Order as 'Orders' {
+  OrderId,
+  Sales.Order_Customer/Sales.Customer { FirstName }
+};
+create import mapping Sales.IMM_Order with message definition Sales.OrderMessage
+{
+  create Sales.Order { OrderId = OrderId }
+};
+```
+
 The full vocabulary, the ALTER statements, inherited attributes and what mxcli
 deliberately does not guess:
 [reference/message-definitions.md](reference/message-definitions.md).
@@ -505,6 +521,13 @@ Two things the range does **not** do:
 - **`offset` is not accepted everywhere.** Mendix rejects it with
   **CE6100** ("This entity does not support offset") unless the mapping's root
   is a list; `limit` alone is fine either way. Verified on mxbuild 11.6.6.
+- **`first` is not for an object-rooted mapping.** It narrows a list; on a
+  mapping that already returns one object it builds clean (`mx check`: 0
+  errors) and the activity **throws at runtime**. `mxcli check` refuses it,
+  and `offset` on such a mapping, as **MDL-MAP04** — drop the range.
+  `check` only sees the script: an activity already in the model with this
+  shape (written by an older mxcli, or with `exec --no-check`) is reported by
+  `mxcli lint -p app.mpr -r MDL-MAP04`, under the same ID.
 
 ### Export to Mapping (entity → JSON)
 

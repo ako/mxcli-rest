@@ -196,8 +196,9 @@ drop the `./` if it came pre-installed on `PATH`.
    bootstrap from files instead of from a re-paste. The `mxcli` binary itself stays
    git-ignored (~85 MB); the bootstrap script is what fetches it back into a fresh
    clone, so committing the script is what makes the hook survive a reap.
-8. **Boot and verify:** `./mxcli run --local -p <AppName>.mpr` in the background, then
-   confirm the app answers HTTP 200 at http://localhost:8080/ and report.
+8. **Boot and verify:** `./mxcli run --local --watch --detach -p <AppName>.mpr` returns
+   once the app answers (or prints why the boot failed, exit 1) — report its one line.
+   Manage it with `./mxcli run status|wait|stop`, never `nohup`, poll loops or `pkill`.
 9. **Take the quality baseline** — run the two gates that score the project, on the
    blank app, before any of your own work is in it:
 
@@ -375,7 +376,7 @@ right, then run the gates once over the result. The whole list after every edit 
 ./mxcli report -p <AppName>.mpr                          # scored quality report
 ./mxcli docker check -p <AppName>.mpr                    # mxbuild, the slow one (~25s)
 ./mxcli test tests/ -p <AppName>.mpr --local             # microflow tests (~30s cold, ~2s warm)
-./mxcli run --local --watch -p <AppName>.mpr             # the app, hot-reloading
+./mxcli run --local --watch --detach -p <AppName>.mpr    # the app, in the background; then `run wait`
 ```
 
 Two of them are easy to mistake for optional and are not:

@@ -58,6 +58,8 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 - Default value: Mendix expression in single quotes
 - Referenced in expressions as `$varName`
 - Use for DataGrid2 column `visible:` (which hides/shows entire column, NOT per-row)
+- An input binds to one directly: `checkbox cbShowAll (Label: 'Show all', Attribute: $ShowAll)`
+  — no data view needed. `$name` must be declared in the page's `Variables:`
 
 ### Key Syntax Elements
 
@@ -362,16 +364,13 @@ The following features are NOT implemented in mxcli and require manual configura
 
 ### Runtime Pitfalls
 
-> **Empty CONTAINER crashes at runtime.** A CONTAINER with no child widgets compiles and builds successfully but crashes when the page loads with "Did not expect an argument to be undefined". Always include at least one child widget:
-> ```sql
-> -- Wrong: crashes at runtime
-> CONTAINER spacer1 (Style: 'height: 6px;')
->
-> -- Correct: include a child (even a space)
-> CONTAINER spacer1 (Style: 'height: 6px;') {
->   DYNAMICTEXT spacerText (Content: ' ', RenderMode: Paragraph)
-> }
-> ```
+> **An empty CONTAINER is valid.** It passes `mx check`, builds, and renders:
+> measured on Mendix 11.13.0 (React client) under `run --local`, both a bare
+> `container c1` and a styled spacer `container spacer1 (Style: 'height: 6px;')`
+> rendered with the widgets after them present and no console errors
+> (ako/mxcli#969). An older note here said it crashed with "Did not expect an
+> argument to be undefined"; that was never measured. `mxcli lint` still reports
+> one as MPR006 at info level, since an empty container is usually a leftover.
 
 > **`content: ''` (empty string) fails MxBuild.** An empty Content on DYNAMICTEXT causes a misleading error: "Place holder index 1 is greater than 0, the number of parameter(s)." Use a single space instead:
 > ```sql
@@ -471,6 +470,15 @@ dropdown, checkbox and radiobuttons, and on data grid columns, with the same
 bare-association spelling in each. Note what it is NOT: this shows a value from
 the associated object, it does not make it editable through the association —
 for editing the other object, nest a dataview over the association instead.
+
+**Match the input widget to the attribute type** — mxbuild refuses every other
+pairing with CE2421, and `check -p --references` reports it as MDL-WIDGET39:
+textbox → String / Integer / Long / Decimal / AutoNumber; textarea → String;
+datepicker → DateTime; checkbox → Boolean; radiobuttons → Boolean or
+Enumeration. An **enumeration** goes in `radiobuttons` or `combobox`, never a
+textbox. Do not write the classic `dropdown` on a React-client project
+(`show settings` → `OptimizedClient: Yes`, as a fresh 11.14 app has): it is CE0582
+(MDL-WIDGET40); use `combobox`.
 
 `Association:` names a reference on the containing entity, so
 `Association: Issue_Assignee` resolves against the dataview's entity, not the

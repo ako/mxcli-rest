@@ -26,7 +26,9 @@ MDL has two ways to change a document, and each is safe in a different situation
    Pro since). On a Studio Pro-authored document this path is lossy even when you
    change nothing. On real projects it has flipped association storage from table to
    column, dropped page translations, dropped nanoflow annotation links, changed export
-   levels, and dropped a snippet's type. `mxcli diff` shows none of these.
+   levels, and dropped a snippet's type. `mxcli diff` runs the script on a scratch
+   copy and lists every unit it would write, so run it first and expect "exec would
+   write nothing" for a document you did not mean to change.
 4. **Never `drop` and re-create an existing document to change it.** The new document
    gets new identities. For an entity, the runtime then drops its table and its rows.
 

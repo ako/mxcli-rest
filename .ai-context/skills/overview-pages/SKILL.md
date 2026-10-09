@@ -253,7 +253,7 @@ create page Module.Entity_NewEdit folder 'OverviewPages'
           datepicker dpDueDate (label: 'Due Date', attribute: DueDate)
           combobox cbStatus (label: 'Status', attribute: status)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -370,7 +370,7 @@ create page MdlTemplates.Store_NewEdit folder 'OverviewPages'
           textbox txtName (label: 'Name', attribute: Name)
           textbox txtLocation (label: 'Location', attribute: Location)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -428,7 +428,7 @@ create page MdlTemplates.Car_NewEdit folder 'OverviewPages'
           datepicker dpDate (label: 'Purchase date', attribute: PurchaseDate)
           radiobuttons rbType (label: 'Car type', attribute: CarType)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -632,7 +632,7 @@ create page Module.Customer_Overview
 
 -- Step 3: Fill in the snippet with real content (pages now exist)
 -- Use CREATE OR MODIFY (preserves the snippet's ID → page bindings stay valid)
--- Do NOT use CREATE OR REPLACE — that would assign a new ID and break existing page references
+-- (CREATE OR REPLACE is its deprecated spelling, MDL-DEPR001 — same meaning)
 create or modify snippet Module.NavigationMenu
 {
   layoutgrid navGrid {
@@ -649,7 +649,7 @@ create or modify snippet Module.NavigationMenu
 
 - The placeholder snippet must exist before pages are created (for `snippetcall` to resolve)
 - Use `create or modify snippet` for the fill-in step — it preserves the snippet's UUID so pages that already reference it remain valid
-- **Do not use `create or replace snippet`** — that deletes the placeholder and creates a fresh UUID, silently breaking every page that references the old one
+- `create or replace snippet` is the deprecated spelling of the same statement (`MDL-DEPR001`) — it keeps the UUID too, but write `or modify`
 - Page references in the final snippet resolve correctly because pages already exist
 
 See [Resolve Forward References](../resolve-forward-references/SKILL.md) for the full pattern including page→page and microflow→page cases, declaration ordering rules, and the choice between `CREATE OR MODIFY` and `ALTER SNIPPET`.

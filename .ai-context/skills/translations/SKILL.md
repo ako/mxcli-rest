@@ -28,11 +28,11 @@ prompt.
 ## Statements
 
 ```sql
-describe translations [in <Module>] for <lang>;
+describe translations [in <Module> | without marketplace] for <lang>;
 
-create translations            [in <Module>] for <lang> ( 'src' as 'target', ... );
-create or modify translations  [in <Module>] for <lang> ( 'src' as 'target', ... );
-create or replace translations [in <Module>] for <lang> ( 'src' as 'target', ... );
+create translations            [in <Module> | without marketplace] for <lang> ( 'src' as 'target', ... );
+create or modify translations  [in <Module> | without marketplace] for <lang> ( 'src' as 'target', ... );
+create or replace translations [in <Module> | without marketplace] for <lang> ( 'src' as 'target', ... );
 ```
 
 Entries use `as`, not a colon: a translation maps a user-provided name to another
@@ -47,6 +47,15 @@ name.
 `IN <Module>` scopes both directions, and under `OR REPLACE` it **bounds the
 deletion** — without it, a set of per-module files would wipe each other on every
 run.
+
+**Translating the app, not its Marketplace modules: add `without marketplace`.**
+Without `in`, a run reaches the whole project — Marketplace modules, and the Atlas
+page templates and building blocks in them, included. A module update replaces a
+Marketplace module's contents, so translations written there are lost at the next
+update and show up as unexpected diffs until then. The unscoped run warns with a
+per-module count; `without marketplace` keeps the run in the app's own modules and
+names the file's entries it left alone. Use it on `describe` as well, so the file
+it emits carries the clause.
 
 ## The trap: a language that is not enabled
 

@@ -167,6 +167,13 @@ rebuilds the widget from what the statement says, so any property you do not
 restate — `ButtonStyle`, `Class`, design properties, tooltip — is dropped. `set`
 edits the one property and leaves the rest of the widget alone.
 
+The exception is a **pluggable widget replaced by one of the same kind** (a combo
+box by a combo box): there `replace` keeps every stored property the statement
+does not change — a translated placeholder, `readOnlyStyle`, anything MDL has no
+word for — and writes only what differs from the widget as `describe` prints it.
+So a sort can be added to a combo box's options by restating its `describe`
+line with `sort by` appended.
+
 `set Action` is refused on a widget that has no action (a plain container, say),
 rather than writing a property the widget type does not define — Studio Pro
 refuses to open a document with an unknown property while MxBuild tolerates it,
@@ -285,8 +292,14 @@ Inserted widgets use the same syntax as `create page`. Multiple widgets can be i
 only way to fill an **empty** container, and handy for adding to a container/dataview
 without needing a sibling to anchor to. Widgets inserted into a dataview take that
 dataview's entity as their context. Supported on simple containers (container,
-dataview, groupbox, scroll-container region); for a layout grid or tab container,
-insert relative to a widget inside the target column/tab instead.
+dataview, groupbox, tab page, scroll-container region); for a layout grid, insert
+relative to a widget inside the target column instead.
+
+**Adding a tab:** `insert into <tabcontainer> { tabpage … }` appends a tab page, and
+`insert after|before <tabpage> { tabpage … }` places it next to that sibling. A tab
+page cannot go next to an ordinary widget or inside another tab page, and one insert
+cannot mix tab pages and widgets. Dropping or reordering tab pages still needs
+`create or modify page`.
 
 **The context comes from the nearest enclosing data source, whatever kind it is**
 — a database or association source, a microflow/nanoflow source (the entity is
@@ -313,16 +326,19 @@ Removes widgets and their entire subtree from the page.
 ### REPLACE - Replace Widget Subtree
 
 ```sql
--- Replace a single widget with new content
-replace footer1 with {
-  footer newFooter {
-    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
+mdl 1;
+-- Replace a data view's footer (it has no name: address it by its data view)
+alter page MyModule.Customer_Edit {
+  replace dvMain.footer with {
+    footer {
+      actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
+    }
   }
-}
+};
 ```
 
-Replaces the target widget with one or more new widgets. The new widgets use the same syntax as `create page`.
+Replaces the target widget with one or more new widgets. The new widgets use the same syntax as `create page`, and may reuse the names of the widgets the replace removes. `insert into dvMain.footer { … }` appends to a footer and `drop dvMain.footer` empties it.
 
 ### DataGrid Column Operations
 
@@ -366,6 +382,33 @@ drop variables $showStockColumn
 ```
 
 Removes a page variable by name.
+
+### ADD Parameters - Add a Page or Snippet Parameter
+
+```sql
+mdl 1;
+alter page MyModule.Order_Edit {
+  add parameters $Order: MyModule.Order;
+  add parameters $Count: integer;
+};
+```
+
+Adds a `Forms$PageParameter` (or `Forms$SnippetParameter`) to the stored document and touches nothing else — reach for it instead of `create or replace page`, which rebuilds every widget and loses whatever `describe` does not round-trip. Same declaration as `Params:` on CREATE.
+
+- **A page with a `Url` needs a `{Name}` segment per parameter** (CE5601). Set it in the same statement — `set (Url: 'orders/{Customer}/{Order}');` — or exec refuses and prints the URL to use.
+- **A snippet parameter must be an entity** (MDL087 / CE0046).
+- **Callers are not updated.** Every page that opens this page (or places this snippet) must now pass the parameter; `mxcli docker check` names the ones that do not.
+
+### DROP Parameters - Remove a Parameter
+
+```sql
+mdl 1;
+alter page MyModule.Order_Edit {
+  drop parameters $Order;
+};
+```
+
+Refused while the page still uses the parameter — a data source bound to it (`DataSource: $Order`) or an expression naming `$Order`. Rebind or drop those first.
 
 ### SET Layout - Change Page Layout
 
@@ -428,8 +471,8 @@ alter page MyModule.Customer_Edit {
 ```sql
 mdl 1;
 alter page MyModule.Customer_Edit {
-  replace footer1 with {
-    footer newFooter {
+  replace dvMain.footer with {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
       actionbutton btnDelete (caption: 'Delete', action: delete, buttonstyle: danger)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
@@ -565,8 +608,8 @@ adds. Both still fail at exec if they are genuinely wrong.
 
 ## Limitations — prefer binding at page creation (ledger finding #45)
 
-`ALTER PAGE` is best for *content* edits (add/remove/retitle widgets). Three things
-it cannot do; when you hit them, define the referenced microflows **before** the
+`ALTER PAGE` is best for *content* edits (add/remove/retitle widgets). When you hit
+the limit below, define the referenced microflows **before** the
 page and bind the buttons at creation time instead of rewiring afterwards:
 
 1. **`SET` cannot rewire a button's action.** `set` accepts a fixed property list
@@ -574,17 +617,11 @@ page and bind the buttons at creation time instead of rewiring afterwards:
    `set Action = call microflow … on btnSave` is a parse error. Set the button's action
    when the button is created (or `REPLACE` the button subtree).
 
-2. **`REPLACE` cannot reuse a widget name that lives inside the subtree being
-   replaced.** The replacement is *built* (registering its widget names) before the
-   old subtree is removed, so reusing e.g. `btnSave` collides with the still-present
-   old `btnSave` ("duplicate widget name 'btnSave'"). Give the replacement widgets
-   fresh names, or rebuild the whole page with `create or modify page`.
-
-3. **A footer is not addressable by its author-given name.** A `footer myName { … }`
-   is a *marker*: its children are hoisted into the data view's footer and the
-   footer itself is serialized as `footer1`, so `drop myName` (and even
-   `drop footer1`) report "not found". To change footer contents, edit the
-   children by their own names, or `create or modify page`.
+**A data view's footer has no name.** Its widgets are stored in the data
+   view, and the footer itself is not, so a name written on it is never kept
+   (MDL-DEPR005) and `describe` prints `footer { … }`. Address it by its data
+   view: `replace dvMain.footer with { footer { … } }`, `insert into
+   dvMain.footer { … }`, `drop dvMain.footer`.
 
 **Recommended pattern**: put save/reset microflows in a file that runs *before* the
 page definition, and bind the popup/footer buttons to them at creation. The

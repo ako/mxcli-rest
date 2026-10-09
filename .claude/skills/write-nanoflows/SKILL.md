@@ -38,6 +38,17 @@ Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode
   rebuilds the whole nanoflow under mdl 0
   (warning `MDL-V1-REBUILD`: element IDs renumbered, merges removed, curves reset) and
   is refused under `mdl 1;`.
+- **Rebuilding deliberately: `drop nanoflow X;` and `create nanoflow X …` in ONE script.**
+  The drop's module-role grants (and the unit's ID and folder) carry only to a create later in
+  the same script or REPL session; a drop in one run and a create in the next loses every
+  `grant execute`. `drop` prints the roles it removed and the `grant` to restore them.
+- **Changing something inside a loop body** (either owner)
+: neither `create or modify`
+  (under `mdl 1;`) nor an `alter` aimed at an activity in the loop can make it — `alter`
+  does not splice inside a loop. Replace the **whole loop**, addressed by its handle, with
+  the body as it should be (`replace loop $Item in $Items with begin loop $Item in $Items
+  begin … end loop; end;`). Everything outside the loop keeps its `$ID`s, positions and
+  curves; the loop and its body are rebuilt. For a nested loop, replace the outer one.
 
 ## When to Use a Nanoflow vs a Microflow
 
@@ -573,19 +584,24 @@ IF $Location = empty THEN
 END IF;
 ```
 
-For per-action error handling without CONTINUE:
+For per-action error handling on a call, use a handler WITHOUT rollback — the
+only form a nanoflow call takes:
 ```mdl
-$Result = CALL NANOFLOW Sales.NAV_Risky () ON ERROR ROLLBACK;
+$Result = CALL NANOFLOW Sales.NAV_Risky () ON ERROR WITHOUT ROLLBACK BEGIN
+  LOG WARNING NODE 'Sales' 'Could not load the data.';
+END ERROR;
 ```
 
-### Most activities take NO error handling in a nanoflow
+### Which activities take which clause in a nanoflow
 
-An `ON ERROR` clause of **any** form is rejected on these six, with
-**CE6035** "Error handling type is not supported" — measured on Mendix 11.14.0:
+Measured on Mendix 11.14.0; every other form is **CE6035** "Error handling type
+is not supported", and mxcli refuses it (MDL091):
 
-| Refused in a nanoflow | Accepted |
+| Activity in a nanoflow | Accepted clauses |
 |---|---|
-| `CHANGE`, `LOG`, `SHOW PAGE`, `CLOSE PAGE`, `SHOW MESSAGE`, `VALIDATION FEEDBACK` | `DECLARE`, `SET` (the two *variable* activities) |
+| `DECLARE`, `SET`, `RETRIEVE`, `DELETE` | every form |
+| `CREATE`, `COMMIT`, `CALL NANOFLOW`, `CALL MICROFLOW` | only `ON ERROR WITHOUT ROLLBACK BEGIN … END ERROR` |
+| `CHANGE`, `LOG`, `SHOW PAGE`, `CLOSE PAGE`, `SHOW MESSAGE`, `VALIDATION FEEDBACK` | none |
 
 mxcli refuses the clause rather than writing a nanoflow mxbuild rejects. The
 split is by activity, not by "client-side vs server-side" — `SHOW MESSAGE` is as

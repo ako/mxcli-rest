@@ -153,6 +153,25 @@ end;
 
 **Important:** Association retrieve always returns a list. It does not support WHERE, SORT BY, LIMIT, or OFFSET clauses.
 
+### Appending to a Reference Set
+
+`change $Obj (Module.Assoc = $X)` **assigns** a reference set — whatever was in
+it is dropped. In a loop, only the last object stays attached and the others are
+orphaned, with no error from `check`, the build, or the runtime log. Append and
+remove with the Change object activity's Add / Remove members instead:
+
+```sql
+loop $Row in $Rows begin
+  add $Row to $Material/Module.Material_SkuRow;     -- append one
+end loop;
+add $MoreRows to $Material/Module.Material_SkuRow;  -- or a whole list at once
+remove $OldRow from $Material/Module.Material_SkuRow;
+commit $Material;
+```
+
+Reference sets only: on a plain Reference (or an attribute) mxbuild rejects
+Add/Remove with CE0033 and mxcli refuses it — set a Reference with `change`.
+
 ## Aggregate Patterns
 
 Each aggregate is one statement: the operation's name, then the list variable

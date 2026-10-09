@@ -127,7 +127,7 @@ create page MyModule.Customer_Edit (
     textbox txtCode (Label: 'Customer Code', Attribute: CustomerCode)
     textbox txtName (Label: 'Name', Attribute: CustomerName)
     textbox txtEmail (Label: 'Email', Attribute: Email)
-    footer footer1 {
+    footer {
       -- Reference to the microflow created in Phase 2
       actionbutton btnSave (Caption: 'Save', Action: call microflow MyModule.ACT_Customer_Save(Customer = $Customer), ButtonStyle: Primary)
       actionbutton btnCancel (Caption: 'Cancel', Action: close page)

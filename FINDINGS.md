@@ -2504,3 +2504,152 @@ aliases of `list`. The single refused form is `SHOW ENTITY <X>` — the summary
 that no statement prints any more — and `CLAUDE.md` never documented it. No doc
 change needed, which is worth recording precisely because the changelog's prose
 reads as though it would be.
+
+## 67. `nightly-1408`: the REST call grows a property list, and a new warning finds eight comments the model never stored
+
+**Round:** `ako/mxcli` main at `28a3b1bf` (`nightly-1408-g28a3b1bf`), 338
+non-merge commits since `2b73b824`. Dominated by `check` — 46 fixes and 5
+features — plus 16 to `describe` and 11 to `lint`.
+
+### The corpus needed changing for the first time in three rounds
+
+`mdl 1` is frozen, but the next version is already casting a shadow.
+**MDL-DEPR720** deprecates the word-salad form of a REST call in favour of one
+property list after the URL, and says it is *refused from `mdl 2`*:
+
+```
+call rest service get '<url>' header Accept = 'application/json' timeout 30 returns string
+→
+call rest service get '<url>' (Headers: ('Accept': 'application/json'), Timeout: 30) returns string
+```
+
+11 statements across 6 lane scripts. `fmt --upgrade` rewrote all 11 in one pass
+and got every case right, including the three that are not mechanical:
+
+- two headers collapse into one `Headers:` list (`('Accept': …, 'Authorization': …)`);
+- `body '…' with (…)` becomes `Body: template '…' with (…)`, and `body binary
+  $Doc/Contents` becomes `Body: binary …` — the distinction the binary lane
+  needs (FINDINGS #43);
+- a `--` comment sitting *between* two settings survives in place, which
+  matters here because the one in `11-sharepoint-lane` explains why the body's
+  placeholder numbering restarts at `{1}` (CE0720).
+
+Verified semantics, not just syntax: `describe microflow` over all 21 flows in
+the affected scripts is **byte-identical** before and after. The rewrite is a
+spelling change, and the runtime agrees — the rates-lane probe
+(REST → JSLT → object-rooted import mapping) still passes at 1.2s.
+
+### MDL089: eight doc comments that were never stored anywhere
+
+The new warning is the useful find of this round. A `/** … */` block only
+becomes Documentation if the statement it precedes *has* documentation. Before a
+module role, a navigation profile, a `move`, a data transformer, a message
+definition collection or a mapping, there is nowhere to put it:
+
+```
+⚠ line 2: the doc comment before `create or modify data transformer
+  RestLab."DT_RatesToList"` is lost: that statement cannot store documentation,
+  so the comment is ignored; the next statement that can take it is
+  `create or modify json structure RestLab."JSON_Rates"` (line 54) [MDL089]
+```
+
+Eight of them in this corpus — including the file-header comments of
+`02-security`, `08-navigation-and-access`, `12-organize` and
+`14-message-definition-lane`, the longest of which is 31 lines. Every one of
+them has been written and committed by me across sixteen rounds in the belief
+that it was documenting the model. It was documenting the script. That is a
+reasonable thing to want, but `/** */` claims the other thing, so all eight are
+now `--` comments and the corpus is MDL089-clean.
+
+Two things I checked before believing the warning:
+
+1. **It does not drift.** The message names "the next statement that can take
+   it", which reads as though the comment might land there. It does not —
+   `ACT_Graph_GetMe` still carries its own doc and nothing of
+   `DT_GraphUsers`'s. The comment is dropped, not transplanted.
+2. **Converting them loses nothing from the model.** `describe microflow` over
+   all 21 affected flows is identical again after the conversion — the same
+   check that caught #65's silent documentation loss, run for the same reason.
+
+### A lint total that fell 290 → 268, and why that is not an improvement
+
+`lint` moved twice this round, and both moves are traps of the kind that cost me
+#61:
+
+| | total | why |
+| --- | --- | --- |
+| baseline, old binary + old rules | 278 | #66 |
+| new binary, old `.star` files | 290 | +10 CONV014, +2 CONV019 — two new rules |
+| new binary, synced `.star` files | **268** | CONV006 45 → 15, CONV010 133 → 114 |
+
+A 22-issue drop is exactly what the access-rule regression looked like in #61,
+so I did not read it as good news. Isolated it instead: with the **old** rule
+files against the **current** model, CONV006 is still 45 and CONV010 still 133 —
+so the drop is in the rules, not the model. Confirmed directly: `show security
+matrix` reports **32 access rules across 16 entities**, which is the full set.
+The refreshed CONV006 reports once per entity rather than once per role-and-
+right, and CONV010 likewise. New baseline: **268**.
+
+The lesson from #61 generalises: a lint total is a function of two things, and a
+move in it says nothing until you hold one of them still. `mxcli init
+--sync-skills` changes one of them, so it must never be run in the same step as
+a model change you intend to measure.
+
+### New rules worth having, and one worth arguing with
+
+- **CONV014** (10 hits) — `on error continue` "silently swallows errors". Every
+  hit is a REST lane deliberately tolerating a mock being down so the page shows
+  an empty result instead of an error screen. Keeping them: in a showcase whose
+  endpoints are third-party and occasionally offline, continue-and-log *is* the
+  handling. Worth knowing the rule reads it the other way.
+- **CONV019** (2 hits) — navigation page URL.
+- **MDL-PERF01** (2 hits) — `commit` inside a loop, one round trip per
+  iteration. Already known as CONV011; now `check` says it too, at authoring
+  time, which is where it belongs.
+
+### MDL077's own hint does not work here
+
+The navigation warning about iconless menu items suggests `describe icon
+collection Atlas_Core.Atlas`. `describe` has no `icon collection` type (it is
+`image collection`), and `describe image collection Atlas_Core.Atlas` then
+reports *not found* in this project, as does `list image collections`
+("Unknown type"). So the hint names a discovery command that cannot be run.
+Left the two menu items iconless.
+
+### `mxcli fix hashes` and the git note: a gate this repo did not have
+
+`5dc70e93` adds `mxcli fix hashes`, which verifies the MPR v2 `ContentsHash`
+index against the unit files — the thing `mx check` does not notice and that
+makes Studio Pro report changes the files do not have. On this project:
+
+```
+Checked 444 unit(s) in RestLab.mpr against 444 .mxunit file(s).
+0 mismatch(es), 0 missing file(s), 0 orphan file(s).
+```
+
+`mxcli diag` now folds the same check in, plus "no git state known to crash
+Studio Pro". The new **teamserver-git** skill is the one to read before
+committing a Mendix repo: `fix hashes` first, then commit, then `mxcli git note
+--write` to attach the `refs/notes/mx_metadata` note, then push the branch *and*
+`refs/notes/mx_metadata` together, because `git push` alone does not send notes.
+This repo has no notes on any commit — so a Studio Pro user opening it sees
+`(unknown)` for every revision in the history. Writing and pushing a notes ref
+is an outward change to the repo, so it is left for the user to ask for.
+
+### Housekeeping
+
+`./mxcli` promoted to `nightly-1408-g28a3b1bf`. `init --sync-skills` refreshed
+54 files across 74 skills and 14 bundled lint rules, and added
+`teamserver-git` plus two rules. `.claude/bootstrap-mxcli.sh` md5 unchanged.
+
+`CLAUDE.md` / `AGENTS.md` had drifted badly: **29 of the 76 skills** were
+undocumented, several of them ones a session here would want first
+(`choose-edit-mode`, `resolve-forward-references`, `teamserver-git`,
+`run-local`, `widgets`). All now listed, with an "Other mxcli Commands" table
+(`version`, `diag`, `fix hashes`, `git note`, `fmt --upgrade`, `run --detach`,
+`playwright check`, `rename`, `widget docs`), the REST call's new form in the
+statement reference, and a "Doc Comments" section carrying the MDL089 rule and
+#65's lesson together. The guides stay byte-identical.
+
+Final state: 14 scripts, 0 errors and 0 deprecations, two clean `exec` passes,
+`mx check` 0 errors, `fix hashes` 0 mismatches, lint 268, rates lane green.

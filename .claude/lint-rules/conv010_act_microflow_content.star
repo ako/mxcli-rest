@@ -8,6 +8,7 @@
 #   - ShowMessageAction (show message)
 #   - DownloadFileAction (download file)
 #   - MicroflowCallAction (call sub-microflow for logic delegation)
+#   - NanoflowCallAction (the same delegation from an ACT_ NANOFLOW)
 #
 # Business logic should be delegated to SUB_ microflows.
 # Requires FULL catalog (REFRESH CATALOG FULL).
@@ -37,6 +38,18 @@ ALLOWED_ACTIONS = (
     "ShowMessageAction",
     "DownloadFileAction",
     "MicroflowCallAction",
+    # An ACT_ NANOFLOW delegates with a nanoflow call, not a microflow call.
+    # microflows() yields nanoflows too (the catalog's `microflows` table carries
+    # a MicroflowType column), so CONV010 lints them — and without this entry it
+    # flagged the very delegation it demands: an ACT_ nanoflow could satisfy the
+    # rule in no way at all. Reported from a real project, which patched its own
+    # copy of the rule and asked for it upstream (ako/mxcli#644).
+    #
+    # This is the third time this allowlist has been short. It has held the wrong
+    # vocabulary (storage names, matching nothing) and been missing an activity a
+    # permitted one necessarily creates (ExclusiveMerge). The pattern is the same
+    # each time: a rule that cannot be satisfied reads as the code being wrong.
+    "NanoflowCallAction",
     # Storage names — belt and braces; see the note above.
     "ShowFormAction",
     "CloseFormAction",
@@ -44,12 +57,20 @@ ALLOWED_ACTIONS = (
 )
 
 # Allowed activity types (non-action activities)
+#
+# ExclusiveMerge is here because an `if` produces BOTH a split and a merge. The
+# list allowed the split and forbade the join it necessarily creates, so an ACT_
+# microflow that guards anything — "do not open a page with an empty parameter" —
+# could not be written cleanly: the guard was permitted and its own closing brace
+# was reported. Measured on a microflow whose ONLY violation was the merge, and
+# 122 times over on one real project.
 ALLOWED_ACTIVITY_TYPES = (
     "SubMicroflow",
     "MicroflowCallAction",
     "StartEvent",
     "EndEvent",
     "ExclusiveSplit",
+    "ExclusiveMerge",
     "Annotation",
 )
 
@@ -71,31 +92,31 @@ def check():
                     continue
 
                 violations.append(violation(
-                    message="ACT_ microflow '{}' contains '{}' action. Delegate business logic to a SUB_ microflow.".format(
-                        mf.name, act.action_type
+                    message="ACT_ {} '{}' contains '{}' action. Delegate business logic to a SUB_ {}.".format(
+                        mf.document_noun, mf.name, act.action_type, mf.document_noun
                     ),
                     location=location(
                         module=mf.module_name,
-                        document_type="Microflow",
+                        document_type=mf.document_noun_title,
                         document_name=mf.qualified_name,
                     ),
-                    suggestion="Move the '{}' action to a SUB_ microflow and call it from '{}'".format(
-                        act.action_type, mf.name
+                    suggestion="Move the '{}' action to a SUB_ {} and call it from '{}'".format(
+                        act.action_type, mf.document_noun, mf.name
                     ),
                 ))
             elif act.activity_type not in ALLOWED_ACTIVITY_TYPES:
                 # Any other non-allowed activity type
                 violations.append(violation(
-                    message="ACT_ microflow '{}' contains '{}' activity. Delegate to a SUB_ microflow.".format(
-                        mf.name, act.activity_type
+                    message="ACT_ {} '{}' contains '{}' activity. Delegate to a SUB_ {}.".format(
+                        mf.document_noun, mf.name, act.activity_type, mf.document_noun
                     ),
                     location=location(
                         module=mf.module_name,
-                        document_type="Microflow",
+                        document_type=mf.document_noun_title,
                         document_name=mf.qualified_name,
                     ),
-                    suggestion="Move the '{}' to a SUB_ microflow called from '{}'".format(
-                        act.activity_type, mf.name
+                    suggestion="Move the '{}' to a SUB_ {} called from '{}'".format(
+                        act.activity_type, mf.document_noun, mf.name
                     ),
                 ))
 

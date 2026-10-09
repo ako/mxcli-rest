@@ -95,10 +95,22 @@ is never reported either — it is a no-op when the module exists, which is what
 lets it open every script.
 
 The types covered are the ones `exec` refuses: entity, enumeration, constant,
-association, microflow, nanoflow, rule, page, snippet, java action, javascript
-action, workflow, and the integration/agent document types. If you find one that
-`exec` refuses and `check` does not, that is a bug of exactly the shape
-`TestEveryCreateDocTypeIsProjectChecked` exists to prevent.
+association, microflow, nanoflow, rule, page, snippet, layout, java action,
+javascript action, workflow, menu, task queue, scheduled event, regular
+expression, database connection, REST client, OData client and service, message
+definition collection, the integration/agent document types, module roles,
+user roles, demo users and configurations. Annotations are the one known gap
+(they have no name to compare). If you find another that `exec` refuses and
+`check` does not, that is a bug of exactly the shape
+`TestEveryCreateStmtIsClassified` and `TestEveryCreateDocTypeIsProjectChecked`
+exist to prevent.
+
+Separately, `check` reports **MDL-DUPNAME** for a name Mendix will not let two
+elements share — a nanoflow named like a microflow, a page and a snippet, an
+enumeration and an entity, or the same kind spelled in another case
+(`M.act_login` next to `M.ACT_Login`, CE0122). It covers `rename … to` and
+`move … to Module` onto a taken name too. `mxcli help MDL-DUPNAME` has the
+table.
 
 ### It reports what the script REMOVES from the project
 
@@ -412,6 +424,30 @@ are in.
 which is the usual shape — it matches the segment's leading name, not the whole
 segment.
 
+### A used flow left without access — `MDL-SEC21` (CE0106)
+
+With a project (`check -p`), `check` simulates the script's creates, drops,
+grants and revokes and reports a microflow or nanoflow the script leaves with
+**no allowed role** while something that needs one names it. MxBuild's error:
+
+> CE0106 "At least one allowed role must be selected if the microflow is used
+> from navigation, a page, a nanoflow or a published service."
+
+Measured on Mendix 11.14: a page button or data source, a snippet, a navigation
+or menu-document item, or a nanoflow call needs a role (even from an unused
+snippet, menu document or nanoflow). A **published REST operation does not**,
+nor a microflow called only from another microflow, nor an excluded page. It is
+an **error at security level Prototype or Production** and a warning at Off,
+where MxBuild does not check it.
+
+The usual cause is **drop + create in separate runs**: a create in a later run
+is a *new* flow, and a new flow in a module that has its own module roles gets no
+access. Within one run, and with `create or modify`, the stored roles are kept.
+Fix: `grant execute on microflow M.Flow to M.Role;` in the same script, or rebuild
+with `create or modify microflow` instead of dropping. Only what the script
+*changes* is reported — a project that already has CE0106 does not fail an
+unrelated script; `mxcli docker check` shows those.
+
 **`check` is still necessary, not sufficient.** Run `mx check` (or
 `mxcli docker check`) after every `exec`; these two rules narrow the gap, they do
 not close it.
@@ -573,9 +609,9 @@ Declaration order that avoids most forward references:
 enumerations → entities → snippets (placeholder) → pages → snippets (fill-in) → microflows → navigation
 ```
 
-> **Never use `CREATE OR REPLACE` for the placeholder fill-in step.** OR REPLACE deletes
-> the placeholder and creates a new document with a different UUID, silently breaking
-> every page or snippet that references it.
+> **Write the fill-in as `CREATE OR MODIFY`.** `CREATE OR REPLACE` is its deprecated
+> spelling (`MDL-DEPR001`, keeps the ID too). Only `create or replace view entity`
+> without an `mdl 1;` header deletes and recreates (`MDL-V1-REPLACE01`).
 
 ### Error: "mismatched input 'X'"
 
@@ -625,7 +661,9 @@ does not hot-reload when an external process changes the file. So after `mxcli e
 - `ped_read_document` / `ped_check_errors` will show the **stale** pre-exec model until
   Studio Pro re-scans — call `refresh_project` first (or reload the project in the UI).
 - **Hazard:** if Studio Pro later saves on its own, it overwrites mxcli's disk write with
-  its in-memory copy, silently discarding your MDL changes.
+  its in-memory copy, silently discarding your MDL changes. So a file-based write is
+  **refused** while Studio Pro's `<project>.mpr.lock` is beside the `.mpr`; `exec --force`
+  (or `MXCLI_ALLOW_STUDIO_PRO_OPEN=1`) overrides it, e.g. for a lock left by a crash.
 
 **Safest practice:** don't keep the same project open-and-saving in Studio Pro while
 mxcli writes it. Either close (or don't save in) Studio Pro during MDL authoring, or
@@ -638,7 +676,14 @@ Pro) instead of writing the file directly.
 After `./mxcli exec script.mdl -p app.mpr` succeeds:
 
 1. `refresh_project` (Studio Pro MCP) so the in-memory model reflects the new file.
-2. `ped_check_errors` on each created/modified document for CE errors.
+2. `ped_check_errors` on each created/modified document for CE errors. The argument
+   depends on the Studio Pro release — read the tool's input schema:
+   - up to 11.14: `{"documents": [{"documentType": "Microflows$Microflow", "documentName": "Mod.Name"}]}`
+   - 11.15+: `{"filters": {"documentType": "Microflows$Microflow", "documentNamePrefix": "Mod.Name"}}`.
+     11.15 **silently ignores** `documents` and checks the whole project. `documentNamePrefix`
+     is a prefix (`Mod.Order` also matches `Mod.OrderLine`), so read the `'Mod.Name' (Type):`
+     header above each problem. More than 100 problems come in pages: repeat the same
+     `filters` with `pagination: {checkId, offset, size}` using the `Check ID` from the first answer.
 
 > **Do not treat an empty `DESCRIBE` as proof of a dropped construct.** `DESCRIBE`
 > renders from the MDL emitter, which does not yet render every activity/widget type

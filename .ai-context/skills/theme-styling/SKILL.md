@@ -151,7 +151,10 @@ an HTML export:
 
 A dark block (`prefers-color-scheme: dark`, `.theme-dark`, `[data-theme="dark"]`)
 seeds the dark palette; everything else seeds the light one. Tokens the design
-does not name keep the base theme's value.
+does not name keep the base theme's value. **A design with only a base palette
+does not touch the other variant** — it keeps the base theme's palette, and
+`create` says so. To retheme dark mode too, emit a dark block (a `light` one for
+a dark-first base such as console).
 
 If you are driving a design step (`/design` or similar) that will feed this, ask
 it to **emit a token block** rather than inferring one from the mockup. Two greys

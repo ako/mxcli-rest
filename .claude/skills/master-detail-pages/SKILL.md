@@ -39,7 +39,7 @@ create page Module.Entity_MasterDetail
         dataview entityDetail (datasource: selection entityList) {
           textbox txtName (label: 'Name', attribute: Name)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
           }
         }
@@ -125,7 +125,7 @@ create page CRM.Customer_MasterDetail
           textbox txtEmail (label: 'Email', attribute: Email)
           textbox txtPhone (label: 'Phone', attribute: Phone)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }

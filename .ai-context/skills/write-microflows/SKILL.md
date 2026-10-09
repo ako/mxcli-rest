@@ -45,14 +45,14 @@ Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mod
   clause, `return` value, `if` condition, header clause, parameter (added/retyped; removed only if unused) or stated `@position`/`@start` change is
   patched in place (a move keeps the node's flows). A redrawn `@anchor`/`@curve`, loop body,
   error handler or other `return` added/taken away rebuilds under mdl 0 (`MDL-V1-REBUILD`: IDs
-  renumbered, merges and curves lost) and is refused under `mdl 1;`.
+  renumbered, merges and curves lost) and is refused under `mdl 1;`. **To change a loop body, `alter … replace` the whole loop** — neither mode edits inside one ([pitfalls](reference/pitfalls.md#11-changing-something-inside-a-loop-body)). **To rebuild deliberately, `drop` and `create` in ONE script** — the grants carry only within it ([pitfalls](reference/pitfalls.md#drop--create-is-still-a-new-document)).
 
 ## When to Use a Microflow vs a Nanoflow
 
 | Scenario | Use |
 |----------|-----|
 | Querying the database | Microflow |
-| Calling REST services or external actions | Microflow |
+| Calling REST services or external actions, or sending email (`send email`, 11.13+) | Microflow |
 | Running Java actions | Microflow |
 | File generation or download | Microflow |
 | Transactional commits (rollback on error) | Microflow |

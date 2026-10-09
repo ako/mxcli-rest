@@ -23,6 +23,19 @@ Before running, verify:
 
 Everything else (MxBuild, runtime, Docker stack) is auto-downloaded/initialized by `docker run`.
 
+**In an agent session, prefer the Docker-free loop** (skill `run-local`): it is
+a background service you manage in one call per question — never with `nohup`,
+`sleep`/`grep`/`curl` polling loops, or `pkill`:
+
+```bash
+./mxcli run --local --watch --detach -p app.mpr          # returns once it serves
+./mxcli exec change.mdl -p app.mpr && ./mxcli run wait -p app.mpr   # applied / failed
+./mxcli run status -p app.mpr                            # one line
+./mxcli run stop -p app.mpr                              # nothing left behind
+```
+
+Use the Docker path below when you need container parity.
+
 ---
 
 ## Quick Start: One Command

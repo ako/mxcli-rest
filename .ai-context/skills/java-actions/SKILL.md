@@ -221,6 +221,13 @@ from describe output has changed an action's export level to Public. Check it ag
 | `pEntity` (type param ref) | Type parameter reference (entity instance) |
 | `list of pEntity` | List of type-parameter instances |
 
+**In the `$$` body, a parameter is the generated field — not the raw value.** An entity
+parameter is its proxy class (`module.proxies.Entity`; `.getMendixObject()` for the
+`IMendixObject`), a list a `java.util.List` of proxies, `integer` a `java.lang.Long`, an
+enumeration its proxy enum (but an enumeration *return* is a `String`). The full table is
+in [writing-java.md](reference/writing-java.md#step-2-define-parameters); it is what mxbuild
+generates, so the body compiles both under `--watch` and after a full build.
+
 ### Examples
 
 #### Simple Action (No Parameters)

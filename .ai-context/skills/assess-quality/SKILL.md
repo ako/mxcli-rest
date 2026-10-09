@@ -30,6 +30,9 @@ mxcli lint -p app.mpr
 
 # generate the scored best practices report
 mxcli report -p app.mpr --format markdown
+
+# score only the app's own modules (not Marketplace / platform modules)
+mxcli report -p app.mpr --modules MyModule,OtherModule --format markdown
 ```
 
 The report covers 6 categories with scores: **Naming**, **Security**, **Quality**, **Architecture**, **Performance**, **Design**.

@@ -1,35 +1,33 @@
 mdl 1;
-/**
- * Folder layout for the RestLab module
- *
- * Functional grouping, per .ai-context/skills/organize-project.md: everything
- * belonging to one demo lane lives together, rather than splitting documents by
- * type. The naming prefixes (ACT_, SUB_, DT_) already say what a document is;
- * the folder says what it is FOR.
- *
- *   RestLab/
- *   ├── Home_Web                 the entry point, left at the module root
- *   ├── Lanes/<Lane>/            one folder per demo lane, logic + wrapper
- *   └── Shared/                  cross-lane: the log helper, the Lane enum,
- *                                and the two pages that span every lane
- *
- * WHY THIS IS A SEPARATE SCRIPT, run last:
- *
- * A `folder` clause on `create or modify` only takes effect when the document
- * is CREATED. Re-running a create against an existing document creates the
- * folder but leaves the document where it was -- verified: after
- * `create or modify microflow ... folder 'Lanes/Crud'`, `show folders` listed
- * `Lanes/Crud [0]` with the microflow still at the root. MOVE is what actually
- * relocates it, so the layout is expressed here in one reviewable place.
- *
- * NOT EVERYTHING CAN BE FOLDERED. MOVE accepts PAGE, MICROFLOW, SNIPPET,
- * NANOFLOW, ENUMERATION, CONSTANT, DATABASE CONNECTION, JAVA ACTION and
- * ODATA SERVICE. Consumed REST services, data transformers, JSON structures and
- * import/export mappings have no MOVE form and no folder clause, so the 8 REST
- * clients, 3 transformers, JSON_Rates and IMM_Rates necessarily stay at the
- * module root. They are named by lane (CrudApi, GraphApi, DT_GraphUsers ...) so
- * the grouping is at least legible.
- */
+-- Folder layout for the RestLab module
+--
+-- Functional grouping, per .ai-context/skills/organize-project.md: everything
+-- belonging to one demo lane lives together, rather than splitting documents by
+-- type. The naming prefixes (ACT_, SUB_, DT_) already say what a document is;
+-- the folder says what it is FOR.
+--
+-- RestLab/
+-- ├── Home_Web                 the entry point, left at the module root
+-- ├── Lanes/<Lane>/            one folder per demo lane, logic + wrapper
+-- └── Shared/                  cross-lane: the log helper, the Lane enum,
+-- and the two pages that span every lane
+--
+-- WHY THIS IS A SEPARATE SCRIPT, run last:
+--
+-- A `folder` clause on `create or modify` only takes effect when the document
+-- is CREATED. Re-running a create against an existing document creates the
+-- folder but leaves the document where it was -- verified: after
+-- `create or modify microflow ... folder 'Lanes/Crud'`, `show folders` listed
+-- `Lanes/Crud [0]` with the microflow still at the root. MOVE is what actually
+-- relocates it, so the layout is expressed here in one reviewable place.
+--
+-- NOT EVERYTHING CAN BE FOLDERED. MOVE accepts PAGE, MICROFLOW, SNIPPET,
+-- NANOFLOW, ENUMERATION, CONSTANT, DATABASE CONNECTION, JAVA ACTION and
+-- ODATA SERVICE. Consumed REST services, data transformers, JSON structures and
+-- import/export mappings have no MOVE form and no folder clause, so the 8 REST
+-- clients, 3 transformers, JSON_Rates and IMM_Rates necessarily stay at the
+-- module root. They are named by lane (CrudApi, GraphApi, DT_GraphUsers ...) so
+-- the grouping is at least legible.
 
 -- ---------------------------------------------------------------- CRUD lane
 move microflow RestLab."ACT_Crud_ListObjects"   to folder 'Lanes/Crud';

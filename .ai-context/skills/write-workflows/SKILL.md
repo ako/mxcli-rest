@@ -408,12 +408,44 @@ workflow / its tasks. They are easy to miss — there is no `complete task`:
   required**: a notify without one fails the build (CE0166, MDL-WF16). Name the
   element as `Module.Workflow.ElementName`; mxcli works out which kind it is and
   refuses one a notification cannot reach (a timer start, a user task).
-- `open user task $Task`, `lock workflow $Wf`, and
+- `open user task $Task`, `lock workflow $WfDef`, and
   `workflow operation abort|pause|restart|retry|continue $Wf` are also statements.
+  A lock or unlock names its workflow definition (`$WfDef` or `Module.Workflow`);
+  `pause all` / `unpause all` after it is Studio Pro's "Pause / Unpause instances".
+  A bare `lock workflow all` is refused (MDL-WF17) — it built as CE1825.
 
 A common shape: the task page's buttons call a microflow that does the change and
 then `set task outcome $Task '<Outcome>'`, leaving the workflow's outcome branch
 bodies empty.
+
+**The outcome is a literal, by design.** Mendix stores
+`Microflows$SetTaskOutcomeAction.Outcome` by name — a reference to one outcome of
+the user task, resolved when the app is built — so there is no expression slot to
+hold a value computed at runtime. `set task outcome $Task $Outcome;` is a parse
+error (under every language version) that says so. A **shared** claim-and-complete
+microflow, called from every button with the outcome as a parameter, therefore
+needs **one branch per outcome**, each with its own literal:
+
+```mdl
+mdl 1;
+create microflow Approvals.ACT_CompleteTask (
+  $Task: System.WorkflowUserTask,
+  $Outcome: String
+)
+begin
+  change $Task (System.WorkflowUserTask_Assignees = [%CurrentUser%]);
+  commit $Task;
+  if $Outcome = 'Approve' then
+    set task outcome $Task 'Approve';
+  else
+    set task outcome $Task 'Reject';
+  end if;
+end;
+```
+
+With more outcomes, chain `elsif` arms, or give each button its own small
+microflow that names its outcome — that keeps the outcome checked against the
+task when the app is built, which a runtime string never would be.
 
 ### Claim the task before completing it
 

@@ -346,8 +346,8 @@ alter enumeration Shop.OrderStatus add value Cancelled caption 'Cancelled';
 ```
 
 Re-running `create or modify` from `describe` on a Studio Pro association has flipped
-its storage from table to column, which is a schema change, with `mxcli diff` reporting
-no changes. Never `drop` and re-create an entity to change it: the new entity has a new
+its storage from table to column, which is a schema change. Run `mxcli diff` first: it
+runs the script on a scratch copy and lists every unit exec would write. Never `drop` and re-create an entity to change it: the new entity has a new
 identity, and the runtime drops the old table and its rows.
 
 ## Quick Reference

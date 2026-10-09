@@ -519,7 +519,7 @@ type reference;
 Prefer `if not exists` when the statement is a *delta* rather than the element's
 complete definition. `or modify` rebuilds the element from the statement, so a
 partial `create or modify entity` drops every attribute it does not list. Writing
-both is refused as **MDL067**.
+both is refused as **MDL085**.
 
 **Association Types**:
 - `reference` - One-to-one or many-to-one (foreign key on FROM entity)

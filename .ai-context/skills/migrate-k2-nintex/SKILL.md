@@ -198,7 +198,7 @@ create page CRM.Customer_Edit
     checkbox chkActive (label: 'Active', attribute: IsActive)
 
     -- Button bar (SmartForms action buttons)
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
@@ -383,7 +383,7 @@ create module role CRM.User description 'Can create and edit own records';
 
 -- Access rules
 grant create, delete, read *, write * on entity CRM.Order to CRM.Manager;
-grant create, read *, write * on entity CRM.Order to CRM.User where [owner = '[%CurrentUser%]'];
+grant create, read *, write * on entity CRM.Order to CRM.User where [System.owner = '[%CurrentUser%]'];
 ```
 
 ## Common Challenges and Solutions

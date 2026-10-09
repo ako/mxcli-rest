@@ -61,14 +61,12 @@ create or modify consumed rest service RestLab."GraphApi" (
 
 -- ---------------------------------------------------------------- transformer
 
-/**
- * Strips the OData envelope and lifts "value" to a plain array.
- *
- * An annotation key needs get-key(): @ and . are not legal in a bare path step,
- * and the bracket form .["@odata.count"] does NOT work -- JSLT accepts it and
- * silently yields null, which is how "count" and "nextLink" first came back
- * empty here while the "users" array populated correctly.
- */
+-- Strips the OData envelope and lifts "value" to a plain array.
+--
+-- An annotation key needs get-key(): @ and . are not legal in a bare path step,
+-- and the bracket form .["@odata.count"] does NOT work -- JSLT accepts it and
+-- silently yields null, which is how "count" and "nextLink" first came back
+-- empty here while the "users" array populated correctly.
 create or modify data transformer RestLab."DT_GraphUsers"
 source json '{"@odata.context":"https://graph.microsoft.com/v1.0/$metadata#users","@odata.count":2,"@odata.nextLink":"https://graph.microsoft.com/v1.0/users?$skip=10","value":[{"id":"1","displayName":"Adele Vance","mail":"a@contoso.com","jobTitle":"Retail Manager"}]}'
 {
@@ -147,11 +145,10 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = call rest service get 'http://127.0.0.1:4020/users?$top=3'
-    header Accept = 'application/json'
-    header 'Authorization' = 'Bearer ' + $Token
-    timeout 30
-    returns string
+  $Raw = call rest service get 'http://127.0.0.1:4020/users?$top=3' (
+    Headers: ('Accept': 'application/json', 'Authorization': 'Bearer ' + $Token),
+    Timeout: 30,
+  ) returns string
     on error continue;
 
   IF $Raw != empty THEN

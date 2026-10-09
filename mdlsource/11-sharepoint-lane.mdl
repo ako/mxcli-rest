@@ -70,11 +70,9 @@ create or modify consumed rest service RestLab."SharePointApi" (
 
 -- ---------------------------------------------------------------- transformer
 
-/**
- * Flattens a SharePoint list response for display: drops the @odata envelope,
- * lifts "value", hoists the nested "fields" onto each row, and renames the
- * _x0020_ internal column names to something a person can read.
- */
+-- Flattens a SharePoint list response for display: drops the @odata envelope,
+-- lifts "value", hoists the nested "fields" onto each row, and renames the
+-- _x0020_ internal column names to something a person can read.
 create or modify data transformer RestLab."DT_SharePointTasks"
 source json '{"@odata.context":"ctx","value":[{"id":"12","fields":{"Title":"Replace pump seal","Status":"In progress","Due_x0020_Date":"2026-08-24T00:00:00Z","Priority_x0020_Level":"High"}}]}'
 {
@@ -148,11 +146,10 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = call rest service get 'http://127.0.0.1:4025/sites/root/lists/Tasks/items?$expand=fields'
-    header Accept = 'application/json'
-    header 'Authorization' = 'Bearer dev-token'
-    timeout 30
-    returns string
+  $Raw = call rest service get 'http://127.0.0.1:4025/sites/root/lists/Tasks/items?$expand=fields' (
+    Headers: ('Accept': 'application/json', 'Authorization': 'Bearer dev-token'),
+    Timeout: 30,
+  ) returns string
     on error continue;
 
   IF $Raw != empty THEN
@@ -200,15 +197,14 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = call rest service post 'http://127.0.0.1:4025/sites/root/lists/Tasks/items'
-    header 'Content-Type' = 'application/json'
-    header 'Authorization' = 'Bearer dev-token'
-    body '{{"fields": {{"Title": "{1}", "Status": "{2}"}}' with (
+  $Raw = call rest service post 'http://127.0.0.1:4025/sites/root/lists/Tasks/items' (
+    Headers: ('Content-Type': 'application/json', 'Authorization': 'Bearer dev-token'),
+    Body: template '{{"fields": {{"Title": "{1}", "Status": "{2}"}}' with (
       {1} = $Title,
       {2} = $Status
-    )
-    timeout 30
-    returns string
+    ),
+    Timeout: 30,
+  ) returns string
     on error continue;
 
   IF $Raw != empty THEN
@@ -247,19 +243,17 @@ begin
 
   $Raw = call rest service patch 'http://127.0.0.1:4025/sites/root/lists/Tasks/items/{1}/fields' with (
     {1} = $ItemId
-  )
-    header 'Content-Type' = 'application/json'
-    header 'Authorization' = 'Bearer dev-token'
-    header 'If-Match' = $Etag
+  ) (
+    Headers: ('Content-Type': 'application/json', 'Authorization': 'Bearer dev-token', 'If-Match': $Etag),
     -- Body placeholders are numbered INDEPENDENTLY of the URL's: this body has
     -- one parameter, so it is {1} even though the URL already used {1}.
     -- Continuing the URL numbering gives CE0720 "Place holder index 2 is
     -- greater than 1, the number of parameter(s)".
-    body '{{"Status": "{1}"}' with (
+    Body: template '{{"Status": "{1}"}' with (
       {1} = $Status
-    )
-    timeout 30
-    returns string
+    ),
+    Timeout: 30,
+  ) returns string
     on error continue;
 
   IF $Raw != empty THEN

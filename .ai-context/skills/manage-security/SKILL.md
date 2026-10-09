@@ -222,6 +222,31 @@ grant view on page MyModule.Customer_Overview to MyModule.User, MyModule.Admin;
 revoke view on page MyModule.Customer_Overview from MyModule.User;
 ```
 
+### What a New Document Starts With — and Why GRANT Does Not Narrow It
+
+Document grants (page, microflow, nanoflow) are **additive**, like entity
+grants: GRANT adds roles, REVOKE removes them, nothing replaces the list. What a
+newly **created** document starts with depends on its module:
+
+| Module has… | New page / microflow / nanoflow gets |
+|---|---|
+| no module roles | an auto-created `<Module>.User` role (created on first use), granted to every new document while it is the module's only role. `exec` prints `access: granted to auto-created role <Module>.User (…)` under the create |
+| module roles of its own | **no** allowed roles — grant them in the same script |
+
+Consequences:
+
+- A stub page created early (module still role-less) is open to `<Module>.User`.
+  A later `grant view on page M.Stub to M.Admin;` **adds** Admin; every user role
+  mapped to `M.User` can still open it. Narrow it explicitly:
+  `revoke view on page M.Stub from M.User;`
+- **Drop + create in separate runs loses access.** `create or modify`, and drop
+  + create of the same name within one run, keep the stored roles. A `create` in
+  a later run than the `drop` is a new document; in a module with its own roles
+  it has none, and if a page, snippet, nanoflow or navigation item uses the flow
+  MxBuild fails with **CE0106** at security level Prototype/Production.
+  `mxcli check -p` reports it as **MDL-SEC21** before exec. Prefer
+  `create or modify` to rebuild a flow; otherwise grant in the same script.
+
 ### Always Qualify a Module Role
 
 A module role is always `Module.Role`. The grammar makes the module part
@@ -435,6 +460,10 @@ alter app security ( SecurityLevel: production );
 -- Enable/disable demo users
 alter app security ( EnableDemoUsers: true );
 alter app security ( EnableDemoUsers: false );
+
+-- Rename the built-in administrator (default MxAdmin). The password is not
+-- settable from MDL.
+alter app security ( AdminUserName: 'appadmin' );
 ```
 
 ### Guest (Anonymous) Access
@@ -567,6 +596,8 @@ rule's default cover it, or change the default.
 3. **Forgetting qualified names** — roles use `Module.Role` format in GRANT/REVOKE
 4. **User roles without System module roles** — in Production security, user roles need at least one System module role (CE0156)
 5. **Entity access without proper member rights** — use `read *` for all members or `read (Attr1, Attr2)` for specific ones
+6. **Expecting a GRANT to replace a default** — a new document in a role-less module is granted to the auto-created `<Module>.User`; a later grant adds to it. `revoke … from <Module>.User` to narrow
+7. **Rebuilding a flow with drop + create across runs** — the later create starts with no access in a module that has roles (CE0106 when the flow is used from a page/nanoflow/navigation). Use `create or modify`, or grant in the same script
 
 ## Validation
 

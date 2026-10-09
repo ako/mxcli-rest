@@ -1,22 +1,20 @@
 mdl 1;
-/**
- * The message-definition lane: a contract taken FROM the domain model
- *
- * Every other mapping in this app is bound to a JSON structure -- a schema
- * written by hand (or inferred from a sample) and then matched against
- * entities. A MESSAGE DEFINITION is the other way round: it is a SELECTION
- * OVER THE DOMAIN MODEL. Every element names an entity, an attribute or an
- * association, so there is no second copy of the shape to keep in step.
- *
- * That is also why it is the only non-JSON mapping source MDL can author. An
- * XML schema is an imported .xsd and a web service is a WSDL binding; neither
- * has a spelling here. A message definition has nothing external in it.
- *
- * This lane EXPORTS, which nothing else here does: RateSnapshot and its
- * ExchangeRate children (populated by lane 09) become JSON and go out over
- * HTTP. httpbingo echoes the request back, so the generated JSON is visible
- * in the call log rather than taken on trust.
- */
+-- The message-definition lane: a contract taken FROM the domain model
+--
+-- Every other mapping in this app is bound to a JSON structure -- a schema
+-- written by hand (or inferred from a sample) and then matched against
+-- entities. A MESSAGE DEFINITION is the other way round: it is a SELECTION
+-- OVER THE DOMAIN MODEL. Every element names an entity, an attribute or an
+-- association, so there is no second copy of the shape to keep in step.
+--
+-- That is also why it is the only non-JSON mapping source MDL can author. An
+-- XML schema is an imported .xsd and a web service is a WSDL binding; neither
+-- has a spelling here. A message definition has nothing external in it.
+--
+-- This lane EXPORTS, which nothing else here does: RateSnapshot and its
+-- ExchangeRate children (populated by lane 09) become JSON and go out over
+-- HTTP. httpbingo echoes the request back, so the generated JSON is visible
+-- in the call log rather than taken on trust.
 
 -- The Lane value this uses is declared with the others in 01-domain-model.mdl.
 -- (`alter enumeration ... add value if not exists` also works now -- mxcli
@@ -24,19 +22,17 @@ mdl 1;
 
 -- ------------------------------------------------------------ 1. the contract
 
-/**
- * A bare name is an ATTRIBUTE; Assoc/Module.Entity is an ASSOCIATION.
- *
- * Naming the association's TARGET is required, because the stored cardinality
- * follows the DIRECTION of traversal -- and, for a ReferenceSet, is a list
- * both ways. This lane was written flat at first: mxcli stored MaxOccurs 1 for
- * the forward traversal of a set and mxbuild rejected it (CE6524 + CE0295).
- * Fixed in v0.21.0, so the nested shape below is the one that was wanted all
- * along. FINDINGS #60 measured it, #61 verified the fix.
- *
- * mxcli does not pluralise an exposed name the way Studio Pro does -- it
- * defaults to the entity's own name -- so `as 'Rates'` is written out.
- */
+-- A bare name is an ATTRIBUTE; Assoc/Module.Entity is an ASSOCIATION.
+--
+-- Naming the association's TARGET is required, because the stored cardinality
+-- follows the DIRECTION of traversal -- and, for a ReferenceSet, is a list
+-- both ways. This lane was written flat at first: mxcli stored MaxOccurs 1 for
+-- the forward traversal of a set and mxbuild rejected it (CE6524 + CE0295).
+-- Fixed in v0.21.0, so the nested shape below is the one that was wanted all
+-- along. FINDINGS #60 measured it, #61 verified the fix.
+--
+-- mxcli does not pluralise an exposed name the way Studio Pro does -- it
+-- defaults to the entity's own name -- so `as 'Rates'` is written out.
 create or modify message definition collection RestLab."MD_Rates"
   folder 'Lanes/Publish'
 {
@@ -53,10 +49,8 @@ create or modify message definition collection RestLab."MD_Rates"
 
 -- ------------------------------------------------------------- 2. the mapping
 
-/**
- * `with message definition` takes a THREE-part reference -- collection then
- * definition -- because a collection holds many definitions.
- */
+-- `with message definition` takes a THREE-part reference -- collection then
+-- definition -- because a collection holds many definitions.
 create or modify export mapping RestLab."EXM_RateSnapshot"
   folder 'Lanes/Publish'
   with message definition RestLab."MD_Rates"."RateSnapshot"
@@ -93,11 +87,11 @@ begin
   -- Domain model -> JSON, shaped by the message definition.
   $Json = export to mapping RestLab."EXM_RateSnapshot" ($Snapshot);
 
-  $Echo = call rest service post 'https://httpbingo.org/post'
-    header 'Content-Type' = 'application/json'
-    body '{1}' with ({1} = $Json)
-    timeout 30
-    returns string
+  $Echo = call rest service post 'https://httpbingo.org/post' (
+    Headers: ('Content-Type': 'application/json'),
+    Body: template '{1}' with ({1} = $Json),
+    Timeout: 30,
+  ) returns string
     on error continue;
 
   IF $Echo != empty THEN

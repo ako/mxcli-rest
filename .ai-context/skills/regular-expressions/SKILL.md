@@ -36,7 +36,7 @@ drop regular expression Val.EmailAddress;
 |----------|---------|---------|
 | `Expression` | the pattern — **required** | — |
 | `Documentation` | free text | none |
-| `ExportLevel` | `Hidden` or `Public` | `Hidden` |
+| `ExportLevel` | `Hidden` or `API` (`Public` is a deprecated spelling of `API`, MDL-DEPR161) | `Hidden` |
 
 ## Writing the pattern
 

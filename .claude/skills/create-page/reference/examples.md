@@ -19,6 +19,8 @@ create or modify page CRM.CustomerEdit
   -- width are expressed in Bootstrap grid columns and only render correctly
   -- inside a layoutgrid → row → column. A DataView with input fields placed
   -- directly on the page (no grid) is flagged by lint rule MPR010 / mxcli check.
+  -- Web pages only: on a native layout leave the form bare — a layoutgrid there
+  -- needs a newer Atlas UI (CE6858) and native forms are not grid-based.
   layoutgrid mainGrid {
     row {
       column (desktopwidth: autofill) {
@@ -28,7 +30,7 @@ create or modify page CRM.CustomerEdit
           textbox txtPhone (label: 'Phone', attribute: Phone)
           checkbox cbActive (label: 'Active', attribute: IsActive)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -99,7 +101,7 @@ create page CRM.Customer_MasterDetail
           textbox txtEmail (label: 'Email', attribute: Email)
           textbox txtPhone (label: 'Phone', attribute: Phone)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }

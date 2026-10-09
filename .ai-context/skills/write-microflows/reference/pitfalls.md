@@ -207,8 +207,9 @@ return $Found;
 
 **Error**: CE0111 - "Duplicate variable name 'X'." (MDL063)
 
-A microflow's variable names are unique **flow-wide**. Branches and loop bodies
-do not open a scope, and parameters and loop iterators share the same namespace.
+A microflow's (and a nanoflow's) variable names are unique **flow-wide**.
+Branches and loop bodies do not open a scope, and parameters and loop iterators
+share the same namespace.
 The trap is that every activity with an output **creates** its variable — there
 is no form in which a call, a retrieve, an aggregate or an import mapping writes
 into one that already exists.
@@ -231,6 +232,14 @@ activity and creates nothing:
 declare $Session string = '';
 set $Session = 'anonymous';   -- valid, any number of times
 ```
+
+A call to a Java or JavaScript action that returns **Void** creates nothing
+either, whatever output name it carries — Studio Pro keeps one on such calls
+(a JavaScript action's is named after the action, e.g. `$RefreshEntity`), and
+two of them in one flow build clean. `describe` keeps printing the stored name
+so a round trip does not change the model. The name is not a variable: using
+`$RefreshEntity` afterwards is CE0109 "Undefined variable" (MDL093 — `check`
+reports it when the script or, with `-p`, the project says the action is void).
 
 ### 10. Calling a Rule or Microflow Inside an Expression
 
@@ -265,6 +274,44 @@ end if;
 
 The name in that position must resolve to a real **rule** — a microflow there is
 the same CE0117, and mxcli refuses the statement rather than writing it.
+
+### 11. Changing Something Inside a Loop Body
+
+**Refusal**: `create or modify` under `mdl 1;` — "the Loop at (x, y) changes inside
+its body; the splice does not edit inside a loop"; `alter` aimed at an activity in
+the loop — "… is inside the body of loop $Car in $Cars; alter does not splice inside
+a loop body". Both refusals spell out the statement below.
+
+Neither editing mode splices **inside** a loop, so do not try one after the other.
+Replace the **whole loop**, addressed by its handle from `describe microflow X with
+handles`, with the body as it should be:
+
+❌ **REFUSED** (either way):
+```mdl
+mdl 1;
+alter microflow MyModule.ACT_SaveAll {
+  replace commit $Car with begin commit $Car without events; end;
+};
+```
+
+✅ **CORRECT** — replace the loop:
+```mdl
+mdl 1;
+alter microflow MyModule.ACT_SaveAll {
+  replace loop $Car in $Cars with begin
+    loop $Car in $Cars
+    begin
+      commit $Car without events;
+    end loop;
+  end;
+};
+```
+
+Everything outside the loop keeps its `$ID`s, positions and flows; the loop and its
+body are rebuilt (new IDs, drawn by mxcli). A `while` loop is the same:
+`replace while $N < 3 with begin while $N < 3 begin … end while; end;`. For a loop
+nested in another loop, replace the outer one — alter addresses nothing inside a loop.
+
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 
 These statements **implicitly create a new variable** with the name on the left side:
@@ -313,7 +360,7 @@ conditional and assign in every branch:
 ```mdl
 -- WRONG: $GTotalText is created only in the `then` arm → not declared in `else`
 if $HasVariance then
-  $GTotalText = call microflow Module.FMT_Variance($v);   -- created here only
+  $GTotalText = call microflow Module.FMT_Variance(Value = $v);   -- created here only
 else
   set $GTotalText = 'n/a';                                 -- error: not declared
 end if;
@@ -321,7 +368,7 @@ end if;
 -- CORRECT: declare before, then set in each branch (call into a temp, then set)
 declare $GTotalText string = '';
 if $HasVariance then
-  $Tmp = call microflow Module.FMT_Variance($v);
+  $Tmp = call microflow Module.FMT_Variance(Value = $v);
   set $GTotalText = $Tmp;
 else
   set $GTotalText = 'n/a';
@@ -484,6 +531,11 @@ end loop;
 > `$Customer/Name`, `$currentObject`, `retrieve … from $List`. Quoting the `$` token
 > (`"$Customer"`) breaks resolution.
 
+> **In an XPath, quote names, never values.** `["Status" = 'Accepted']` is fine — the
+> quotes come off the name, in a retrieve, a grant and a workflow targeting alike. A
+> string is always single-quoted: `[Name = "Admin"]` is refused, because a name can
+> never be the right-hand side of an XPath comparison (write `[Name = 'Admin']`).
+
 ```mdl
 mdl 1;
 create persistent entity Module."item" (
@@ -612,6 +664,13 @@ It is carried across a rewrite like the others were, and there is no way to set
 it from MDL. Nothing is lost by that — it only suppresses an editor warning.
 
 ## `drop` + `create` is still a new document
+
+**Do the drop and the create in ONE script.** The drop's module-role grants (and
+the unit's ID and folder) carry only to a create later in the same script or REPL
+session. A drop in one run and a create in the next loses every `grant execute` —
+CE0106 on the pages that call the flow (`check -p` reports it as MDL-SEC21).
+`drop` prints the roles it removed and the `grant` that restores them. A `drop
+page` never carries its view grants.
 
 `drop microflow` followed by `create microflow` starts from nothing, so it keeps
 none of these unless the script restates them. Use `create or modify` to edit a

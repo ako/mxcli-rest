@@ -118,6 +118,33 @@ add head($SourceItems) to $Items;
 
 Use expression-valued `add` only when the expression returns an object compatible with the target list element type.
 
+The **Change list** activity has four operations, one statement each:
+
+| Change list operation | MDL statement |
+|---|---|
+| Add | `add $Item to $Items;` |
+| Remove | `remove $Item from $Items;` |
+| Clear | `clear $Items;` |
+| Replace (stored `Set`) | `set $Items = $Other;` |
+
+`set` on a **list** variable is the Replace operation of a Change list activity,
+not a Change variable: Mendix's Change variable takes only primitive variables,
+and one on a list fails the build with CE7247 ("Variable '…' does not have a
+primitive type"). mxcli knows a variable is a list when it is a list parameter,
+a `create list`, a list retrieve or a list operation's result. Both work in
+microflows and nanoflows.
+
+`set` on an **object** variable is refused (MDL-SET01 in `check`; `check --references` and `exec` also catch an object from an association retrieve):
+Mendix has no action that reassigns an object variable, and a Change variable on
+one is the same CE7247. To walk a chain (`$Cursor = $Next` in a `while` loop),
+write a sub-microflow that **returns** the next object and recurse; to change the
+object itself, use `change $Obj (…)`.
+
+`set` on a **parameter** is refused as well (MDL-SET01), whatever its type unless
+it is a list: a Change variable cannot target a parameter (CE7247 "Parameter 'N'
+cannot be changed."), in microflows, nanoflows and rules. Copy it into a variable
+first — `declare $Value Integer = $N;` — and change that.
+
 ### One statement per activity
 
 Every list operation and aggregate is **one Studio Pro activity**, and it is
