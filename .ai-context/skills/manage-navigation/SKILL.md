@@ -54,14 +54,15 @@ list navigation menu;             -- all profiles
 list navigation homes;
 ```
 
-## CREATE OR REPLACE NAVIGATION (Full Replacement)
+## CREATE OR MODIFY NAVIGATION (Full Replacement)
 
 This command fully replaces a navigation profile's configuration. All clauses are optional — omitted clauses clear that section. The output from `describe navigation` can be pasted back directly.
 
 ### Basic: Set Home and Login Page
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login;
 ```
@@ -72,7 +73,8 @@ Add `for <UserRole>` to override the home page for specific user roles. The
 role is a **bare name** — user roles are project-level and have no module part:
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   home page MyModule.AdminDashboard for Administrator
   home page MyModule.CustomerPortal for Customer
@@ -97,10 +99,11 @@ roles called `Administrator` in three modules. List the real ones with
 
 ### Full Menu Tree
 
-The menu items are the profile's children, in `{ ... }` after its clauses, like a page's widgets — no `;` between them. The block replaces the entire menu. Use `menu item 'Caption' ( OnClick: … )` for leaf items and `menu 'caption' { ... }` for sub-menus. The action is `OnClick:` in the words a page action uses: `show page M.P`, `call microflow M.F`, or `sign out`:
+The menu items are the profile's children, in `{ ... }` after its clauses, like a page's widgets — no `;` between them. The block replaces the entire menu. Use `menu item 'Caption' ( OnClick: … )` for leaf items and `menu 'caption' { ... }` for sub-menus. `OnClick:` takes the action expression a button's `Action:` takes, limited to what a menu item can do: `show page M.P`, `call microflow M.F`, `call nanoflow M.N`, `open link 'https://…'`, `create object M.E then show page M.E_New`, `sign out` or `nothing` — each with the button's `with ( … )` settings (`ProgressBar`, `ProgressMessage`, `Confirmation`/`ProceedCaption`/`CancelCaption`, `Asynchronous` and `FormValidations` for a microflow, `DisabledDuringExecution`). Save, delete, close page and complete task act on a page's object and are refused on a menu item:
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login
   {
@@ -111,10 +114,20 @@ create or replace navigation Responsive
     }
     menu 'Admin' {
       menu item 'Users' ( OnClick: show page Administration.Account_Overview )
-      menu item 'Run Report' ( OnClick: call microflow Reports.ACT_GenerateReport )
+      menu item 'Run Report' ( OnClick: call microflow Reports.ACT_GenerateReport with (ProgressBar: Blocking, ProgressMessage: 'Generating…') )
     }
+    menu item 'Reports' ( OnClick: call nanoflow Reports.NAV_ShowReports )
+    menu item 'Docs' ( OnClick: open link 'https://docs.mendix.com' )
+    menu item 'New order' ( OnClick: create object Orders.Order then show page Orders.Order_New )
   };
 ```
+
+Describe prints every stored action this way, so describe → exec writes nothing. What
+the expression cannot spell — a show page's **page title override**, an open link's
+**link type** other than Web — is flagged with a `--` comment; a rewrite keeps it
+while the item's action is unchanged (same caption, same action), and loses it if
+the item is renamed or its action changed. An action describe cannot print at all
+is flagged too, and an item that states no `OnClick` keeps it.
 
 The old spelling — `menu ( menu item 'Home' page M.Home; menu 'Admin' ( … ); )`,
 the action and icon as clauses and `;` after each item — still parses and warns
@@ -160,7 +173,8 @@ The icon-collection form is a **qualified name** — a model reference, written
 like every other reference in MDL, not a string:
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   {
     menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
@@ -203,7 +217,8 @@ shows an empty screen. That is the single most common way an offline profile
 looks broken while every check passes.
 
 ```sql
-create or replace navigation PhoneOffline
+mdl 1;
+create or modify navigation PhoneOffline
   home page MyModule.Mobile_Dashboard
   sync (
     sync MyModule.Setting online;
@@ -258,7 +273,7 @@ And before changing an entity, ask which profiles download it — an offline
 change reaches every device that already synced:
 
 ```
-list references to MyModule.Order
+list references to MyModule.Order;
 ```
 
 The `sync` row names the profile. Every mode produces one, **including the
@@ -269,7 +284,8 @@ so renaming or dropping it leaves the configuration dangling.
 server rejects objects during synchronization"* checkbox:
 
 ```sql
-create or replace navigation PhoneOffline
+mdl 1;
+create or modify navigation PhoneOffline
   home page MyModule.Mobile_Dashboard
   on sync error continue;      -- default is `throw`
 ```
@@ -288,7 +304,8 @@ silently dropped.
 An empty `{ }` menu block removes all menu items:
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   {};
 ```
@@ -296,7 +313,8 @@ create or replace navigation Responsive
 ### Not-Found Page
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home page MyModule.Home_Web
   not found page MyModule.Custom404;
 ```
@@ -306,20 +324,28 @@ create or replace navigation Responsive
 Use `home microflow` instead of `home page` to run a microflow on login:
 
 ```sql
-create or replace navigation Responsive
+mdl 1;
+create or modify navigation Responsive
   home microflow MyModule.ACT_ShowHome;
 ```
+
+A **native** profile's flow home is a nanoflow: `home nanoflow MyModule.NAV_Home`
+(`home nanoflow` on a web profile is refused). On a native profile mxcli writes the
+home pages and the `sync ( … )` block only — a `{ }` menu block (the bottom bar),
+`login page`, `not found page` and `on sync error` are refused, and describe lists
+the bottom bar as comments.
 
 ## Round-Trip Workflow
 
 The DESCRIBE output is directly executable. Use this pattern to inspect, modify, and re-apply:
 
 ```sql
+mdl 1;
 -- Step 1: Inspect current state
 describe navigation Responsive;
 
 -- Step 2: Copy the output, modify as needed, paste back
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login
   {
@@ -360,6 +386,7 @@ describe context of MyModule.Home_Web;
 Set up navigation for a freshly created project:
 
 ```sql
+mdl 1;
 -- Create home page
 create page MyModule.Home_Web
 (
@@ -370,10 +397,10 @@ create page MyModule.Home_Web
   container ctnMain {
     dynamictext txtWelcome (content: 'Welcome!')
   }
-}
+};
 
 -- Configure navigation
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page MyModule.Home_Web
   {
     menu item 'Home' ( OnClick: show page MyModule.Home_Web )
@@ -385,11 +412,12 @@ create or replace navigation Responsive
 After creating a new page, add it to the menu:
 
 ```sql
+mdl 1;
 -- First inspect current menu
 describe navigation Responsive;
 
 -- Then re-apply with the new item added (copy existing + add new)
-create or replace navigation Responsive
+create or modify navigation Responsive
   home page MyModule.Home_Web
   login page Administration.Login
   {
@@ -404,7 +432,7 @@ create or replace navigation Responsive
 ## Menu Documents (standalone, reusable)
 
 A profile menu lives *inside* a navigation profile and is edited with
-`create or replace navigation`. A **menu document** is its own document, and a
+`create or modify navigation`. A **menu document** is its own document, and a
 menu widget on a page points at it. Atlas_Core ships `Phone_Menu` and
 `Tablet_Menu`.
 
@@ -418,6 +446,7 @@ describe menu Atlas_Core.Phone_Menu;     -- a standalone menu document
 Menu documents use the same item syntax as the profile's `{ ... }` menu block:
 
 ```sql
+mdl 1;
 create or modify menu MyModule.Main_Menu {
   menu item 'Home' ( OnClick: show page MyModule.Home_Web, Icon: Atlas_Core.Atlas.home )
   menu item 'Run' ( OnClick: call microflow MyModule.DoThing )
@@ -438,7 +467,7 @@ keep the edit to the items you mean to change, then `describe` it again after
 [choose-edit-mode](../choose-edit-mode/SKILL.md)).
 
 **`or modify` replaces the whole item list.** An omitted item is a removed item,
-exactly as with `create or replace navigation`. The document's identity and
+exactly as with `create or modify navigation`. The document's identity and
 export level are preserved, so menu widgets pointing at it keep working.
 
 ### Gotchas
@@ -457,7 +486,8 @@ export level are preserved, so menu widgets pointing at it keep working.
 An offline profile is created the same way as any other:
 
 ```sql
-create or replace navigation TabletOffline
+mdl 1;
+create or modify navigation TabletOffline
   home page Maintenance.Request_Overview
   {
     menu item 'Requests' ( OnClick: show page Maintenance.Request_Overview )
@@ -509,7 +539,7 @@ stored. MDL does not author per-entity sync modes — set those in Studio Pro.
 - [ ] All PAGE/MICROFLOW targets are fully qualified (`Module.Name`)
 - [ ] Role references in `for` clauses are fully qualified (`Module.Role`)
 - [ ] Menu items are in `{ }` with no `;` between them; sub-menu items in `menu 'caption' { ... }`
-- [ ] A menu item's action is `( OnClick: show page M.P )`, `call microflow M.F` or `sign out`
+- [ ] A menu item's action is `( OnClick: … )` with show page, call microflow, call nanoflow, open link, create object, sign out or nothing — not save / delete / close page
 - [ ] `Icon:` is a qualified name (not a string); hyphenated segments are double-quoted
 - [ ] The icon exists — check with `describe icon collection Module.Name`, do not guess
 - [ ] Use `describe navigation` to verify changes after applying
@@ -522,4 +552,4 @@ an offline navigation profile downloads **nothing** until each entity has a sync
 
 ## Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU)
 
-standalone `Menus$MenuDocument`, the reusable menu a menu widget points at (Atlas_Core's `Phone_Menu`/`Tablet_Menu`) — **not** the menu inside a navigation profile, though both are built from the same items, so the item syntax is shared with `CREATE NAVIGATION`'s `{ ... }` menu block. DESCRIBE is round-trippable. Written through gen+codec, which is load-bearing: Studio Pro's menu documents carry typed-array marker **3** on the item collection and each item's sub-items (the codec default), while the navigation writers hand-build items with marker **1** — unverified whether that is a latent navigation bug or a real difference, so navigation is left alone. Authoring is modelsdk-only; legacy refuses. Two traps: a menu item cannot open a page with required parameters (**CE1571**), and only `Forms$IconCollectionIcon` round-trips (glyph/image icons are flagged by DESCRIBE, not dropped silently)
+standalone `Menus$MenuDocument`, the reusable menu a menu widget points at (Atlas_Core's `Phone_Menu`/`Tablet_Menu`) — **not** the menu inside a navigation profile, though both are built from the same items, so the item syntax is shared with `CREATE NAVIGATION`'s `{ ... }` menu block. DESCRIBE is round-trippable. Written through gen+codec, which is load-bearing: Studio Pro's menu documents carry typed-array marker **3** on the item collection and each item's sub-items (the codec default), while the navigation writers hand-build items with marker **1** — unverified whether that is a latent navigation bug or a real difference, so navigation is left alone. Authoring is modelsdk-only; legacy refuses. A menu item cannot open a page with required parameters (**CE1571**). Its actions and icons (all three kinds) round-trip as a navigation menu's do

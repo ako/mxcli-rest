@@ -16,6 +16,7 @@ Master-Detail is a common UI pattern showing:
 ### Basic Structure
 
 ```sql
+mdl 1;
 create page Module.Entity_MasterDetail
 (
   title: 'Entity Master-Detail',
@@ -38,14 +39,14 @@ create page Module.Entity_MasterDetail
         dataview entityDetail (datasource: selection entityList) {
           textbox txtName (label: 'Name', attribute: Name)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
           }
         }
       }
     }
   }
-}
+};
 ```
 
 ### Key Components
@@ -98,6 +99,7 @@ Used inside the detail form to show related/associated data.
 ## Complete Example
 
 ```sql
+mdl 1;
 create page CRM.Customer_MasterDetail
 (
   title: 'Customer Management',
@@ -123,7 +125,7 @@ create page CRM.Customer_MasterDetail
           textbox txtEmail (label: 'Email', attribute: Email)
           textbox txtPhone (label: 'Phone', attribute: Phone)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -131,7 +133,7 @@ create page CRM.Customer_MasterDetail
       }
     }
   }
-}
+};
 ```
 
 ## Key Patterns

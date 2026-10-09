@@ -26,6 +26,7 @@ Standard pattern for creating CRUD (Create, Read, Update, Delete) pages in Mendi
 Create a reusable navigation snippet using NAVIGATIONLIST for vertical sidebar menus:
 
 ```sql
+mdl 1;
 create snippet Module.Entity_Menu
 {
   navigationlist navMenu {
@@ -33,7 +34,7 @@ create snippet Module.Entity_Menu
     item itemOrders (caption: 'Orders', action: show page Module.Order_Overview)
     item itemProducts (caption: 'Products', action: show page Module.Product_Overview)
   }
-}
+};
 ```
 
 ### Snippet Syntax
@@ -78,11 +79,11 @@ Lists all objects of an entity type with a data grid and navigation menu in a si
 ```
 
 ```sql
-create page Module.Entity_Overview
+mdl 1;
+create page Module.Entity_Overview folder 'OverviewPages'
 (
   title: 'Entity Overview',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'OverviewPages'
+  layout: Atlas_Core.Atlas_Default
 )
 {
   layoutgrid mainGrid {
@@ -112,7 +113,7 @@ create page Module.Entity_Overview
       }
     }
   }
-}
+};
 ```
 
 ### SNIPPETCALL Syntax
@@ -234,12 +235,12 @@ microflows and 1,100 characters of XPath against five lines, one filter per colu
 Form for creating or editing a single entity. **Requires a page parameter** to receive the object.
 
 ```sql
-create page Module.Entity_NewEdit
+mdl 1;
+create page Module.Entity_NewEdit folder 'OverviewPages'
 (
   params: ( $entity: Module.Entity ),
   title: 'Edit Entity',
-  layout: Atlas_Core.PopupLayout,
-  folder: 'OverviewPages'
+  layout: Atlas_Core.PopupLayout
 )
 {
   layoutgrid mainGrid {
@@ -252,7 +253,7 @@ create page Module.Entity_NewEdit
           datepicker dpDueDate (label: 'Due Date', attribute: DueDate)
           combobox cbStatus (label: 'Status', attribute: status)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -260,7 +261,7 @@ create page Module.Entity_NewEdit
       }
     }
   }
-}
+};
 ```
 
 ### Page Parameter Syntax
@@ -294,6 +295,7 @@ create page Module.PageName
 First, create a navigation menu snippet that will be shared across all overview pages:
 
 ```sql
+mdl 1;
 create snippet MdlTemplates.NavigationMenu
 {
   layoutgrid navGrid {
@@ -304,12 +306,13 @@ create snippet MdlTemplates.NavigationMenu
       }
     }
   }
-}
+};
 ```
 
 ### Step 2: Create the Entity
 
 ```sql
+mdl 1;
 create persistent entity MdlTemplates.Store (
   Name: string(200) not null,
   Location: string(200)
@@ -319,11 +322,11 @@ create persistent entity MdlTemplates.Store (
 ### Step 3: Create the Overview Page
 
 ```sql
-create page MdlTemplates.Store_Overview
+mdl 1;
+create page MdlTemplates.Store_Overview folder 'OverviewPages'
 (
   title: 'Store Overview',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'OverviewPages'
+  layout: Atlas_Core.Atlas_Default
 )
 {
   layoutgrid mainGrid {
@@ -346,18 +349,18 @@ create page MdlTemplates.Store_Overview
       }
     }
   }
-}
+};
 ```
 
 ### Store NewEdit Page
 
 ```sql
-create page MdlTemplates.Store_NewEdit
+mdl 1;
+create page MdlTemplates.Store_NewEdit folder 'OverviewPages'
 (
   params: ( $store: MdlTemplates.Store ),
   title: 'Edit Store',
-  layout: Atlas_Core.PopupLayout,
-  folder: 'OverviewPages'
+  layout: Atlas_Core.PopupLayout
 )
 {
   layoutgrid mainGrid {
@@ -367,7 +370,7 @@ create page MdlTemplates.Store_NewEdit
           textbox txtName (label: 'Name', attribute: Name)
           textbox txtLocation (label: 'Location', attribute: Location)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -375,7 +378,7 @@ create page MdlTemplates.Store_NewEdit
       }
     }
   }
-}
+};
 ```
 
 ## Complete Example: Car Entity
@@ -383,6 +386,14 @@ create page MdlTemplates.Store_NewEdit
 ### Entity Definition
 
 ```sql
+mdl 1;
+create enumeration MdlTemplates.CarType (
+  Sedan 'Sedan',
+  SUV 'SUV',
+  Truck 'Truck',
+  Sports 'Sports Car'
+);
+
 create persistent entity MdlTemplates.Car (
   Brand: string(200) not null,
   model: string(200),
@@ -391,13 +402,6 @@ create persistent entity MdlTemplates.Car (
   PurchaseDate: datetime,
   CarType: enumeration(MdlTemplates.CarType)
 );
-
-create enumeration MdlTemplates.CarType (
-  Sedan 'Sedan',
-  SUV 'SUV',
-  Truck 'Truck',
-  Sports 'Sports Car'
-);
 ```
 
 ### Car NewEdit Page
@@ -405,12 +409,12 @@ create enumeration MdlTemplates.CarType (
 Shows various input widget types:
 
 ```sql
-create page MdlTemplates.Car_NewEdit
+mdl 1;
+create page MdlTemplates.Car_NewEdit folder 'OverviewPages'
 (
   params: ( $Car: MdlTemplates.Car ),
   title: 'Edit Car',
-  layout: Atlas_Core.PopupLayout,
-  folder: 'OverviewPages'
+  layout: Atlas_Core.PopupLayout
 )
 {
   layoutgrid mainGrid {
@@ -424,7 +428,7 @@ create page MdlTemplates.Car_NewEdit
           datepicker dpDate (label: 'Purchase date', attribute: PurchaseDate)
           radiobuttons rbType (label: 'Car type', attribute: CarType)
 
-          footer footer1 {
+          footer {
             actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
             actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
           }
@@ -432,7 +436,7 @@ create page MdlTemplates.Car_NewEdit
       }
     }
   }
-}
+};
 ```
 
 ## Widget Selection Guide
@@ -505,6 +509,7 @@ not. To parameterise a snippet on a value, keep the primitive on the calling
 page's parameters, or pass an object and read the member inside the snippet.
 
 ```sql
+mdl 1;
 -- Create a snippet with a parameter
 create snippet Module.CustomerDetails
 (
@@ -518,9 +523,12 @@ create snippet Module.CustomerDetails
       }
     }
   }
-}
+};
+```
 
--- Use the snippet with parameter passing
+Use the snippet with parameter passing, inside a page body:
+
+```sql
 snippetcall customerDetails (snippet: Module.CustomerDetails, params: (Customer = $Customer))
 ```
 
@@ -529,6 +537,7 @@ snippetcall customerDetails (snippet: Module.CustomerDetails, params: (Customer 
 For entity-specific action menus (Edit, Delete, etc.), use the `navigationlist` widget:
 
 ```sql
+mdl 1;
 create snippet Module.Entity_Menu
 (
   params: ( $EntityParameter: Module.Entity )
@@ -539,7 +548,7 @@ create snippet Module.Entity_Menu
     item itemDelete (caption: 'Delete', action: delete)
     item itemBack (caption: 'Back', action: close page)
   }
-}
+};
 ```
 
 ### NavigationList Syntax
@@ -588,6 +597,7 @@ When a navigation snippet references pages (via `show page`) and those pages ref
 ### Example Pattern
 
 ```sql
+mdl 1;
 -- Step 1: Create placeholder snippet (pages can reference this)
 create snippet Module.NavigationMenu
 {
@@ -598,8 +608,7 @@ create snippet Module.NavigationMenu
       }
     }
   }
-}
-/
+};
 
 -- Step 2: Create all pages (they reference the snippet via SNIPPETCALL)
 create page Module.Customer_NewEdit
@@ -610,8 +619,7 @@ create page Module.Customer_NewEdit
 )
 {
   -- ... page content with SNIPPETCALL navMenu (Snippet: Module.NavigationMenu)
-}
-/
+};
 
 create page Module.Customer_Overview
 (
@@ -620,12 +628,11 @@ create page Module.Customer_Overview
 )
 {
   -- ... page content with SNIPPETCALL navMenu (Snippet: Module.NavigationMenu)
-}
-/
+};
 
 -- Step 3: Fill in the snippet with real content (pages now exist)
 -- Use CREATE OR MODIFY (preserves the snippet's ID → page bindings stay valid)
--- Do NOT use CREATE OR REPLACE — that would assign a new ID and break existing page references
+-- (CREATE OR REPLACE is its deprecated spelling, MDL-DEPR001 — same meaning)
 create or modify snippet Module.NavigationMenu
 {
   layoutgrid navGrid {
@@ -635,15 +642,14 @@ create or modify snippet Module.NavigationMenu
       }
     }
   }
-}
-/
+};
 ```
 
 ### Key Points
 
 - The placeholder snippet must exist before pages are created (for `snippetcall` to resolve)
 - Use `create or modify snippet` for the fill-in step — it preserves the snippet's UUID so pages that already reference it remain valid
-- **Do not use `create or replace snippet`** — that deletes the placeholder and creates a fresh UUID, silently breaking every page that references the old one
+- `create or replace snippet` is the deprecated spelling of the same statement (`MDL-DEPR001`) — it keeps the UUID too, but write `or modify`
 - Page references in the final snippet resolve correctly because pages already exist
 
 See [Resolve Forward References](../resolve-forward-references/SKILL.md) for the full pattern including page→page and microflow→page cases, declaration ordering rules, and the choice between `CREATE OR MODIFY` and `ALTER SNIPPET`.
@@ -663,6 +669,6 @@ See [Resolve Forward References](../resolve-forward-references/SKILL.md) for the
 | `show snippet Module.Name` | Show snippet summary |
 | `describe snippet Module.Name` | Show snippet MDL source |
 | `create snippet Module.Name { ... }` | Create a new snippet |
-| `create or replace snippet Module.Name { ... }` | Create or update snippet |
+| `create or modify snippet Module.Name { ... }` | Create or update snippet |
 | `alter snippet Module.Name { ... }` | Modify snippet widgets in-place |
 | `drop snippet Module.Name` | Delete a snippet |

@@ -5,12 +5,9 @@ description: "Microflow syntax reference in MDL — every activity type, control
 
 # Mendix Microflow Skill
 
-This skill provides comprehensive guidance for writing Mendix microflows in MDL (Mendix Definition Language) syntax.
-
 ## Reference files
 
-`SKILL.md` covers the shape of a microflow and the decisions. The detail lives
-beside it, and is worth opening when you hit one of these:
+`SKILL.md` covers the shape of a microflow and the decisions. The detail lives beside it:
 
 - [`reference/control-flow.md`](reference/control-flow.md) — every form of `if`,
   `case`, `split type`, `loop` and `while`, plus error handling (`try`/custom
@@ -44,18 +41,18 @@ Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mod
   (or fresh `describe` output) and re-run `create or modify`.
 - **Authored in Studio Pro:** prefer `alter microflow X { insert/replace/drop … }`
   (targets from `describe microflow X with handles`). `create or modify` of `describe`
-  output patches too: unchanged writes nothing; a statement, `return` value, header clause,
-  parameter (added/retyped; removed only if unused) or stated `@position`/`@start` change is
+  output patches too: unchanged writes nothing; a statement (even one whose handler returns), guard
+  clause, `return` value, `if` condition, header clause, parameter (added/retyped; removed only if unused) or stated `@position`/`@start` change is
   patched in place (a move keeps the node's flows). A redrawn `@anchor`/`@curve`, loop body,
-  error handler or `return` added/taken away rebuilds under mdl 0 (`MDL-V1-REBUILD`: IDs
-  renumbered, merges and curves lost) and is refused under `mdl 1;`.
+  error handler or other `return` added/taken away rebuilds under mdl 0 (`MDL-V1-REBUILD`: IDs
+  renumbered, merges and curves lost) and is refused under `mdl 1;`. **To change a loop body, `alter … replace` the whole loop** — neither mode edits inside one ([pitfalls](reference/pitfalls.md#11-changing-something-inside-a-loop-body)). **To rebuild deliberately, `drop` and `create` in ONE script** — the grants carry only within it ([pitfalls](reference/pitfalls.md#drop--create-is-still-a-new-document)).
 
 ## When to Use a Microflow vs a Nanoflow
 
 | Scenario | Use |
 |----------|-----|
 | Querying the database | Microflow |
-| Calling REST services or external actions | Microflow |
+| Calling REST services or external actions, or sending email (`send email`, 11.13+) | Microflow |
 | Running Java actions | Microflow |
 | File generation or download | Microflow |
 | Transactional commits (rollback on error) | Microflow |
@@ -123,6 +120,7 @@ has **two** such entries — one for the microflow editor, one for the workflow
 editor — so the clause names which:
 
 ```mdl
+mdl 1;
 create microflow Module.FormatCode ($Raw: String)
 returns String
 exposed as microflow action 'Format code' in 'Toolbox demo'
@@ -166,6 +164,7 @@ alternative. Java and JavaScript actions have one entry each and use the shorter
 build, and `list microflows` reports it in the `Excluded` column.
 
 ```mdl
+mdl 1;
 @excluded
 create microflow MyModule.LegacyCalc ()
 returns Integer
@@ -199,6 +198,7 @@ structures, REST/OData services, image collections and the agent documents.
 Place microflows in folders for organization:
 
 ```mdl
+mdl 1;
 create microflow MyModule.ACT_ProcessOrder ($Order: MyModule.Order)
 returns boolean as $success
 folder 'Orders/Processing'
@@ -320,10 +320,10 @@ declare $list list of Test.Product;  -- Case sensitive
 ### Arithmetic
 
 ```mdl
-$Result = $A + $B;      -- Addition
-$Result = $A - $B;      -- Subtraction
-$Result = $A * $B;      -- Multiplication
-$Result = $A div $B;    -- Division (use 'div', not '/')
+set $Result = $A + $B;      -- Addition
+set $Result = $A - $B;      -- Subtraction
+set $Result = $A * $B;      -- Multiplication
+set $Result = $A div $B;    -- Division (use 'div', not '/')
 ```
 
 **Important**: Use `div` for division, NOT `/`. In a Mendix expression `/` is the
@@ -348,9 +348,9 @@ $A != empty   -- Check if not empty
 ### Boolean Logic
 
 ```mdl
-$Result = $A and $B;    -- Logical AND
-$Result = $A or $B;     -- Logical OR
-$Result = not $A;       -- Logical NOT
+set $Result = $A and $B;    -- Logical AND
+set $Result = $A or $B;     -- Logical OR
+set $Result = not $A;       -- Logical NOT
 
 -- Complex expressions
 if $IsActive and $IsValid and $HasStock then
@@ -419,6 +419,7 @@ toString($value)           -- Convert to string
 ## Complete Example
 
 ```mdl
+mdl 1;
 /**
  * Process order with validation and status update.
  *
@@ -460,7 +461,6 @@ begin
   set $success = true;
   return $success;
 end;
-/
 ```
 
 ## Calling Microflows
@@ -665,7 +665,7 @@ The clause goes on whichever activity may fail, not only on calls:
 
 ```mdl
 declare $Name String = 'default' on error begin return 'could not initialise'; end error;
-$Name = $Other/Name on error begin return 'lookup failed'; end error;
+set $Name = $Other/Name on error begin return 'lookup failed'; end error;
 change $Order (Status = Shipped) on error begin log error 'could not ship'; return; end error;
 log info node 'App' 'starting' on error begin return; end error;
 show message 'saved' on error begin return; end error;

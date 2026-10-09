@@ -95,10 +95,22 @@ is never reported either — it is a no-op when the module exists, which is what
 lets it open every script.
 
 The types covered are the ones `exec` refuses: entity, enumeration, constant,
-association, microflow, nanoflow, rule, page, snippet, java action, javascript
-action, workflow, and the integration/agent document types. If you find one that
-`exec` refuses and `check` does not, that is a bug of exactly the shape
-`TestEveryCreateDocTypeIsProjectChecked` exists to prevent.
+association, microflow, nanoflow, rule, page, snippet, layout, java action,
+javascript action, workflow, menu, task queue, scheduled event, regular
+expression, database connection, REST client, OData client and service, message
+definition collection, the integration/agent document types, module roles,
+user roles, demo users and configurations. Annotations are the one known gap
+(they have no name to compare). If you find another that `exec` refuses and
+`check` does not, that is a bug of exactly the shape
+`TestEveryCreateStmtIsClassified` and `TestEveryCreateDocTypeIsProjectChecked`
+exist to prevent.
+
+Separately, `check` reports **MDL-DUPNAME** for a name Mendix will not let two
+elements share — a nanoflow named like a microflow, a page and a snippet, an
+enumeration and an entity, or the same kind spelled in another case
+(`M.act_login` next to `M.ACT_Login`, CE0122). It covers `rename … to` and
+`move … to Module` onto a taken name too. `mxcli help MDL-DUPNAME` has the
+table.
 
 ### It reports what the script REMOVES from the project
 
@@ -143,6 +155,27 @@ It is a **warning**: "modify to this shape" is a legitimate intent and `check`
 still exits 0. The defect was the silence, not the behaviour. It also covers the
 members that are not attributes — the four audit system fields and an omitted
 `extends` — because those drop the same way.
+
+### It reports the flow changes `exec` would refuse
+
+`create or modify microflow|nanoflow` on a stored flow is a patch. A change the
+patch cannot make (inside a loop body or error handler, a redrawn connector, a
+`return` added) is refused by `exec` under `mdl 1;`, and rebuilt (IDs, merges and
+curves lost) without the header. With `-p`, `check` runs the same verdict `exec`
+and `diff` run: an **MDL-V1-REBUILD** error quoting exec's refusal under `mdl 1`,
+the MDL-V1-REBUILD warning without the header, and **MDL090** for an `alter
+microflow|nanoflow` exec would refuse. Use `alter` for the change, or drop and
+create the flow. A flow an earlier statement of the script touches is not
+predicted (exec sees that statement's result), and `fmt --upgrade --header -p`
+keeps the header off a file it would make refuse (ako/mxcli#876).
+
+### It reports a doc comment that is lost
+
+A `/** … */` doc comment documents the statement right after it, and only a
+`create` of something with documentation stores one. Above a `drop`, `grant`,
+`revoke`, `set`, `alter` or `create module` it is ignored, so **MDL089** warns
+and names the next statement that could have taken it. In drop-then-create, put
+the comment between the `drop` and the `create` (ako/mxcli#877).
 
 ### It resolves MEMBER names too, where it can establish the entity
 
@@ -237,6 +270,13 @@ add-the-column-then-populate-it shape stays valid.
 
 Before writing any MDL, verify these requirements:
 
+### 0. Start the script with `mdl 1;`
+
+A script without the header is checked and executed as `mdl 0`, the alpha language,
+where some statements mean something else. Write `mdl 1;` as the first line of every
+new script. To edit a headerless one, upgrade it first (`mxcli fmt --upgrade --header
+-p app.mpr -w script.mdl`) — never mix the two in one file; see `choose-edit-mode`.
+
 ### 1. Check Supported Syntax
 
 **Supported in Microflows:**
@@ -324,6 +364,7 @@ Before writing any MDL, verify these requirements:
 > problem, not the quotes.
 
 ```sql
+mdl 1;
 create persistent entity Module."Customer" (
   "Name": string(200),
   "status": string(50),
@@ -382,6 +423,30 @@ are in.
 `MDL-PAGE20` accepts an attribute path in the segment (`url: 'p006/{Customer/Name}'`),
 which is the usual shape — it matches the segment's leading name, not the whole
 segment.
+
+### A used flow left without access — `MDL-SEC21` (CE0106)
+
+With a project (`check -p`), `check` simulates the script's creates, drops,
+grants and revokes and reports a microflow or nanoflow the script leaves with
+**no allowed role** while something that needs one names it. MxBuild's error:
+
+> CE0106 "At least one allowed role must be selected if the microflow is used
+> from navigation, a page, a nanoflow or a published service."
+
+Measured on Mendix 11.14: a page button or data source, a snippet, a navigation
+or menu-document item, or a nanoflow call needs a role (even from an unused
+snippet, menu document or nanoflow). A **published REST operation does not**,
+nor a microflow called only from another microflow, nor an excluded page. It is
+an **error at security level Prototype or Production** and a warning at Off,
+where MxBuild does not check it.
+
+The usual cause is **drop + create in separate runs**: a create in a later run
+is a *new* flow, and a new flow in a module that has its own module roles gets no
+access. Within one run, and with `create or modify`, the stored roles are kept.
+Fix: `grant execute on microflow M.Flow to M.Role;` in the same script, or rebuild
+with `create or modify microflow` instead of dropping. Only what the script
+*changes* is reported — a project that already has CE0106 does not fail an
+unrelated script; `mxcli docker check` shows those.
 
 **`check` is still necessary, not sufficient.** Run `mx check` (or
 `mxcli docker check`) after every `exec`; these two rules narrow the gap, they do
@@ -450,7 +515,7 @@ Statement 5: create page (never executed)
 
 **Recommendations:**
 1. Split scripts into phases when experimenting with uncertain syntax
-2. Use `create or replace` to make scripts idempotent
+2. Use `create or modify` to make scripts idempotent
 3. Re-run and check `git status` — a settled script changes nothing
 4. Test new syntax patterns with minimal scripts first
 5. Keep a backup of your project before running large scripts
@@ -460,9 +525,7 @@ Statement 5: create page (never executed)
 Organize scripts in dependency order:
 
 ```mdl
--- check-skip: illustrative ordering example; the PHASE 5 page block uses
--- shorthand pseudo-syntax (layout/title/parameter/widgets) for brevity, not
--- runnable MDL. See create-page for the real page syntax.
+mdl 1;
 -- ============================================
 -- PHASE 1: Enumerations (no dependencies)
 -- ============================================
@@ -470,7 +533,6 @@ create enumeration Module.Status (
   Active 'Active',
   Inactive 'Inactive'
 );
-/
 
 -- ============================================
 -- PHASE 2: Entities (depend on enumerations)
@@ -479,7 +541,10 @@ create persistent entity Module.Customer (
   Name: string(200),
   status: Module.Status
 );
-/
+
+create persistent entity Module.Order (
+  OrderNumber: string(20)
+);
 
 -- ============================================
 -- PHASE 3: Associations (depend on entities)
@@ -487,7 +552,6 @@ create persistent entity Module.Customer (
 create association Module.Order_Customer
 from Module.Order to Module.Customer
 type reference;
-/
 
 -- ============================================
 -- PHASE 4: Microflows (depend on entities)
@@ -500,20 +564,21 @@ begin
   set $success = true;
   return $success;
 end;
-/
 
 -- ============================================
 -- PHASE 5: Pages (depend on microflows)
 -- ============================================
-create page Module.Customer_Edit
-layout Atlas_Default
-title 'Edit Customer'
-parameter $Customer: Module.Customer
-widgets (
-  -- Can reference microflows created in Phase 4
-  button 'Save' call microflow Module.ACT_Save (Customer = $Customer)
-);
-/
+create page Module.Customer_Edit (
+  Title: 'Edit Customer',
+  Layout: Atlas_Core.PopupLayout,
+  Params: ( $Customer: Module.Customer )
+) {
+  dataview dvCustomer (DataSource: $Customer) {
+    textbox txtName (Label: 'Name', Attribute: Name)
+    -- Can reference the microflow created in Phase 4
+    actionbutton btnSave (Caption: 'Save', Action: call microflow Module.ACT_Save(Customer = $Customer))
+  }
+};
 ```
 
 ## Troubleshooting Parse Errors
@@ -544,9 +609,9 @@ Declaration order that avoids most forward references:
 enumerations → entities → snippets (placeholder) → pages → snippets (fill-in) → microflows → navigation
 ```
 
-> **Never use `CREATE OR REPLACE` for the placeholder fill-in step.** OR REPLACE deletes
-> the placeholder and creates a new document with a different UUID, silently breaking
-> every page or snippet that references it.
+> **Write the fill-in as `CREATE OR MODIFY`.** `CREATE OR REPLACE` is its deprecated
+> spelling (`MDL-DEPR001`, keeps the ID too). Only `create or replace view entity`
+> without an `mdl 1;` header deletes and recreates (`MDL-V1-REPLACE01`).
 
 ### Error: "mismatched input 'X'"
 
@@ -596,7 +661,9 @@ does not hot-reload when an external process changes the file. So after `mxcli e
 - `ped_read_document` / `ped_check_errors` will show the **stale** pre-exec model until
   Studio Pro re-scans — call `refresh_project` first (or reload the project in the UI).
 - **Hazard:** if Studio Pro later saves on its own, it overwrites mxcli's disk write with
-  its in-memory copy, silently discarding your MDL changes.
+  its in-memory copy, silently discarding your MDL changes. So a file-based write is
+  **refused** while Studio Pro's `<project>.mpr.lock` is beside the `.mpr`; `exec --force`
+  (or `MXCLI_ALLOW_STUDIO_PRO_OPEN=1`) overrides it, e.g. for a lock left by a crash.
 
 **Safest practice:** don't keep the same project open-and-saving in Studio Pro while
 mxcli writes it. Either close (or don't save in) Studio Pro during MDL authoring, or
@@ -609,7 +676,14 @@ Pro) instead of writing the file directly.
 After `./mxcli exec script.mdl -p app.mpr` succeeds:
 
 1. `refresh_project` (Studio Pro MCP) so the in-memory model reflects the new file.
-2. `ped_check_errors` on each created/modified document for CE errors.
+2. `ped_check_errors` on each created/modified document for CE errors. The argument
+   depends on the Studio Pro release — read the tool's input schema:
+   - up to 11.14: `{"documents": [{"documentType": "Microflows$Microflow", "documentName": "Mod.Name"}]}`
+   - 11.15+: `{"filters": {"documentType": "Microflows$Microflow", "documentNamePrefix": "Mod.Name"}}`.
+     11.15 **silently ignores** `documents` and checks the whole project. `documentNamePrefix`
+     is a prefix (`Mod.Order` also matches `Mod.OrderLine`), so read the `'Mod.Name' (Type):`
+     header above each problem. More than 100 problems come in pages: repeat the same
+     `filters` with `pagination: {checkId, offset, size}` using the `Check ID` from the first answer.
 
 > **Do not treat an empty `DESCRIBE` as proof of a dropped construct.** `DESCRIBE`
 > renders from the MDL emitter, which does not yet render every activity/widget type

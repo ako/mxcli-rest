@@ -7,14 +7,12 @@ description: "Reproduce a Claude Design prototype or design handoff (HTML/CSS, .
 
 ## When to Use This Skill
 
-Use this skill when you are given a **Claude Design prototype / design handoff** (an
-HTML/CSS prototype, a `*.dc.html` design-console export, a tokens file, a PRD, and/or
-screenshots) and need to reproduce that look in a Mendix app using **mxcli + MDL**.
+Use this skill when you are given a **Claude Design prototype / design handoff** (an HTML/CSS
+prototype, a `*.dc.html` design-console export, a tokens file, a PRD, and/or screenshots) and need to reproduce that look in a Mendix app using **mxcli + MDL**.
 
 It covers the two halves of the job:
 
-1. **Build the SCSS theme** — turn the prototype's design language (colours, fonts,
-   spacing, component styles) into a Mendix theme in `theme/web/main.scss`.
+1. **Build the SCSS theme** — turn the prototype's design language (colours, fonts, spacing, component styles) into a Mendix theme in `theme/web/main.scss`.
 2. **Apply it in pages** — attach the theme's classes to widgets with MDL
    (`Class:` / `DynamicClasses:` on `create page` / `alter page`).
 
@@ -349,8 +347,8 @@ too — each `series`/`line` binds its own OQL-view datasource + X/Y attributes;
 Pie/HeatMap bind at the widget level (`ValueAttribute:`, Pie needs `SeriesName:`).
 See **[Custom & Pluggable Widgets → Charts](../custom-widgets/SKILL.md)** for the chart-type
 → id table, per-chart required-property gotchas (TimeSeries needs a datetime X,
-Bubble needs a size attribute), and the **CE0463 → `mxcli docker check`/`build`** step
-(these normalize widgets *and* preserve MPRv2 storage — never run bare
+Bubble needs a size attribute), and the **CE0463 → `mxcli fix widgets`** step
+(it normalizes the stored widgets *and* preserves MPRv2 storage — never run bare
 `mx update-widgets` on a `mxcli new` project; it deletes `mprcontents/`).
 `mdl-examples/doctype-tests/34-chart-widget-examples.mdl` is the full showcase.
 
@@ -389,7 +387,7 @@ mxcli -p baedemo.mpr -c "LIST NAVIGATION"              # profiles, home page, it
 mxcli -p baedemo.mpr -c "LIST NAVIGATION MENU Responsive"   # the menu tree
 ```
 
-Add or reorder items with `CREATE OR REPLACE NAVIGATION <Profile> …` (full-replacement — dump
+Add or reorder items with `CREATE OR MODIFY NAVIGATION <Profile> …` (full-replacement — dump
 the current profile first with `DESCRIBE NAVIGATION <Profile>`, edit, re-apply). See
 `manage-navigation` for the item syntax, home/login pages, and role-based homes.
 
@@ -474,7 +472,8 @@ widgets, which are far harder to drive from MDL.
 Space-join base + modifiers in a single `Class:` string:
 
 ```sql
-create or replace page ResourceScheduling.ResourceHeatmap (
+mdl 1;
+create or modify page ResourceScheduling.ResourceHeatmap (
   Title: 'Resource Heatmap', Layout: Atlas_Core.Atlas_Default
 ) {
   container heatmapPage (Class: 'ss-page') {
@@ -489,7 +488,7 @@ create or replace page ResourceScheduling.ResourceHeatmap (
       }
     }
   }
-}
+};
 ```
 
 ### State-driven styling — `DynamicClasses:` expression
@@ -537,9 +536,10 @@ steps is usually plenty).
 Use `alter page` to attach a class without rewriting the page (see `alter-page`):
 
 ```sql
+mdl 1;
 alter page ResourceScheduling.Approvals {
   set (Class: 'ss-appr-card ss-appr-card--conflict') on queueCard;
-}
+};
 ```
 
 To apply the same class across many widgets/pages at once, see `bulk-widget-updates`
@@ -659,8 +659,8 @@ the fast index so a design migration doesn't rediscover them.
   (`Charts.mpk`: column/bar/line/area/pie)** now author via MDL — each `series` (an object-list
   item inside the chart) binds a datasource plus X/Y attributes:
   `series s1 (staticDataSource: database from Module.View, staticXAttribute: "X", staticYAttribute: "Y")`
-  (a per-series OQL view works too). `mxcli docker check`/`build` clear the
-  widget-version-drift CE0463 (they normalize the widgets and preserve MPRv2 storage —
+  (a per-series OQL view works too). `mxcli fix widgets` clears the
+  widget-version-drift CE0463 (it normalizes the stored widgets and preserves MPRv2 storage —
   do not run bare `mx update-widgets`, which deletes `mprcontents/`). Still lighter when the design allows: a **CSS-background
   SVG** container (or `HTMLElement`) for sparklines/trends — no datasource — and `ProgressCircle`
   (`type: expression`, `expressionCurrentValue: '$currentObject/Rate'`, min `'0'` / max `'100'`,

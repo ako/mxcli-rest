@@ -79,10 +79,10 @@ begin
 
   $Raw = call rest service get 'https://api.restful-api.dev/objects/{1}' with (
     {1} = $ObjectId
-  )
-    header Accept = 'application/json'
-    timeout 30
-    returns string
+  ) (
+    Headers: ('Accept': 'application/json'),
+    Timeout: 30,
+  ) returns string
     on error continue;
 
   IF $Raw != empty THEN
@@ -211,10 +211,10 @@ begin
 
   $Response = call rest service get 'https://httpbingo.org/status/{1}' with (
     {1} = $Code
-  )
-    header Accept = 'application/json'
-    timeout 30
-    returns response
+  ) (
+    Headers: ('Accept': 'application/json'),
+    Timeout: 30,
+  ) returns response
     on error continue;
 
   IF $Response != empty THEN
@@ -252,10 +252,10 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Raw = call rest service get 'https://api.open-meteo.com/v1/forecast?latitude=52.37&longitude=4.89&current=temperature_2m'
-    header Accept = 'application/json'
-    timeout 30
-    returns string
+  $Raw = call rest service get 'https://api.open-meteo.com/v1/forecast?latitude=52.37&longitude=4.89&current=temperature_2m' (
+    Headers: ('Accept': 'application/json'),
+    Timeout: 30,
+  ) returns string
     on error continue;
 
   IF $Raw != empty THEN

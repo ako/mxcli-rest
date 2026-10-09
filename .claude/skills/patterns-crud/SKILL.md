@@ -21,6 +21,7 @@ Standard patterns for Create, Read, Update, Delete operations on entities.
 Used for Save buttons on NewEdit pages.
 
 ```mdl
+mdl 1;
 /**
  * Save action for Customer NewEdit page
  * Validates, commits, and closes the page
@@ -34,7 +35,6 @@ create microflow Module.ACT_Customer_Save (
 returns boolean
 begin
   -- Validate first
-  declare $IsValid boolean = true;
   $IsValid = call microflow Module.VAL_Customer_Save(Customer = $Customer);
 
   if $IsValid then
@@ -44,7 +44,6 @@ begin
 
   return $IsValid;
 end;
-/
 ```
 
 ## Validation Pattern
@@ -52,6 +51,7 @@ end;
 Companion validation microflow for Save actions.
 
 ```mdl
+mdl 1;
 /**
  * Validate Customer before save
  *
@@ -84,7 +84,6 @@ begin
 
   return $IsValid;
 end;
-/
 ```
 
 ## Delete Pattern
@@ -92,6 +91,7 @@ end;
 Used for Delete buttons with confirmation.
 
 ```mdl
+mdl 1;
 /**
  * Delete a customer
  * Called after user confirms deletion
@@ -108,7 +108,6 @@ begin
   close page;
   return true;
 end;
-/
 ```
 
 ## Cancel Pattern
@@ -116,6 +115,7 @@ end;
 Used for Cancel buttons (discard changes).
 
 ```mdl
+mdl 1;
 /**
  * Cancel editing and close page
  * Discards uncommitted changes
@@ -132,7 +132,6 @@ begin
   close page;
   return true;
 end;
-/
 ```
 
 ## Create New Pattern
@@ -140,6 +139,7 @@ end;
 Used for New/Add buttons on overview pages.
 
 ```mdl
+mdl 1;
 /**
  * Create new customer and open edit page
  *
@@ -156,7 +156,6 @@ begin
   show page Module.Customer_NewEdit (Customer = $NewCustomer);
   return true;
 end;
-/
 ```
 
 ## Data Source Pattern
@@ -164,6 +163,7 @@ end;
 Used for data grid/list view sources.
 
 ```mdl
+mdl 1;
 /**
  * Get all active customers
  * Used as data source for Customer overview
@@ -179,7 +179,6 @@ begin
 
   return $Customers;
 end;
-/
 ```
 
 ## Edit Pattern
@@ -187,6 +186,7 @@ end;
 Open existing entity for editing.
 
 ```mdl
+mdl 1;
 /**
  * Open customer for editing
  *
@@ -201,7 +201,6 @@ begin
   show page Module.Customer_NewEdit (Customer = $Customer);
   return true;
 end;
-/
 ```
 
 ## Complete CRUD Set

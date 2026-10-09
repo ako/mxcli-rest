@@ -30,6 +30,9 @@ mxcli lint -p app.mpr
 
 # generate the scored best practices report
 mxcli report -p app.mpr --format markdown
+
+# score only the app's own modules (not Marketplace / platform modules)
+mxcli report -p app.mpr --modules MyModule,OtherModule --format markdown
 ```
 
 The report covers 6 categories with scores: **Naming**, **Security**, **Quality**, **Architecture**, **Performance**, **Design**.
@@ -40,24 +43,24 @@ Use catalog queries to understand the project's shape:
 
 ```sql
 -- Overview of project size and structure
-describe structure depth 2
+describe structure depth 2;
 
 -- Key metrics
-select module_name, count(*) from CATALOG.entities GROUP by module_name
-select module_name, count(*) from CATALOG.microflows GROUP by module_name
-select module_name, count(*) from CATALOG.pages GROUP by module_name
+select module_name, count(*) from CATALOG.entities GROUP by module_name;
+select module_name, count(*) from CATALOG.microflows GROUP by module_name;
+select module_name, count(*) from CATALOG.pages GROUP by module_name;
 
 -- Complexity metrics (McCabe/Sigrid-style)
 select qualified_name, cyclomatic_complexity
 from CATALOG.microflows
 where cyclomatic_complexity > 10
-ORDER by cyclomatic_complexity desc
+ORDER by cyclomatic_complexity desc;
 
 -- Large microflows
 select qualified_name, activity_count
 from CATALOG.microflows
 where activity_count > 15
-ORDER by activity_count desc
+ORDER by activity_count desc;
 ```
 
 ### Step 2b: Architecture & Dependency-Graph Analysis
@@ -296,14 +299,14 @@ select
   end as complexity_band,
   count(*) as microflow_count
 from CATALOG.microflows
-GROUP by complexity_band
+GROUP by complexity_band;
 
 -- Top complex microflows
 select qualified_name, cyclomatic_complexity, activity_count
 from CATALOG.microflows
 where cyclomatic_complexity > 10
 ORDER by cyclomatic_complexity desc
-limit 20
+limit 20;
 ```
 
 **Sigrid benchmarks** (5-star system):

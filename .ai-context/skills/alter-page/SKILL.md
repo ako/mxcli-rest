@@ -7,7 +7,7 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 
 ## Overview
 
-ALTER PAGE and ALTER SNIPPET modify an existing page or snippet's widget tree **in-place** without requiring a full `create or replace`. Operations work directly on the raw BSON tree, preserving widget types and properties that MDL doesn't explicitly model.
+ALTER PAGE and ALTER SNIPPET modify an existing page or snippet's widget tree **in-place** without requiring a full `create or modify`. Operations work directly on the raw BSON tree, preserving widget types and properties that MDL doesn't explicitly model.
 
 ## When to Use
 
@@ -19,17 +19,17 @@ ALTER PAGE and ALTER SNIPPET modify an existing page or snippet's widget tree **
 | Replace a footer or section | `alter page` with `replace` |
 | Several related changes on the same page | `alter page` with multiple operations in one block |
 | Same property across many pages (e.g., add `Class` to every Container) | `update widgets` — see `bulk-widget-updates` |
-| Rebuild entire page from scratch (pages your scripts own only) | `create or replace page` |
+| Rebuild entire page from scratch (pages your scripts own only) | `create or modify page` |
 | Create a new page | `create page` |
 
 **Rule of thumb:**
 - `alter page` — targeted edits to one page. Combine multiple ops in one block when they belong together.
 - `update widgets` — cross-page bulk updates with `WHERE` filtering and `DRY RUN`.
-- `create or replace page` — redefining the full page structure of a page your MDL scripts own.
+- `create or modify page` — redefining the full page structure of a page your MDL scripts own.
 
 **Who owns the page decides** ([choose-edit-mode](../choose-edit-mode/SKILL.md)). A page
 or snippet authored or edited in Studio Pro is changed with `alter`, however large the
-change. `describe` → edit → `create or modify`/`create or replace` is only for pages your
+change. `describe` → edit → `create or modify` is only for pages your
 MDL scripts created and nobody has changed in Studio Pro since: on a Studio Pro page that
 round trip has dropped translations and filled an empty English caption from another
 language, and on a snippet it has dropped the snippet's type.
@@ -71,6 +71,7 @@ MDL-DEPR102 and MDL-DEPR103 — write the form above.
 Multiple operations can be combined in a single ALTER statement. They are applied sequentially; later operations see the page state produced by earlier ones, so you can `set` on a widget you just `insert`ed.
 
 ```sql
+mdl 1;
 -- Rename a column, add a sibling, drop an obsolete one — all in one block.
 alter page MyMod.Product_Overview {
   set (caption: 'Product Name') on dgProducts column(Name);
@@ -93,6 +94,7 @@ every other target. Adding one reuses `INSERT INTO` with the same
 everywhere. Removing one has its own form:
 
 ```sql
+mdl 1;
 alter page Pages.Vehicle_Overview {
   insert into vehicleListView {
     template for Pages.Motorcycle {
@@ -165,6 +167,13 @@ rebuilds the widget from what the statement says, so any property you do not
 restate — `ButtonStyle`, `Class`, design properties, tooltip — is dropped. `set`
 edits the one property and leaves the rest of the widget alone.
 
+The exception is a **pluggable widget replaced by one of the same kind** (a combo
+box by a combo box): there `replace` keeps every stored property the statement
+does not change — a translated placeholder, `readOnlyStyle`, anything MDL has no
+word for — and writes only what differs from the widget as `describe` prints it.
+So a sort can be added to a combo box's options by restating its `describe`
+line with `sort by` appended.
+
 `set Action` is refused on a widget that has no action (a plain container, say),
 rather than writing a property the widget type does not define — Studio Pro
 refuses to open a document with an unknown property while MxBuild tolerates it,
@@ -227,12 +236,13 @@ so a silent write would build cleanly and then fail to open.
 from a microflow to a page parameter:
 
 ```sql
+mdl 1;
 ALTER PAGE MyModule.OrderPage {
   SET (DataSource: $Order) ON dvOrder;                       -- page/snippet parameter
   SET (DataSource: microflow MyModule.MF_Get) ON dvOrder;     -- microflow
   SET (DataSource: nanoflow MyModule.NF_Get) ON dvOrder;      -- nanoflow
   SET (DataSource: selection dgOrders) ON dvDetail;           -- listen to widget
-}
+};
 ```
 
 The parameter must exist on the page (or snippet) being altered — its entity is
@@ -282,8 +292,14 @@ Inserted widgets use the same syntax as `create page`. Multiple widgets can be i
 only way to fill an **empty** container, and handy for adding to a container/dataview
 without needing a sibling to anchor to. Widgets inserted into a dataview take that
 dataview's entity as their context. Supported on simple containers (container,
-dataview, groupbox, scroll-container region); for a layout grid or tab container,
-insert relative to a widget inside the target column/tab instead.
+dataview, groupbox, tab page, scroll-container region); for a layout grid, insert
+relative to a widget inside the target column instead.
+
+**Adding a tab:** `insert into <tabcontainer> { tabpage … }` appends a tab page, and
+`insert after|before <tabpage> { tabpage … }` places it next to that sibling. A tab
+page cannot go next to an ordinary widget or inside another tab page, and one insert
+cannot mix tab pages and widgets. Dropping or reordering tab pages still needs
+`create or modify page`.
 
 **The context comes from the nearest enclosing data source, whatever kind it is**
 — a database or association source, a microflow/nanoflow source (the entity is
@@ -310,16 +326,19 @@ Removes widgets and their entire subtree from the page.
 ### REPLACE - Replace Widget Subtree
 
 ```sql
--- Replace a single widget with new content
-replace footer1 with {
-  footer newFooter {
-    actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
-    actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
+mdl 1;
+-- Replace a data view's footer (it has no name: address it by its data view)
+alter page MyModule.Customer_Edit {
+  replace dvMain.footer with {
+    footer {
+      actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
+      actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
+    }
   }
-}
+};
 ```
 
-Replaces the target widget with one or more new widgets. The new widgets use the same syntax as `create page`.
+Replaces the target widget with one or more new widgets. The new widgets use the same syntax as `create page`, and may reuse the names of the widgets the replace removes. `insert into dvMain.footer { … }` appends to a footer and `drop dvMain.footer` empties it.
 
 ### DataGrid Column Operations
 
@@ -364,6 +383,33 @@ drop variables $showStockColumn
 
 Removes a page variable by name.
 
+### ADD Parameters - Add a Page or Snippet Parameter
+
+```sql
+mdl 1;
+alter page MyModule.Order_Edit {
+  add parameters $Order: MyModule.Order;
+  add parameters $Count: integer;
+};
+```
+
+Adds a `Forms$PageParameter` (or `Forms$SnippetParameter`) to the stored document and touches nothing else — reach for it instead of `create or replace page`, which rebuilds every widget and loses whatever `describe` does not round-trip. Same declaration as `Params:` on CREATE.
+
+- **A page with a `Url` needs a `{Name}` segment per parameter** (CE5601). Set it in the same statement — `set (Url: 'orders/{Customer}/{Order}');` — or exec refuses and prints the URL to use.
+- **A snippet parameter must be an entity** (MDL087 / CE0046).
+- **Callers are not updated.** Every page that opens this page (or places this snippet) must now pass the parameter; `mxcli docker check` names the ones that do not.
+
+### DROP Parameters - Remove a Parameter
+
+```sql
+mdl 1;
+alter page MyModule.Order_Edit {
+  drop parameters $Order;
+};
+```
+
+Refused while the page still uses the parameter — a data source bound to it (`DataSource: $Order`) or an expression naming `$Order`. Rebind or drop those first.
+
 ### SET Layout - Change Page Layout
 
 ```sql
@@ -383,6 +429,7 @@ When placeholders have the same names in both layouts (e.g., both have `Main`), 
 ### Change button text and style
 
 ```sql
+mdl 1;
 alter page MyModule.Customer_Edit {
   set (caption: 'Save & Close', buttonstyle: success) on btnSave
 };
@@ -391,6 +438,7 @@ alter page MyModule.Customer_Edit {
 ### Add a field to a form
 
 ```sql
+mdl 1;
 alter page MyModule.Customer_Edit {
   insert after txtEmail {
     textbox txtPhone (label: 'Phone', attribute: Phone)
@@ -401,6 +449,7 @@ alter page MyModule.Customer_Edit {
 ### Add a page variable for column visibility
 
 ```sql
+mdl 1;
 alter page MyModule.ProductOverview {
   add variables $showStockColumn: boolean = 'if (3 < 4) then true else false'
 };
@@ -409,6 +458,7 @@ alter page MyModule.ProductOverview {
 ### Remove unused fields and update title
 
 ```sql
+mdl 1;
 alter page MyModule.Customer_Edit {
   set (title: 'Edit Customer Details');
   drop txtLegacyField, lblOldNote;
@@ -419,9 +469,10 @@ alter page MyModule.Customer_Edit {
 ### Replace a footer section
 
 ```sql
+mdl 1;
 alter page MyModule.Customer_Edit {
-  replace footer1 with {
-    footer newFooter {
+  replace dvMain.footer with {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: success)
       actionbutton btnDelete (caption: 'Delete', action: delete, buttonstyle: danger)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
@@ -433,6 +484,7 @@ alter page MyModule.Customer_Edit {
 ### Modify a snippet
 
 ```sql
+mdl 1;
 alter snippet MyModule.NavigationMenu {
   set (caption: 'Dashboard') on btnHome;
   insert after btnHome {
@@ -444,6 +496,7 @@ alter snippet MyModule.NavigationMenu {
 ### Set pluggable widget properties
 
 ```sql
+mdl 1;
 alter page MyModule.Customer_Edit {
   set ('showLabel': false) on cbStatus;
   set ('labelWidth': 4) on cbCategory
@@ -472,9 +525,10 @@ dropped and reported as **MDL-DEPR005**; `mxcli fmt --upgrade` removes it.
 `attribute:` value, or its `caption:`:
 
 ```mdl
-alter page Mod.P { set (Caption: 'Renamed') on dg1 column(Label) }       -- the column bound to Label
-alter page Mod.P { drop dg1 column('Actions') }                           -- the column captioned Actions
-alter page Mod.P { set (Sortable: false) on dg1 column(Owner/Name) }      -- over an association, as describe writes it
+mdl 1;
+alter page Mod.P { set (Caption: 'Renamed') on dg1 column(Label) };       -- the column bound to Label
+alter page Mod.P { drop dg1 column('Actions') };                           -- the column captioned Actions
+alter page Mod.P { set (Sortable: false) on dg1 column(Owner/Name) };      -- over an association, as describe writes it
 ```
 
 Two columns over the same attribute (or with the same caption) share the
@@ -496,14 +550,17 @@ written as-is.** A quoted value is a Mendix string, so a literal CSS class is ju
 the quoted class name, and a computed one is the expression itself:
 
 ```mdl
+mdl 1;
 -- a literal class: the string 'highlight'
-alter page Mod.P { SET (DynamicCellClass: 'highlight') ON dg1 column(Label) }
+alter page Mod.P { SET (DynamicCellClass: 'highlight') ON dg1 column(Label) };
 
 -- a computed class
-alter page Mod.P { SET (DynamicCellClass: if $currentObject/Price > 100 then 'highlight' else '') ON dg1 column(Label) }
+alter page Mod.P { SET (DynamicCellClass: if $currentObject/Price > 100 then 'highlight' else '') ON dg1 column(Label) };
+```
 
+```text
 -- WRONG: a bare name is an identifier, not a string — mxbuild reports CE0117
-alter page Mod.P { SET (DynamicCellClass: highlight) ON dg1 column(Label) }
+alter page Mod.P { SET (DynamicCellClass: highlight) ON dg1 column(Label) };
 ```
 
 The old spelling — the expression's text in quotes, `'if … then ''a'' else '''''`
@@ -517,7 +574,7 @@ value is still the expression's text, so a literal needs the doubled quotes.
 
 Properties holding a **structured** value — `attribute`, `filter`, `content`,
 actions — cannot be set by ALTER at all. It refuses them and points at
-`create or replace page`, rather than writing a string where Mendix expects a
+`create or modify page`, rather than writing a string where Mendix expects a
 reference.
 
 **Widget property names are matched case-insensitively**, pluggable ones
@@ -551,8 +608,8 @@ adds. Both still fail at exec if they are genuinely wrong.
 
 ## Limitations — prefer binding at page creation (ledger finding #45)
 
-`ALTER PAGE` is best for *content* edits (add/remove/retitle widgets). Three things
-it cannot do; when you hit them, define the referenced microflows **before** the
+`ALTER PAGE` is best for *content* edits (add/remove/retitle widgets). When you hit
+the limit below, define the referenced microflows **before** the
 page and bind the buttons at creation time instead of rewiring afterwards:
 
 1. **`SET` cannot rewire a button's action.** `set` accepts a fixed property list
@@ -560,17 +617,11 @@ page and bind the buttons at creation time instead of rewiring afterwards:
    `set Action = call microflow … on btnSave` is a parse error. Set the button's action
    when the button is created (or `REPLACE` the button subtree).
 
-2. **`REPLACE` cannot reuse a widget name that lives inside the subtree being
-   replaced.** The replacement is *built* (registering its widget names) before the
-   old subtree is removed, so reusing e.g. `btnSave` collides with the still-present
-   old `btnSave` ("duplicate widget name 'btnSave'"). Give the replacement widgets
-   fresh names, or rebuild the whole page with `create or replace page`.
-
-3. **A footer is not addressable by its author-given name.** A `footer myName { … }`
-   is a *marker*: its children are hoisted into the data view's footer and the
-   footer itself is serialized as `footer1`, so `drop myName` (and even
-   `drop footer1`) report "not found". To change footer contents, edit the
-   children by their own names, or `create or replace page`.
+**A data view's footer has no name.** Its widgets are stored in the data
+   view, and the footer itself is not, so a name written on it is never kept
+   (MDL-DEPR005) and `describe` prints `footer { … }`. Address it by its data
+   view: `replace dvMain.footer with { footer { … } }`, `insert into
+   dvMain.footer { … }`, `drop dvMain.footer`.
 
 **Recommended pattern**: put save/reset microflows in a file that runs *before* the
 page definition, and bind the popup/footer buttons to them at creation. The

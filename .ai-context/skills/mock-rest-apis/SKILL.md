@@ -45,13 +45,14 @@ A `REST CALL` URL is an **expression**, so it can be assembled from a constant
 (`@Module.Constant` is Mendix's constant reference — `$Name` is a *variable*):
 
 ```sql
+mdl 1;
 create constant MyModule.ApiBaseUrl ( Type: String, DefaultValue: 'https://api.example.com/v1' );
 
 create microflow MyModule.CallApi() returns string
 begin
-  $response = call rest service get @MyModule.ApiBaseUrl + '/rates'
-    header Accept = 'application/json'
-    returns string;
+  $response = call rest service get @MyModule.ApiBaseUrl + '/rates' (
+    Headers: ('Accept': 'application/json'),
+  ) returns string;
   return $response;
 end;
 ```
@@ -83,6 +84,7 @@ A REST client document's `BaseUrl` is a **literal**; it cannot reference a
 constant. Point it at the mock by re-running the create, which is a one-line diff:
 
 ```sql
+mdl 1;
 create or modify consumed rest service MyModule.RatesAPI (
   OpenAPI: 'specs/rates.json',
   BaseUrl: 'http://127.0.0.1:4020'

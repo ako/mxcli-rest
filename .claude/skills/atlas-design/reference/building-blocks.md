@@ -57,6 +57,7 @@ is the fallback for hand-tuning or the modelsdk engine; the how-to is below.
 it onto a page, binding real content:
 
 ```mdl
+mdl 1;
 create page MyModule.CardDemo
 (
   title: 'Card demo',
@@ -80,6 +81,7 @@ the slot with each card's own content. This is the key idiom: one card wrapper,
 arbitrary bodies, no copy-paste of the wrapper markup.
 
 ```mdl
+mdl 1;
 create fragment SectionCard as {
   container card1 (designproperties: ('Card style': on, 'Spacing': ('margin-bottom': 'Large'))) {
     container cardBody (class: 'card-body') {
@@ -160,6 +162,7 @@ For a binding the override rule can't reach, copy the block in (`as prefix_`) an
 Mirror:
 
 ```mdl
+mdl 1;
 create page MyModule.CustomersHeaderDemo
 (
   title: 'Customers',

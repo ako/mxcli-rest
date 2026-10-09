@@ -1,6 +1,6 @@
 ---
 name: test-app
-description: "Verify a running Mendix app in a browser with Playwright, with OQL for data assertions. Use when asked to test or validate the app end to end, or to confirm that generated pages actually render."
+description: "Verify a running Mendix app in a browser: `mxcli playwright check` for a one-call text verdict per page (renders? error banner? console errors? rows?), playwright-cli scripts for interaction, OQL for data. Use when asked to check a page, see whether it renders, verify in the browser, test the app end to end, or confirm generated pages work — before reaching for a screenshot."
 ---
 
 # Test App Skill
@@ -17,6 +17,48 @@ Use this when:
 - You have generated MDL that creates pages and want to close the feedback loop
 
 For **microflow logic testing** (business rules, calculations, entity operations — no browser needed), use the `test-microflows` skill and `mxcli test` instead.
+
+## Start Here: `mxcli playwright check` (one call, text, no screenshot)
+
+"Does the page render?", "is there an error?", "did the list get rows?" are answered
+by **one** command against the running app — not by a playwright-cli session:
+
+```bash
+mxcli playwright check /p/customers /p/orders -p app.mpr
+```
+```
+page /p/customers  title="Customers"  h="Customer overview"  rows=12  text=812  console-errors=0
+page /p/orders  title="Orders"  text=254  console-errors=1
+  ALERT  An error occurred, please contact your system administrator.
+  ERR    [Client] An error occurred while executing microflow data source for widget …
+  HTTP   560 POST /xas/
+  FAIL   1 error banner(s)
+  FAIL   1 console error(s)
+  FAIL   1 failed request(s)
+FAIL 1 of 2 page(s)
+```
+
+- **Exit status:** 0 all pages passed; 1 a page failed (error banner/dialog, console
+  error, failed request, HTTP error, sign-in form instead of the page, failed
+  assertion); 2 the check could not run.
+- **Login is handled:** `--user U --password P`, or `--role R` (the project's demo user
+  holding user role R), or nothing but `-p` (a demo user, an administrator first).
+  The session is saved under `.mxcli/playwright-check/` and reused by the next check;
+  after a runtime restart it is renewed automatically. `--fresh-login` forces it.
+- **Assertions:** `--assert-text 'Customer overview'` (body text contains),
+  `--assert-count '.mx-name-dgCustomers [role=row]>=2'` (ops `>= <= == != > <`; a
+  bare selector means at least one). Both repeatable, applied to every page.
+- **Screenshot only when the question is visual** (layout, spacing, colour):
+  `--screenshot out.png` writes it and prints the path. Read it **once**.
+- App URL: `--base-url`, else (with `-p`) the port a live `mxcli run --local` serves
+  on, else `APP_PORT` from `.docker/.env`, else `:8080`.
+
+**Never hand-roll** `playwright-cli open …/login.html; fill …; click …; goto …;
+sleep 6; eval …; screenshot …` followed by reading the PNG to see whether a page
+works. That sequence is a dozen tool calls and an image every later model call pays
+for; `playwright check` is one call and about a hundred tokens. Use playwright-cli
+(below) when the test needs an **interaction** — clicking, filling, submitting —
+and capture that in a `tests/verify-*.test.sh` script for `mxcli playwright verify`.
 
 ## Prerequisites
 
@@ -119,6 +161,11 @@ playwright-cli eval "() => document.querySelector('.mx-name-submitButton') !== n
 ## Verification Patterns
 
 ### Login (Security Enabled)
+
+For checking pages, `mxcli playwright check` signs in for you (see *Start Here*) —
+including the input-event quirk below, since it types into the fields rather than
+setting `.value`. The manual sequence is for playwright-cli sessions that go on to
+**interact** with the app.
 
 The Mendix login page uses standard HTML IDs:
 
@@ -434,10 +481,11 @@ mxcli exec changes.mdl -p app.mpr
 # 2. build and start
 mxcli docker run -p app.mpr --fresh --wait
 
-# 3. open browser and verify
-playwright-cli open http://localhost:8080
-playwright-cli snapshot
-# ... verify widgets, fill forms, check data ...
+# 3. check the pages render (text verdict, exit 1 on failure)
+mxcli playwright check /p/Customer_Overview /p/Order_Overview -p app.mpr
+
+# 3b. only for interactions: drive playwright-cli / a verify script
+mxcli playwright verify tests/ -p app.mpr --keep-open
 
 # 4. Fix any issues in MDL, rebuild, re-verify
 ```

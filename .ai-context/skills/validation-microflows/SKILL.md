@@ -61,6 +61,7 @@ close page 2;
 ### Validation Microflow (VAL_Car_NewEdit)
 
 ```mdl
+mdl 1;
 /**
  * Validates a Car entity for NewEdit operations
  *
@@ -110,12 +111,12 @@ begin
 
   return $IsValid;
 end;
-/
 ```
 
 ### Action Microflow (ACT_Car_NewEdit)
 
 ```mdl
+mdl 1;
 /**
  * Handles the Save action for Car NewEdit page
  *
@@ -141,7 +142,6 @@ begin
 
   return $IsValid;
 end;
-/
 ```
 
 ## Validation Patterns

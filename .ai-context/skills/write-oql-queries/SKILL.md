@@ -29,7 +29,7 @@ Generate correct OQL (Object Query Language) queries for Mendix VIEW entities. T
 
 Every column in the SELECT clause must have an alias that matches the entity attribute name:
 
-```sql
+```text
 -- ❌ WRONG - Missing aliases
 create view entity Finance.CashFlowProjection (
   ProjectionDate: datetime,
@@ -42,7 +42,10 @@ create view entity Finance.CashFlowProjection (
     fl.ProjectedExpense           -- Missing AS alias
   from Finance.ForecastLine as fl
 );
+```
 
+```sql
+mdl 1;
 -- ✅ CORRECT - All columns have explicit aliases
 create view entity Finance.CashFlowProjection (
   ProjectionDate: datetime,
@@ -104,6 +107,7 @@ subtotals). Column count and types must line up across branches; `ORDER BY` (wit
 its `LIMIT`) applies to the whole unioned result, not a single branch.
 
 ```sql
+mdl 1;
 create or modify view entity Ledger.CategoryAndSubtotals (
   Label: string(100), Amount: decimal
 ) as (
@@ -141,6 +145,32 @@ count(*)
 count(t.ID)           -- Count by ID attribute
 count(t)              -- Count entity instances
 ```
+
+**Counting rows of a view entity:** a view entity has **no ID**, so `count(v.ID)`
+over a view does not work. Count a column that is never empty instead —
+`count(v.Name)` for a column every row fills. The same goes for a literal: `count(1)` / `sum(1)` look harmless but
+fail on HSQLDB, Studio Pro's default database (see *View columns and HSQLDB*
+below).
+
+### View columns, GROUP BY and HSQLDB (checked: MDL033–MDL038)
+
+Measured on mxbuild 11.13.0 and `run --local` against HSQLDB and PostgreSQL
+(ako/mxcli#981). `mxcli check` reports each:
+
+| Write | Not | Why |
+|---|---|---|
+| `case when r.A = r.B then true else false end as Same` | `r.A = r.B as Same` | a comparison is not a select expression: CE0174 (MDL033) |
+| `count(r.Name)` next to `group by r.Season` | `count(r.Season)` next to `group by r.Season` | aggregating a grouped column (also through `datepart(…)` or `r.Season + 1`) is CE0174 (MDL034) |
+| every plain column in the GROUP BY, or aggregated | `r.Name` next to `group by r.Season` (or `group by r.ID`) | CE0174 (MDL035) |
+| the select expression equal to a GROUP BY expression (`group by datepart(YEAR, r.D)` → select `datepart(YEAR, r.D)`) | `datepart(MONTH, r.D)` next to `group by datepart(YEAR, r.D)` | builds, then the database refuses it when the view is read — PostgreSQL 42803, HSQLDB 42574 (MDL036) |
+| `count(r.Name)`, `sum(cast(1 as Integer))`, `sum(case when … then 1 else 0 end)` | `sum(1)`, `count(1)`, `max(0)`, `count('x')`, `count(true)`, `sum(0.0)`, `sum(1.5)` | Mendix sends the literal as an untyped parameter; HSQLDB refuses with 42567 "data type cast needed" (MDL037 warning) |
+| `cast(1 as Integer) as One`, `cast('Label' as String) as Kind` | `1 as One` | the view reads fine, but on HSQLDB `v.One + 1` returns **11** (string concatenation; PostgreSQL returns 2) and aggregating the column fails (MDL038 note) |
+| `r.Name + ' x' as S` declared `string(200)` | declared `string` or `string(100)` | string concatenation is a derived String(200) whatever its operands; anything else is CE6770 (MDL031) |
+| a view attribute over an AutoNumber column declared `long` | declared `autonumber` | CE6770; refused under `mdl 1;`, a warning without the header (MDL-V1-VIEWAUTONUMBER) |
+
+A decimal literal as a *column* (`0.0 as Amount`) is sent with a cast and is fine; inside an aggregate (`sum(0.0)`) it fails like the others. `avg(1)` runs. A bare
+string label such as `'TOTAL' as Label` only draws the MDL038 note — it reads
+fine as long as nothing aggregates it.
 
 ### Aggregate Function Return Types
 
@@ -183,7 +213,7 @@ t.Status != 'VOID'
 ```
 
 ### 5. Division Operator (Colon, not Slash)
-```sql
+```text
 -- ❌ WRONG - Using / causes parsing errors
 select amount / quantity as price
 select (total - discount) * 100.0 / total as percentage
@@ -194,7 +224,7 @@ select (total - discount) * 100.0 : total as percentage
 ```
 
 ### 6. ORDER BY with Aliases
-```sql
+```text
 -- ❌ WRONG - Using expressions in ORDER BY
 ORDER by datepart(YEAR, t.TransactionDate) desc
 
@@ -211,7 +241,7 @@ ORDER by OrderYear desc
 leave that attribute empty. Mendix emits the ordering with no null placement, so
 the database default applies — on PostgreSQL, `DESC` means **NULLS FIRST**.
 
-```sql
+```text
 -- ❌ MISLEADING - the empty rows come back first, so a top-N is not the top N
 select g.Label as Label from Sudoku.Game as g
 order by g.DealtAt desc
@@ -263,7 +293,7 @@ where t.Priority in ('HIGH', 'CRITICAL')  -- Not 'High', 'Critical'
 ```
 
 ### 9. Subqueries (Scalar and Correlated)
-```sql
+```text
 -- ✅ Scalar subquery in SELECT (returns single value)
 select
   p.Name as ProductName,
@@ -353,7 +383,7 @@ create view entity Module.ViewName (
 
 Mendix OQL accepts the select list in either position, and mxcli reads both:
 
-```sql
+```text
 -- Select-first. Write new views this way; the rest of this skill assumes it.
 select c.Name as Name, count(o.ID) as Orders
 from Shop.Customer as c
@@ -382,6 +412,7 @@ column is **not** one of the view entity's attributes — so do not declare one
 for it:
 
 ```sql
+mdl 1;
 create view entity Sales.OrdersVE (
   order_date: DateTime              -- one attribute…
 ) as (
@@ -425,7 +456,8 @@ use the cast when you just need the value.
 
 ### Step 2: Write SELECT Clause
 - Use **lowercase** aggregate functions: `sum()`, `avg()`, `count()`
-- Use `count(entity.ID)` not `count(*)`
+- Use `count(entity.ID)` not `count(*)` — over a **view entity** (no ID), count a non-null column
+- Never aggregate a literal (`sum(1)`, `count(1)`): it fails on HSQLDB — count a column, or `sum(cast(1 as Integer))`
 - Create meaningful aliases for all columns
 - Use `:` for division operations
 
@@ -474,12 +506,15 @@ select sum(amount) from ...
 ```
 
 ### ❌ Mistake 2: Using count(*)
-```sql
+```text
 -- WRONG
 select count(*) from Finance.Transaction
 
 -- CORRECT
 select count(t.ID) from Finance.Transaction as t
+
+-- CORRECT over a view entity, which has no ID: count a non-null column
+select count(v.Name) from Finance.TransactionSummary as v
 ```
 
 ### ❌ Mistake 3: Qualified Enum Names
@@ -492,7 +527,7 @@ where t.Status = 'ACTIVE'
 ```
 
 ### ❌ Mistake 4: Slash for Division
-```sql
+```text
 -- WRONG
 select total / count as average
 
@@ -501,7 +536,7 @@ select total : count as average
 ```
 
 ### ❌ Mistake 5: Missing Column Aliases
-```sql
+```text
 -- WRONG
 select
   fl.ForecastDate,
@@ -622,7 +657,9 @@ When writing OQL queries for VIEW entities, always verify:
 - [ ] **CRITICAL**: All SELECT columns have explicit AS aliases matching entity attributes
 - [ ] ORDER BY omitted so the UI sorts — or, for a top-N view, ORDER BY paired with a LIMIT (MDL030 rejects ORDER BY without LIMIT)
 - [ ] Aggregate functions are lowercase (`sum`, `avg`, `count`, `max`, `min`)
-- [ ] Using `count(entity.ID)` not `count(*)`
+- [ ] Using `count(entity.ID)` not `count(*)` (a view entity has no ID: count a non-null column)
+- [ ] No literal aggregated (`sum(1)`, `count(1)`) and no bare `1 as X` column a consumer will add to — cast it (HSQLDB)
+- [ ] With GROUP BY: every non-aggregated column equals a GROUP BY expression, and no aggregate reads a grouped column
 - [ ] DATEPART uses comma syntax: `datepart(YEAR, field)`
 - [ ] Enum comparisons use enumeration **identifiers**, not captions: `'HIGH'` not `'High'`
 - [ ] IN expressions use correct syntax: `in ('VAL1', 'VAL2')` or `in (select ...)`

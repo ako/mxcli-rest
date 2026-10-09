@@ -7,6 +7,7 @@ Supporting reference for [odata-data-sharing](../SKILL.md).
 ### Step 1: Create the Producer Module and Role
 
 ```sql
+mdl 1;
 create module ProductApi;
 
 create module role ProductApi.ApiUser
@@ -18,6 +19,7 @@ create module role ProductApi.ApiUser
 Instead of publishing `Shop.Product` and `Shop.Price` directly, create a view that joins and flattens them:
 
 ```sql
+mdl 1;
 /**
  * Flattened product with current active price.
  * Joins Product with the most recent Price entry.
@@ -49,6 +51,7 @@ grant read *, write * on entity ProductApi.ProductWithPriceVE to ProductApi.ApiU
 For aggregated data:
 
 ```sql
+mdl 1;
 /**
  * Daily sales totals for cheap products.
  */
@@ -72,12 +75,13 @@ grant read *, write * on entity ProductApi.CheapProductSalesVE to ProductApi.Api
 For flattening across associations:
 
 ```sql
+mdl 1;
 /**
  * Customer with billing and delivery address flattened into one resource.
  */
 create view entity ProductApi.CustomerAddressVE (
   CustomerId: long,
-  CustomerName: string,
+  CustomerName: string(200),  -- a derived string column is always String(200)
   Email: string,
   BillingStreet: string,
   BillingCity: string,
@@ -86,8 +90,7 @@ create view entity ProductApi.CustomerAddressVE (
   DeliveryCity: string,
   DeliveryCountry: string
 ) as (
-  select c.ID                              as CustomerID
-  ,      c.CustomerId                      as CustomerId
+  select c.CustomerId                      as CustomerId
   ,      c.FirstName + ' ' + c.LastName    as CustomerName
   ,      c.EmailAddress                    as Email
   ,      ba.Streetname                     as BillingStreet
@@ -107,6 +110,7 @@ grant read *, write * on entity ProductApi.CustomerAddressVE to ProductApi.ApiUs
 ### Step 3: Publish the OData Service
 
 ```sql
+mdl 1;
 /**
  * Product and customer data API.
  * Exposes flattened views for external consumers.
@@ -117,14 +121,14 @@ create published odata service ProductApi.ProductDataApi (
   ODataVersion: OData4,
   namespace: 'DefaultNamespace',
   ServiceName: 'ProductDataApi',
-  Summary: 'Product and customer data API'
+  Summary: 'Product and customer data API',
   -- PublishAssociations is left at its default (Yes = associations as links).
   -- Setting it to No means "associations as an associated object id", which
   -- Mendix only allows when the system ID is published as the key — publishing
   -- an ordinary attribute as the key then fails the build with CE7375, even
   -- when no associations are exposed at all.
+  Authentication: (basic)
 )
-authentication basic
 {
   publish entity ProductApi.ProductWithPriceVE as 'Product' (
     ReadMode: ReadFromDatabase,
@@ -167,6 +171,7 @@ grant access on published odata service ProductApi.ProductDataApi
 In the consuming application, create an OData client and external entities:
 
 ```sql
+mdl 1;
 create module ProductClient;
 
 create module role ProductClient.User;
@@ -265,6 +270,7 @@ grant read * on entity ProductClient.CustomerAddressesEE to ProductClient.User;
 **Bulk alternative:** Instead of creating external entities one by one, import all (or a subset) from the contract:
 
 ```sql
+mdl 1;
 -- All entities from the service
 create external entities from ProductClient.ProductDataApiClient;
 
@@ -288,6 +294,7 @@ Without this flag, external entities are completely non-editable in the client: 
 3. A microflow reads the changed object and calls an external action or REST operation (POST/PUT) to submit the change to the remote system.
 
 ```sql
+mdl 1;
 -- API is read-only (no insert/update/delete on the OData endpoint).
 -- AllowCreateChangeLocally lets users edit the object in the app
 -- and submit changes via a separate external action.
@@ -319,6 +326,7 @@ is no refresh job to keep a copy in step with the source. This is the shape to
 use when the data lives outside Mendix (an external database, a CSV, an API).
 
 ```sql
+mdl 1;
 create non-persistent entity Api.Lap (
   LapKey:  string(60),
   Driver:  string(120),
@@ -339,9 +347,9 @@ create published odata service Api.LapApi (
   path: 'odata/laps/',
   version: '1.0.0',
   ODataVersion: OData4,
-  namespace: 'Api.Laps'
+  namespace: 'Api.Laps',
+  Authentication: (basic)
 )
-authentication basic
 {
   publish entity Api.Lap as 'Laps' (
     ReadMode: microflow Api.Read_Laps,
@@ -547,6 +555,7 @@ Two consequences worth holding on to:
   normal case for an aggregate.
 
 ```sql
+mdl 1;
 create non-persistent entity Fin.VMonthCategory (
   Period:   string(7),      -- 2026-08
   Category: string(60),
@@ -562,7 +571,7 @@ create published odata service Fin.ChartApi (
     Countable: No                          -- else CE6962 wants System.ODataResponse
   )
   expose ( Period (KEY), Category (KEY), Total )
-}
+};
 ```
 
 (Measured on 11.13: `PublishAssociations: Yes` builds under both `OData3` and
@@ -669,8 +678,7 @@ An entity set is a *read* surface. To let a client **invoke** something —
 Mendix exposes it in `$metadata` as an `ActionImport`.
 
 ```sql
-create published odata service ProductApi.Actions ( ... )
-authentication basic
+create published odata service ProductApi.Actions ( ..., Authentication: (basic) )
 {
   publish microflow ProductApi.RecordNote as 'RecordNote'
     expose ( Note as 'note', Amount as 'amount' (CanBeEmpty) );
@@ -720,6 +728,7 @@ For write operations (insert, update, delete), the OData service delegates to mi
 Each microflow receives the view entity and an `$HttpRequest` parameter:
 
 ```sql
+mdl 1;
 /**
  * Handles INSERT on ProductWithPriceVE.
  * Creates a new Product and initial Price entry.
@@ -759,7 +768,7 @@ create microflow ProductApi.UpdateProductWithPriceVE (
 begin
   retrieve $Product from Shop.Product
     where ProductId = $ProductWithPriceVE/ProductId
-    limit 1;
+    first;
 
   change $Product (
     Name = $ProductWithPriceVE/Name,
@@ -782,7 +791,7 @@ create microflow ProductApi.DeleteProductWithPriceVE (
 begin
   retrieve $Product from Shop.Product
     where ProductId = $ProductWithPriceVE/ProductId
-    limit 1;
+    first;
 
   change $Product (IsActive = false);
   commit $Product;
@@ -811,6 +820,7 @@ Set `InsertMode`, `UpdateMode`, `DeleteMode` to `CallMicroflow`:
 On the consumer side, grant CREATE, WRITE, and DELETE rights:
 
 ```sql
+mdl 1;
 grant create, delete, read *, write * on entity ProductClient.ProductsEE to ProductClient.User;
 ```
 

@@ -12,6 +12,7 @@ mapping is then rooted at the array's item. (A value reference cannot do that â€
 many items cannot collapse into one value, and mxbuild reports CE0256.)
 
 ```sql
+mdl 1;
 create json structure RootDemo.JSON_Completion
   sample $${
     "requestId": "r-1",
@@ -35,6 +36,7 @@ create json structure RootDemo.JSON_Completion
 statement is relative to the selected root, associations included:
 
 ```sql
+mdl 1;
 create import mapping RootDemo.IMM_Answer
   with json structure RootDemo.JSON_Completion root response/choices/message
 {
@@ -56,6 +58,7 @@ stored as one root element at `(Object)|response|choices|(Object)|message`, with
 **item**, so `Index` below is a member of one choice, not of the list:
 
 ```sql
+mdl 1;
 create import mapping RootDemo.IMM_Choice
   with json structure RootDemo.JSON_Completion root response/choices
 {
@@ -71,6 +74,7 @@ stored at `(Object)|response|choices|(Object)`.
 element:
 
 ```sql
+mdl 1;
 create export mapping RootDemo.EXM_Answer
   with json structure RootDemo.JSON_Completion root response/choices/message
 {

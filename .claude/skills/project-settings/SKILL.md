@@ -30,6 +30,7 @@ describe settings;
 ### Modify Model Settings
 
 ```sql
+mdl 1;
 alter settings runtime ( AfterStartupMicroflow: 'Module.MF_Startup' );  -- must return Boolean (CE0142)
 alter settings runtime ( BeforeShutdownMicroflow: 'Module.MF_Shutdown' );
 alter settings runtime ( HealthCheckMicroflow: 'Module.MF_HealthCheck' );
@@ -96,6 +97,7 @@ configuration, add `DatabasePassword = '…'` yourself.
 ### Modify Configuration Settings
 
 ```sql
+mdl 1;
 -- Full database configuration
 alter settings configuration 'Default' (
   DatabaseType: 'PostgreSql',
@@ -128,6 +130,7 @@ fine: `HttpPortNumber = '8080'` and `HttpPortNumber = 8080` are equivalent.
 ### Constant Overrides
 
 ```sql
+mdl 1;
 -- View constant values across all configurations
 list constant values;
 list constant values in MyModule;    -- Filter by module
@@ -167,6 +170,7 @@ on shared values only:
 ### Create / Drop Configurations
 
 ```sql
+mdl 1;
 -- Create a new server configuration
 create configuration 'Staging';
 
@@ -193,6 +197,7 @@ for. Writing translations for any other language stores them, passes `mx check`,
 and produces nothing at build time — so enable the language first.
 
 ```sql
+mdl 1;
 -- enable, change, disable
 alter settings LANGUAGE add 'de_DE';
 alter settings LANGUAGE add 'ar_SD' (CheckCompleteness: true, CustomDateFormat: 'yyyy-MM-dd');
@@ -233,6 +238,7 @@ list.
 ### Workflow Settings
 
 ```sql
+mdl 1;
 
 alter settings workflows (
   UserEntity: 'System.User',
@@ -246,6 +252,7 @@ The named buckets under App Settings ▸ Workflows ▸ Groups that a user task's
 group targeting selects from.
 
 ```sql
+mdl 1;
 alter settings workflows add group 'Approvers' (Description: 'Primary approval group');
 alter settings workflows add group 'Reviewers';
 
@@ -285,6 +292,7 @@ Four things worth knowing:
 
 ### PostgreSQL Configuration
 ```sql
+mdl 1;
 alter settings configuration 'Default' (
   DatabaseType: 'PostgreSql',
   DatabaseUrl: 'localhost:5432',
@@ -297,6 +305,7 @@ alter settings configuration 'Default' (
 
 ### SQL Server Configuration
 ```sql
+mdl 1;
 alter settings configuration 'Default' (
   DatabaseType: 'SqlServer',
   DatabaseUrl: 'localhost:1433',

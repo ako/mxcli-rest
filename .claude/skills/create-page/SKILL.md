@@ -58,6 +58,8 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 - Default value: Mendix expression in single quotes
 - Referenced in expressions as `$varName`
 - Use for DataGrid2 column `visible:` (which hides/shows entire column, NOT per-row)
+- An input binds to one directly: `checkbox cbShowAll (Label: 'Show all', Attribute: $ShowAll)`
+  — no data view needed. `$name` must be declared in the page's `Variables:`
 
 ### Key Syntax Elements
 
@@ -82,26 +84,25 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 Place pages in folders for better organization:
 
 ```sql
-create page MyModule.CustomerEdit
+mdl 1;
+create page MyModule.CustomerEdit folder 'Customers'
 (
   title: 'Edit Customer',
-  layout: Atlas_Core.PopupLayout,
-  folder: 'Customers'
+  layout: Atlas_Core.PopupLayout
 )
 {
   -- widgets
-}
+};
 
 -- Nested folders (created automatically if they don't exist)
-create page MyModule.OrderDetail
+create page MyModule.OrderDetail folder 'Orders/Details'
 (
   title: 'Order Details',
-  layout: Atlas_Core.Atlas_Default,
-  folder: 'Orders/Details'
+  layout: Atlas_Core.Atlas_Default
 )
 {
   -- widgets
-}
+};
 ```
 
 ### Styling: Class, Style, and DesignProperties
@@ -175,6 +176,7 @@ container ctnHero (
 ### Simple Page with Title
 
 ```sql
+mdl 1;
 create page MyModule.HomePage
 (
   title: 'Home Page',
@@ -182,12 +184,13 @@ create page MyModule.HomePage
 )
 {
   dynamictext welcomeText (content: 'Welcome to My App', rendermode: H1)
-}
+};
 ```
 
 ### Page with Multiple Widgets
 
 ```sql
+mdl 1;
 create page MyModule.CustomerPage
 (
   title: 'Customer Details',
@@ -209,7 +212,7 @@ create page MyModule.CustomerPage
       }
     }
   }
-}
+};
 ```
 
 ### Layout Placeholders (multiple content areas)
@@ -220,6 +223,7 @@ layout has more than one placeholder (e.g. Main + a sidebar/topbar), use a
 widgets still bind to Main.
 
 ```sql
+mdl 1;
 -- Atlas_Core.Atlas_SideBar has two placeholders: Main and Topbar
 create page MyModule.Dashboard (title: 'Dashboard', layout: Atlas_Core.Atlas_SideBar)
 {
@@ -229,7 +233,7 @@ create page MyModule.Dashboard (title: 'Dashboard', layout: Atlas_Core.Atlas_Sid
   placeholder Topbar {
     dynamictext lblTop (content: 'Top bar content')
   }
-}
+};
 ```
 
 Notes:
@@ -243,6 +247,7 @@ Notes:
 To make targeted changes to an existing page (change a label, add a field, remove a widget), use `alter page` instead of `create or replace page`. ALTER PAGE modifies the widget tree in-place, preserving properties that MDL doesn't model.
 
 ```sql
+mdl 1;
 -- Change a button caption and add a field
 alter page Module.Customer_Edit {
   set (caption: 'Save & Close') on btnSave;
@@ -252,7 +257,7 @@ alter page Module.Customer_Edit {
 };
 ```
 
-Use `create or replace page` on an existing page only if your MDL scripts created it
+Use `create or modify page` on an existing page only if your MDL scripts created it
 and nobody has edited it in Studio Pro since. A Studio Pro-authored page is changed
 with `alter page`, even for a large change: re-creating it from `describe` output has
 dropped translations. See [choose-edit-mode](../choose-edit-mode/SKILL.md).
@@ -359,16 +364,13 @@ The following features are NOT implemented in mxcli and require manual configura
 
 ### Runtime Pitfalls
 
-> **Empty CONTAINER crashes at runtime.** A CONTAINER with no child widgets compiles and builds successfully but crashes when the page loads with "Did not expect an argument to be undefined". Always include at least one child widget:
-> ```sql
-> -- Wrong: crashes at runtime
-> CONTAINER spacer1 (Style: 'height: 6px;')
->
-> -- Correct: include a child (even a space)
-> CONTAINER spacer1 (Style: 'height: 6px;') {
->   DYNAMICTEXT spacerText (Content: ' ', RenderMode: Paragraph)
-> }
-> ```
+> **An empty CONTAINER is valid.** It passes `mx check`, builds, and renders:
+> measured on Mendix 11.13.0 (React client) under `run --local`, both a bare
+> `container c1` and a styled spacer `container spacer1 (Style: 'height: 6px;')`
+> rendered with the widgets after them present and no console errors
+> (ako/mxcli#969). An older note here said it crashed with "Did not expect an
+> argument to be undefined"; that was never measured. `mxcli lint` still reports
+> one as MPR006 at info level, since an empty container is usually a leftover.
 
 > **`content: ''` (empty string) fails MxBuild.** An empty Content on DYNAMICTEXT causes a misleading error: "Place holder index 1 is greater than 0, the number of parameter(s)." Use a single space instead:
 > ```sql
@@ -469,6 +471,15 @@ bare-association spelling in each. Note what it is NOT: this shows a value from
 the associated object, it does not make it editable through the association —
 for editing the other object, nest a dataview over the association instead.
 
+**Match the input widget to the attribute type** — mxbuild refuses every other
+pairing with CE2421, and `check -p --references` reports it as MDL-WIDGET39:
+textbox → String / Integer / Long / Decimal / AutoNumber; textarea → String;
+datepicker → DateTime; checkbox → Boolean; radiobuttons → Boolean or
+Enumeration. An **enumeration** goes in `radiobuttons` or `combobox`, never a
+textbox. Do not write the classic `dropdown` on a React-client project
+(`show settings` → `OptimizedClient: Yes`, as a fresh 11.14 app has): it is CE0582
+(MDL-WIDGET40); use `combobox`.
+
 `Association:` names a reference on the containing entity, so
 `Association: Issue_Assignee` resolves against the dataview's entity, not the
 option list's module.
@@ -508,6 +519,7 @@ DYNAMICTEXT txtCreated (Attribute: CreatedDate)   -- also accepts createdDate
 Use `update widgets` to change properties across many widgets at once:
 
 ```sql
+mdl 1;
 -- Preview changes first (always use DRY RUN)
 update widgets set 'Class' = 'card' where widgettype like '%Container%' in MyModule dry run;
 

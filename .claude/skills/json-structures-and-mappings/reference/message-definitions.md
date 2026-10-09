@@ -8,6 +8,7 @@ an XML schema (an imported `.xsd`) or a web service (a WSDL), it holds nothing
 external: it is a **selection over the domain model**.
 
 ```sql
+mdl 1;
 create message definition collection Sales.MD_Order
   folder 'Messages'
 {
@@ -50,6 +51,36 @@ CE0295 (`Association '...' is not allowed`) on any mapping element bound to it.
 the entity that declares it, which is what Mendix stores; qualifying one against
 the entity that merely uses it is CE1613.
 
+### Mendix 11.15: one document per definition
+
+Mendix 11.15 removed the collection. Each definition is a separate document,
+and Studio Pro's converter turns a collection into a folder of the same name
+holding one document per definition. The statement is the collection's
+`definition` entry on its own:
+
+```sql
+mdl 1;
+create message definition Sales.OrderMessage
+  folder 'Messages/MD_Order'
+  for Sales.Order as 'Orders' {
+    OrderId,
+    Sales.Order_Customer/Sales.Customer { FirstName }
+  };
+alter message definition Sales.OrderMessage add member LastName in Customer;
+list message definitions in Sales;
+describe message definition Sales.OrderMessage;
+drop message definition Sales.OrderMessage;
+```
+
+A mapping names it in **two** parts (`with message definition Sales.OrderMessage`).
+A three-part name from an older script (`Sales.MD_Order.OrderMessage`) still
+resolves on a converted project and is stored as the two-part one.
+
+Which form applies depends on the project version. On 11.15 the collection
+statements are refused with a hint to use the document form. Below 11.15 the
+document form is refused with a hint to use the collection. Use `list message
+definitions` on 11.15 and `list message definition collections` before it.
+
 ### Editing one without restating it
 
 Real definitions nest deeply, so a whole-document rewrite is a poor tool for
@@ -57,6 +88,7 @@ Real definitions nest deeply, so a whole-document rewrite is a poor tool for
 rest alone:
 
 ```sql
+mdl 1;
 alter message definition Sales.MD_Order.OrderMessage add member Total;
 alter message definition Sales.MD_Order.OrderMessage add member LastName in Customer;
 alter message definition Sales.MD_Order.OrderMessage set member Total as 'GrandTotal';

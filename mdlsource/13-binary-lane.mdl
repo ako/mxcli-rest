@@ -90,10 +90,10 @@ begin
   declare $Start DateTime = [%CurrentDateTime%];
 
   -- Inline, because only this form names the target file-document entity.
-  $Doc = call rest service get 'https://httpbingo.org/image/png'
-    header Accept = 'image/png'
-    timeout 60
-    returns RestLab.DownloadedFile;
+  $Doc = call rest service get 'https://httpbingo.org/image/png' (
+    Headers: ('Accept': 'image/png'),
+    Timeout: 60,
+  ) returns RestLab.DownloadedFile;
 
   $Log = CALL MICROFLOW RestLab."SUB_LogCall" (
     Url = 'https://httpbingo.org/image/png',
@@ -139,11 +139,11 @@ begin
   declare $Body String = '';
   declare $Ok Boolean = false;
 
-  $Echo = call rest service post 'https://httpbingo.org/post'
-    header 'Content-Type' = 'application/octet-stream'
-    body binary $Doc/Contents
-    timeout 60
-    returns string
+  $Echo = call rest service post 'https://httpbingo.org/post' (
+    Headers: ('Content-Type': 'application/octet-stream'),
+    Body: binary $Doc/Contents,
+    Timeout: 60,
+  ) returns string
     on error continue;
 
   IF $Echo != empty THEN

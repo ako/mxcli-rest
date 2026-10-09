@@ -1,11 +1,9 @@
 mdl 1;
-/**
- * Navigation and access
- *
- * Point the app at RestLab's own home page (the blank template ships
- * MyFirstModule.Home_Web) and grant both module roles what they need to reach
- * the demos.
- */
+-- Navigation and access
+--
+-- Point the app at RestLab's own home page (the blank template ships
+-- MyFirstModule.Home_Web) and grant both module roles what they need to reach
+-- the demos.
 
 create or modify navigation Responsive
   home page RestLab."Home_Web"

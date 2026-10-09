@@ -157,12 +157,19 @@ that exist in the published metadata. That is defence in depth, not a substitute
 whitelist — it constrains the *name*, not what you do with it.
 ## Authentication Methods, and the Cost of Basic Auth
 
-A published service names one or more methods in the `authentication` clause:
+A published service names one or more methods in its `Authentication` property,
+in the order Studio Pro lists them; `none` turns authentication off:
 
 ```sql
-authentication basic, session
-authentication microflow ProductApi.Authenticate
+Authentication: (basic, session)
+Authentication: (microflow ProductApi.Authenticate)
+Authentication: none
 ```
+
+`alter published odata service M.S set ( Authentication: (session) )` changes it
+on an existing service; left out of `create or modify`, the stored setting is kept.
+The trailing `authentication basic, session` clause is the old spelling
+(MDL-DEPR139) — `mxcli fmt --upgrade` moves it into the list.
 
 | Method | How the caller proves itself | Cost per request |
 |---|---|---|
@@ -198,12 +205,11 @@ CREATE MICROFLOW ProductApi.Authenticate ($Headers: List of System.HttpHeader)
 BEGIN
   -- e.g. compare a shared secret from $Headers, then retrieve the service account
   retrieve $Users from System.User;
-  $User = head($Users);
+  $User = head $Users;
   RETURN $User;
 END;
 
-create published odata service ProductApi.Api ( ... )
-authentication microflow ProductApi.Authenticate
+create published odata service ProductApi.Api ( ..., Authentication: (microflow ProductApi.Authenticate) )
 { ... };
 ```
 
@@ -214,7 +220,7 @@ calling BCrypt.
 
 Two build rules to know before you reach for it:
 
-- **The microflow is mandatory.** `authentication microflow` with no name parses
+- **The microflow is mandatory.** `microflow` with no name parses
   but fails the build with **CE0333** "Please select a microflow to use for
   authentication". `mxcli check` flags this as `MDL-ODATA04`.
 - **App security must be on.** With security off, Mendix reports **CE6600**
@@ -231,6 +237,7 @@ database of human passwords.
 When the consumer needs to pass custom headers (e.g., for audit trails or user context), use a configuration microflow:
 
 ```sql
+mdl 1;
 /**
  * Adds current user name as custom header for audit logging.
  */

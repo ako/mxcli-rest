@@ -45,6 +45,21 @@ database, so a `mxcli run --local` dev loop can keep serving the same project
 while the tests run — the tests never write into the database you are looking at
 in the browser. The database is created on first use.
 
+**No PostgreSQL on the machine?** `--local` provisions a scratch PostgreSQL by
+default and stops with *ensuring database: no local PostgreSQL superuser
+available to create the role/database* where it cannot. Add `--db-type hsqldb`
+to boot on the runtime's built-in file database instead — no server, nothing to
+provision, same values as `run --local --db-type`:
+
+```bash
+mxcli test tests/ -p app.mpr --local --db-type hsqldb
+```
+
+It is still a scratch database (`<project>_test`), separate from the one
+`run --local --db-type hsqldb` uses, so a dev loop on the file database keeps its
+data and its file lock. `--db-type` applies only to `--local`; it is refused with
+`--attach` (which uses the attached app's database) and on the Docker path.
+
 The **deployment directory is shared**, and not by choice: mxbuild always writes
 it to `<app dir>/deployment` and has no option to move it. That used to blank the
 running app — a headless test boot does not bundle the web client, and the boot's
@@ -412,8 +427,11 @@ range to get a list, or use the variable as the object it is.
 
 `mxcli fmt --upgrade -w suite.test.mdl` reads the file the same way: it rewrites
 deprecated spellings in the blocks and keeps every doc comment, `--` comment and
-`/` separator byte for byte. A test file takes **no `mdl 1;` header** yet — check
-and the runner read its blocks as mdl 0 — so `--header` adds none to it and says so.
+`/` separator byte for byte. Like a script, a test file **gets the `mdl 1;`
+header by default** — check and the runner read every block behind it as mdl 1 —
+and constructs whose meaning the header changes are rewritten to keep it
+(`limit 1` becomes `first`, a bare `$x = …` becomes `set $x = …`).
+`--header=false` upgrades the spellings and leaves the file headerless (mdl 0).
 
 ---
 

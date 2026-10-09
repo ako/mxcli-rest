@@ -387,6 +387,7 @@ Mendix has **no main-flow "throw" activity**. To fail deliberately from the norm
 path, call a Java action that throws:
 
 ```mdl
+mdl 1;
 create java action Module.JA_RaiseTechnicalError(Message: string not null) returns boolean as
 $$ throw new com.mendix.systemwideinterfaces.MendixRuntimeException(Message); $$;
 ```
@@ -400,6 +401,7 @@ $$ throw new com.mendix.systemwideinterfaces.MendixRuntimeException(Message); $$
 ### Example: Robust External Call
 
 ```mdl
+mdl 1;
 /**
  * Calls external service with error handling
  */
@@ -412,15 +414,17 @@ begin
   $response = call microflow Module.CallExternalAPI(data = $RequestData)
     on error without rollback begin
       log error node 'ExternalAPI' 'API call failed for: ' + $RequestData;
-      -- Create error response
-      $response = create Module.Response (
+      -- Not `$response = create …`: a variable name is unique flow-wide,
+      -- handler included (MDL063, CE0111). The fallback gets its own name
+      -- and the handler returns it.
+      $fallbackResponse = create Module.Response (
         success = false,
         message = 'External service unavailable');
+      return $fallbackResponse;
     end error;
 
   return $response;
 end;
-/
 ```
 
 ### Where the Error Path Goes — `merge` / `join`
@@ -441,6 +445,7 @@ the enclosing branch's continuation does" — which in a branch that returns
 something else is a value nowhere in the text. Prefer `join` when you mean it.
 
 ```mdl
+mdl 1;
 create microflow Module.Post (Payload: String) returns String
 begin
   declare $Status String = 'sent';

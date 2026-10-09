@@ -25,6 +25,7 @@ JSON Structure → Non-persistent entities → Import Mapping → microflow.
 ## Step 1 — JSON Structure
 
 ```sql
+mdl 1;
 create json structure Module.JSON_MyStructure
   sample '{"key": "value", "count": 1}';
 ```
@@ -47,6 +48,7 @@ describe json structure Module.JSON_MyStructure;
 Derive one entity per JSON object type. Name them after what they represent (not after JSON keys).
 
 ```sql
+mdl 1;
 create non-persistent entity Module.MyRootObject (
   stringField   : string,
   intField      : integer,
@@ -80,6 +82,7 @@ create association Module.MyRootObject_MyNestedObject
 > **Full reference**: See [json-structures-and-mappings](../json-structures-and-mappings/SKILL.md) for complete import/export mapping syntax, domain model patterns, and common mistakes.
 
 ```sql
+mdl 1;
 create import mapping Module.IMM_MyMapping
   with json structure Module.JSON_MyStructure
 {
@@ -121,10 +124,10 @@ begin
   @position(185, 200)
   declare $endpoint string = $baseUrl + '/path';
   @position(375, 200)
-  $Result = call rest service get '{1}' with ({1} = $endpoint)
-    header 'Accept' = 'application/json'
-    timeout 300
-    returns mapping Module.IMM_MyMapping as Module.MyRootObject on error rollback;
+  $Result = call rest service get '{1}' with ({1} = $endpoint) (
+    Headers: ('Accept': 'application/json'),
+    Timeout: 300,
+  ) returns mapping Module.IMM_MyMapping as Module.MyRootObject on error rollback;
   @position(565, 200)
   log info node 'Integration' 'Retrieved result' with ();
 end;
@@ -139,12 +142,12 @@ end;
 
 **For list responses** (JSON root is an array):
 ```sql
-  $Results = call rest service get '{1}' with ({1} = $endpoint)
-    header 'Accept' = 'application/json'
-    timeout 300
-    returns mapping Module.IMM_MyMapping as Module.MyItem on error rollback;
+  $Results = call rest service get '{1}' with ({1} = $endpoint) (
+    Headers: ('Accept': 'application/json'),
+    Timeout: 300,
+  ) returns mapping Module.IMM_MyMapping as Module.MyItem on error rollback;
   @position(565, 200)
-  $count = count($MyItem);
+  $count = count $MyItem;
 ```
 
 ---
@@ -176,6 +179,7 @@ $JsonOutput = export to mapping Module.EMM_Pet($PetResponse);
 ### Complete import → process → export microflow
 
 ```sql
+mdl 1;
 create microflow Module.ProcessPetData ()
 begin
   declare $ResponseContent string = $latestHttpResponse/content;
@@ -184,28 +188,37 @@ begin
   $JsonOutput = export to mapping Module.EMM_Pet($PetResponse);
   log info node 'Integration' 'Exported: ' + $JsonOutput;
 end;
-/
 ```
 
 ---
 
 ## Step 6 — Sending a Request Body (Optional)
 
-Everything above receives data. To send it, an inline `REST CALL` takes one of
-four body forms:
+Everything above receives data. To send it, an inline `call rest service` takes
+a `Body:` in its settings list, in one of four forms:
 
 ```sql
 -- 1. String template with placeholders
-body '{{"name": "{1}", "qty": {2}}' with ({1} = $Name, {2} = toString($Qty))
+Body: template '{{"name": "{1}", "qty": {2}}' with ({1} = $Name, {2} = toString($Qty))
 
 -- 2. An expression that already yields the payload
-body $JsonPayload
+Body: $JsonPayload
 
 -- 3. An export mapping (entity -> JSON)
-body mapping Module.EMM_Item from $Item
+Body: mapping Module.EMM_Item from $Item
 
 -- 4. Raw bytes — a file document's CONTENTS member
-body binary $Doc/Contents
+Body: binary $Doc/Contents
+```
+
+The settings list goes after the URL, with the other dialog settings:
+
+```sql
+$Response = call rest service post 'https://api.example.com/items' (
+  Headers: ('Content-Type': 'application/json'),
+  Body: mapping Module.EMM_Item from $Item,
+  Timeout: 60,
+) returns response;
 ```
 
 ### Uploading a file
@@ -214,21 +227,21 @@ The expression is the file document's `Contents` **member**, not the document,
 and the content type goes on a header — the body clause carries only the bytes:
 
 ```sql
+mdl 1;
 create or modify microflow Module.POST_Document_Upload (
   $Doc: Module.UploadedFile
 )
 returns boolean as $Ok
 begin
   declare $Ok boolean = false;
-  $Response = call rest service post 'https://api.example.com/documents'
-    header 'ContentType' = 'application/pdf'
-    body binary $Doc/Contents
-    timeout 300
-    returns response;
+  $Response = call rest service post 'https://api.example.com/documents' (
+    Headers: ('ContentType': 'application/pdf'),
+    Body: binary $Doc/Contents,
+    Timeout: 300,
+  ) returns response;
   set $Ok = $Response/StatusCode = 200;
   return $Ok;
 end;
-/
 ```
 
 `$Doc` must be a specialization of `System.FileDocument`. Downloading is the
@@ -307,10 +320,10 @@ begin
   @position(185, 200)
   declare $endpoint string = $baseUrl + '/data/web/random';
   @position(375, 200)
-  $Result = call rest service get '{1}' with ({1} = $endpoint)
-    header 'Accept' = 'application/json'
-    timeout 300
-    returns mapping Integrations.IMM_BibleVerse as Integrations.BibleApiResponse on error rollback;
+  $Result = call rest service get '{1}' with ({1} = $endpoint) (
+    Headers: ('Accept': 'application/json'),
+    Timeout: 300,
+  ) returns mapping Integrations.IMM_BibleVerse as Integrations.BibleApiResponse on error rollback;
   @position(565, 200)
   log info node 'Integration' 'Retrieved Bible verse' with ();
 end;

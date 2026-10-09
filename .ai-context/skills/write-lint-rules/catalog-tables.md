@@ -1,0 +1,159 @@
+# Catalog-table builtins: object properties
+
+The structs returned by `modules()`, `associations()`, `entity_event_handlers()`,
+`navigation_menu_items()`, `jar_dependencies()`, `strings()`, `layouts()`,
+`published_rest_operations()` and `widgets()`. The functions themselves are listed in
+[SKILL.md](SKILL.md) under "Available Query Functions". Every builtin leaves out
+System and Marketplace modules, except `navigation_menu_items()`, whose rows
+belong to the project rather than to a module.
+
+### module
+Returned by `modules()`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `id` | string | Module UUID |
+| `name` | string | `"Sales"` |
+| `domain_model_documentation` | string | The module's domain model's documentation (Studio Pro's Documentation pane with nothing selected on the canvas). A Mendix module has no documentation of its own; this is the module-level text an author can write. `""` when none |
+
+### association
+Returned by `associations()`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `name` | string | `"OrderLine_Order"` |
+| `qualified_name` | string | `"Sales.OrderLine_Order"` |
+| `module_name` | string | `"Sales"` |
+| `from_entity` | string | Qualified name of the FROM entity (the one that owns the reference): `"Sales.OrderLine"` |
+| `to_entity` | string | Qualified name of the TO entity: `"Sales.Order"`; for a cross-module association, the other module's entity |
+| `type` | string | `"Reference"` or `"ReferenceSet"` |
+| `owner` | string | `"Default"` or `"Both"` |
+| `storage_format` | string | `"Column"` or `"Table"` |
+| `description` | string | Documentation text |
+| `to_delete_behavior` | string | The raw Mendix value on the TO end (Mendix's `ChildDeleteBehavior`, the end MDL's `on delete` clause sets): `"DeleteMeButKeepReferences"` (the default), `"DeleteMeAndReferences"`, `"DeleteMeIfNoReferences"`. Mendix always stores a value, so *set explicitly* can only mean *not the default* |
+| `from_delete_behavior` | string | The same for the FROM end (Mendix's `ParentDeleteBehavior`; Studio Pro only): `"DeleteMeButKeepReferences"`, `"DeleteMeAndReferences"`, `"DeleteMeIfNoReferences"` |
+| `to_delete_error_message` | string | The message shown when a `"DeleteMeIfNoReferences"` delete on the TO end is refused; `""` otherwise |
+| `from_delete_error_message` | string | The same for the FROM end |
+
+### entity_event_handler
+Returned by `entity_event_handlers()`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `entity` | string | Qualified entity name: `"Sales.Order"` |
+| `module_name` | string | `"Sales"` |
+| `moment` | string | `"Before"` or `"After"` |
+| `event` | string | `"Create"`, `"Commit"`, `"Delete"` or `"RollBack"` — Mendix's capital B; `"Rollback"` matches nothing |
+| `microflow` | string | Qualified name of the handler microflow |
+| `raise_error_on_false` | bool | A `"Before"` handler returning false aborts the event |
+| `pass_event_object` | bool | The microflow receives the object |
+
+### navigation_menu_item
+Returned by `navigation_menu_items()`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `profile` | string | Navigation profile: `"Responsive"`, `"Phone"`, `"Tablet"`, … |
+| `item_path` | string | Position in the menu, dot-separated per level: `"0"`, `"0.2"` |
+| `depth` | int | `0` for a top-level item |
+| `caption` | string | `"Orders"` |
+| `action_type` | string | `"PageAction"`, `"MicroflowAction"`, `"SignOutAction"`, `"OpenLinkAction"`, `"NoAction"`; any other action is its stored type, e.g. `"Forms$CallNanoflowClientAction"` |
+| `target_page` | string | Qualified page name, for a `"PageAction"`; `""` otherwise |
+| `target_microflow` | string | Qualified microflow name, for a `"MicroflowAction"`; `""` otherwise |
+
+### jar_dependency
+Returned by `jar_dependencies()`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `module_name` | string | `"Sales"` |
+| `group_id` | string | `"org.apache.commons"` |
+| `artifact_id` | string | `"commons-lang3"` |
+| `version` | string | `"3.14.0"` |
+| `coordinate` | string | `"org.apache.commons:commons-lang3"` — group and artifact, without the version, so it identifies the library across versions |
+| `is_included` | bool | Studio Pro's "Included" setting; False when the dependency is declared but not included |
+
+### catalog_string
+Returned by `strings(language = None)`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `qualified_name` | string | The document the text belongs to: `"Sales.Order_Overview"` |
+| `object_type` | string | Catalog object type, upper-case: `"PAGE"`, `"SNIPPET"`, `"LAYOUT"`, `"MICROFLOW"`, `"NANOFLOW"`, `"WORKFLOW"`, `"ENUMERATION"`, `"MENU_DOCUMENT"`, … |
+| `value` | string | The text itself |
+| `context` | string | What the text is. Translatable text names its stored type and property: `"Forms$Page.Title"`, `"Forms$TabPage.Caption"`, `"Enumerations$EnumerationValue.Caption"`; the rest a lower-case label: `"documentation"`, `"page_url"`, `"log_node"`, … |
+| `language` | string | `"en_US"`; `""` for text that is not translatable (documentation, URLs) |
+| `element_id` | string | UUID of the element carrying the text |
+| `module_name` | string | `"Sales"` |
+
+### layout
+Returned by `layouts()`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `name` | string | `"Atlas_Default"` |
+| `qualified_name` | string | `"Atlas_Core.Atlas_Default"` |
+| `module_name` | string | `"Atlas_Core"` |
+| `folder` | string | Folder path within module |
+| `layout_type` | string | `"Responsive"`, `"Phone"`, `"Tablet"`, `"Popup"`, `"ModalPopup"`, `"Default"`, `"Legacy"` |
+| `platform` | string | `"Web"` or `"Native"` — the platform the layout (and every page on it) renders on. `layout_type` cannot tell: a native popup shares its value with a web one. React-client errors (CE0582) apply to `"Web"` only |
+| `description` | string | Documentation text |
+
+### published_rest_operation
+Returned by `published_rest_operations()`.
+
+| Property | Type | Example |
+|----------|------|---------|
+| `service` | string | Qualified service name: `"Sales.OrderApi"` |
+| `resource` | string | `"orders"` |
+| `http_method` | string | As Mendix stores it, TitleCase — unlike `rest_operation`: `"Get"`, `"Post"`, `"Put"`, `"Patch"`, `"Delete"` |
+| `path` | string | `"/{id}"` |
+| `summary` | string | Operation summary |
+| `microflow` | string | Qualified name of the microflow that implements the operation |
+| `deprecated` | bool | Marked deprecated |
+| `module_name` | string | `"Sales"` |
+
+### widget
+Returned by `widgets()` (full catalog — auto-detected).
+
+| Property | Type | Example |
+|----------|------|---------|
+| `id` | string | Widget UUID |
+| `name` | string | Widget name |
+| `widget_type` | string | The widget's storage type, e.g. `"Forms$DataView"`, `"Forms$DivContainer"`, `"Forms$ActionButton"`; a pluggable widget's id, e.g. `"com.mendix.widget.web.datagrid.Datagrid"` |
+| `container_id` | string | Container UUID |
+| `container_qualified_name` | string | `"Sales.Customer_Overview"` |
+| `container_type` | string | `"PAGE"` or `"SNIPPET"` |
+| `module_name` | string | `"Sales"` |
+| `entity_ref` | string | Referenced entity qualified name |
+| `attribute_ref` | string | Referenced attribute path |
+| `microflow_ref` | string | Action/datasource microflow qualified name (e.g. a microflow-datasource ListView), else `""` |
+| `nanoflow_ref` | string | Action/datasource nanoflow qualified name, else `""` |
+| `page_ref` | string | The page the widget's action opens (show page, create object then open page), else `""` |
+| `parent_widget_id` | string | `id` of the nearest catalogued ancestor widget; `""` at the page or snippet root. Wrappers the catalog skips (the synthetic `conditionalVisibilityWidget…` container) and non-widget holders (layout grid rows and columns, tab pages, a pluggable widget's properties and object-list items) are transparent: a widget in a layout grid column or a data grid 2 column has the grid as its parent |
+| `depth` | int | Number of catalogued ancestors: `0` at the page or snippet root. A list view **template** is a catalogued row of its own, so a widget inside one is two below the list view. Depth does **not** cross a snippet call: a snippet's widgets start at `0` in the snippet, whichever page calls it |
+| `class_name` | string | The widget's `Class` (Appearance), e.g. `"card mx-2"`, else `""`. Named `class_name` because `class` is a Starlark keyword |
+| `style` | string | The inline `Style` (Appearance), e.g. `"width:100%;"`, else `""` |
+| `dynamic_classes` | string | The `Dynamic classes` expression (Appearance), else `""` |
+| `action_type` | string | Stored type of the widget's primary action — the button's action, else a container's on-click action, else a list view's or image's click action: `"Forms$DeleteClientAction"`, `"Forms$MicroflowAction"`, `"Forms$CallNanoflowClientAction"`, `"Forms$FormAction"` (show page), `"Forms$SaveChangesClientAction"`, `"Forms$CancelChangesClientAction"`, `"Forms$ClosePageClientAction"`, `"Forms$CreateObjectClientAction"`, `"Forms$OpenLinkClientAction"`, `"Forms$NoAction"`; `""` for a widget with no action property. Pluggable widgets' actions (inside their property bag) are not read |
+| `has_confirmation` | bool | The primary action asks for confirmation. Only a microflow, nanoflow or workflow call can; a delete action (`"Forms$DeleteClientAction"`) has no confirmation setting at all, so "a delete must confirm" is enforced as "no button uses the delete action directly — call a microflow or nanoflow with a confirmation" |
+
+```python
+# Inline styles, classes outside an allow-list, and direct delete buttons.
+ALLOWED = ["btn-primary", "card", "mx-2"]
+def check():
+    out = []
+    for w in widgets():
+        loc = location(module=w.module_name, document_type=w.container_type.lower(),
+                       document_name=w.container_qualified_name.split(".")[-1],
+                       document_id=w.container_id)
+        if w.style != "":
+            out.append(violation(message="inline style on " + w.name, location=loc))
+        for c in w.class_name.split(" "):
+            if c != "" and c not in ALLOWED:
+                out.append(violation(message="class '" + c + "' not allowed", location=loc))
+        if w.action_type == "Forms$DeleteClientAction":
+            out.append(violation(message=w.name + " deletes directly; call a microflow with a confirmation",
+                                 location=loc))
+    return out
+```

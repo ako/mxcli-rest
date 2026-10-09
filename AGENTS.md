@@ -368,9 +368,30 @@ Generate a scored best practices report:
 
 # HTML report
 ./mxcli report -p RestLab.mpr --format html
+
+# Score only the modules you own
+./mxcli report -p RestLab.mpr --modules RestLab
 ```
 
 The report scores 6 categories (Naming, Security, Quality, Architecture, Performance, Design) on a 0-100 scale. See `assess-quality` skill for the full assessment guide.
+
+## Other mxcli Commands
+
+| Command | Description |
+|---------|-------------|
+| `./mxcli version` | Print the binary's version and build time |
+| `./mxcli diag -p RestLab.mpr` | Version, log and session stats, ContentsHash drift, risky git state |
+| `./mxcli fix hashes -p RestLab.mpr` | Verify the MPR v2 ContentsHash index (`--repair` fixes it) |
+| `./mxcli git note -p RestLab.mpr --write` | Write the `refs/notes/mx_metadata` commit note Studio Pro reads |
+| `./mxcli fmt --upgrade -w -p RestLab.mpr <script>` | Rewrite deprecated MDL spellings in place |
+| `./mxcli run --local --detach -p RestLab.mpr` | Start the warm dev loop as a background service |
+| `./mxcli run status\|wait\|stop\|restart` | Manage a detached run |
+| `./mxcli playwright check -p RestLab.mpr` | One text verdict per page: renders? error banner? console errors? rows? |
+| `./mxcli rename <type> Mod.Old Mod.New -p RestLab.mpr` | Rename a document and every reference to it |
+| `./mxcli widget docs -p RestLab.mpr` | Regenerate the project-specific `widgets` skill |
+
+**Before any git commit here**, read the `teamserver-git` skill: `mxcli fix hashes`
+should exit 0, and a Mendix repo wants an `mx_metadata` note per commit.
 
 ## Slash Commands
 
@@ -411,6 +432,15 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 | create-page | Page and widget syntax |
 | write-layouts | CREATE/ALTER LAYOUT - the frame a page renders inside |
 | fragments | Reusable widget group syntax |
+| write-nanoflows | Nanoflow syntax - client-side, and what it may not do |
+| write-workflows | Workflow syntax - user tasks, decisions, parallel splits, boundary events |
+| xpath-constraints | XPath for retrieve WHERE, page data sources, row-level access |
+| json-structures-and-mappings | JSON structures, import/export mappings and the shapes they map onto |
+| custom-widgets | Pluggable widgets in CREATE/ALTER PAGE - datasources, child slots, the `pluggablewidget` fallback |
+| widgets | **Generated for THIS project** - the installed widgets' own property names and child blocks |
+| regular-expressions | Named regex documents, bound to attribute validation rules |
+| scheduled-events-and-queues | Scheduled events (Mendix cron) and task queues |
+| java-dependencies | A module's Maven/JAR dependencies in MDL |
 
 ### Patterns
 
@@ -419,6 +449,9 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 | patterns-crud | Create/Read/Update/Delete patterns |
 | patterns-data-processing | Loops, aggregates, batch processing |
 | validation-microflows | Validation feedback patterns |
+| resolve-forward-references | Ordering statements so every reference resolves - exec is sequential |
+| choose-edit-mode | **Read before editing an existing document** - ALTER vs describe-edit-modify vs new |
+| rest-call-from-json | Whole integration stack generated from one example payload |
 
 ### Pages
 
@@ -438,6 +471,11 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 | mock-rest-apis | Mock an endpoint you control (Prism, forward proxy) |
 | java-actions | Custom Java actions |
 | odata-data-sharing | OData services and external entities |
+| javascript-actions | JavaScript actions - client-side logic called from nanoflows |
+| browse-integrations | Which external services a project consumes, and their cached contracts |
+| catalog-search | Search catalog.mendix.com for published services |
+| connect-rapidminer-graph | SPARQL/graph endpoints surfaced as Mendix entities |
+| agents | Mendix AI agent documents - Model, Knowledge Base, MCP Service, Agent (11.9+) |
 
 ### Operations
 
@@ -451,6 +489,10 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 | project-settings | Project configuration (model, runtime, language) |
 | business-events | Business event services |
 | translations | Localise user-visible strings (DESCRIBE/CREATE TRANSLATIONS) |
+| teamserver-git | **Read before any git commit/branch/push here** - `mxcli fix hashes`, the mx_metadata note, why not `checkout -b` |
+| download-marketplace-content | Marketplace modules and widgets from the CLI |
+| live-edit-with-studio-pro | Driving the model with mxcli while Studio Pro has the project open |
+| bootstrap-app | Provisioning a project in a repo that has none (how this app started) |
 
 ### Infrastructure
 
@@ -462,6 +504,11 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 | system-module | System module entities reference |
 | verify-with-oql | OQL verification queries |
 | demo-data | **Read first for data work** - Demo data insertion |
+| run-local | **The fast loop** - `mxcli run --local`, watch, `--detach`, `run status|wait|stop|restart` |
+| analyze-runtime | What a running app actually does - logs, metrics, traces |
+| theme-styling | SCSS workflow and its traps, `mxcli theme` |
+| atlas-design | Making an app look designed rather than default-Atlas |
+| create-custom-widget | Building a pluggable widget from scratch (React/TypeScript, .mpk) |
 
 ### Testing & Quality
 
@@ -472,6 +519,7 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 | record-narrated-demo | Record a narrated walkthrough of the running app |
 | write-lint-rules | Custom Starlark lint rule authoring |
 | assess-quality | **Full project quality assessment** against best practices |
+| graph-analysis | The project as a dependency graph - blast radius, dead elements |
 
 ### Domain Model
 
@@ -488,6 +536,7 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 | migrate-outsystems | OutSystems migration |
 | migrate-oracle-forms | Oracle Forms migration |
 | graph-studio-app | Reverse-engineer/graph Studio Pro app |
+| migrate-design-prototype | Reproducing a design handoff (HTML/CSS, tokens, screenshots) in Mendix |
 
 ### Debugging & Preflight
 
@@ -495,6 +544,7 @@ Skills are in `.ai-context/skills/`. Read the relevant skill before starting wor
 |-------|--------|
 | debug-bson | BSON serialization debugging |
 | check-syntax | Pre-flight validation checklist |
+| debug-microflows | `mxcli debug` - breakpoints and stepping from the command line |
 
 ## MDL Syntax Quick Reference
 
@@ -524,6 +574,8 @@ CREATE PERSISTENT ENTITY Module.ProductPhoto EXTENDS System.Image (
 | Call microflow | `$Result = CALL MICROFLOW Module.Name (Param = $value);` |
 | Call nanoflow | `$Result = CALL NANOFLOW Module.Name (Param = $value);` |
 | Call Java action | `$Result = CALL JAVA ACTION Module.Name (Param = value);` |
+| Call REST service | `$R = call rest service <method> '<url>' (Headers: ('N': v), Authentication: basic (Username: $u, Password: $p), Body: template '…' with (…), Timeout: n) returns string\|response\|mapping …;` |
+| Send REST request | `$Obj = send rest request Module.Client.Operation;` (a consumed REST client document) |
 | Show page | `SHOW PAGE Module.PageName ($Param = $value);` |
 | Close page | `CLOSE PAGE;` |
 | Validation | `VALIDATION FEEDBACK $Entity/Attribute MESSAGE 'message';` |
@@ -543,6 +595,7 @@ CREATE PERSISTENT ENTITY Module.ProductPhoto EXTENDS System.Image (
 | `DECLARE $Entity Module.Entity;` (MDL043/CE0053) | Get the object from a parameter, a `RETRIEVE`, or `$E = CREATE Module.Entity(...)` |
 | `DECLARE $List List of Module.Entity = empty;` (MDL040) | Accept the list as a parameter, or `RETRIEVE` / `$L = CREATE LIST OF Module.Entity` |
 | `TRY ... CATCH` | `ON ERROR { ... }` blocks |
+| `call rest service … header N = v … timeout n` (MDL-DEPR720) | One property list after the URL: `(Headers: ('N': v), Timeout: n)`. `mxcli fmt --upgrade` rewrites it. Refused from `mdl 2`. |
 
 **Notes:**
 - `RETRIEVE ... LIMIT n` IS supported. `LIMIT 1` returns a single entity.
@@ -586,6 +639,19 @@ CREATE PERSISTENT ENTITY Module."Customer" (
   "Create": DateTime
 );
 ```
+
+### Doc Comments
+
+A `/** … */` block becomes the document's Documentation in the model — but only
+on a statement that *has* documentation. Before a module role, a navigation
+profile, a `move`, a data transformer, a message definition collection or a
+mapping, there is nowhere to store it and the comment is silently dropped.
+`mxcli check` reports that as MDL089; use a `--` comment for those.
+
+Keep a doc comment directly above the statement it documents. Anything
+inserted between the two (a `drop … if exists` line, for instance) takes the
+comment's place and the documentation is lost without any gate but `lint`
+noticing — see FINDINGS #65.
 
 ## MDL Script Files
 

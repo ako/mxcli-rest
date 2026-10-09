@@ -121,6 +121,7 @@ For a K2 → Mendix migration, approach it in layers:
 
 **Example MDL:**
 ```sql
+mdl 1;
 -- SmartBox SmartObject "Customer" → Mendix Entity
 create persistent entity CRM.Customer (
   CustomerCode: string(50),
@@ -128,7 +129,7 @@ create persistent entity CRM.Customer (
   Email: string(200),
   Phone: string(50),
   IsActive: boolean default true,
-  CreatedDate: datetime
+  CreatedDate: autocreateddate
 );
 
 -- SmartBox SmartObject "Order" → Mendix Entity
@@ -178,6 +179,7 @@ SmartForms Views map to Mendix pages/snippets. The rules system (event-driven, "
 
 **Example MDL (SmartForm View → Mendix Page):**
 ```sql
+mdl 1;
 create page CRM.Customer_Edit
 (
   params: ( $Customer: CRM.Customer ),
@@ -196,12 +198,12 @@ create page CRM.Customer_Edit
     checkbox chkActive (label: 'Active', attribute: IsActive)
 
     -- Button bar (SmartForms action buttons)
-    footer footer1 {
+    footer {
       actionbutton btnSave (caption: 'Save', action: save changes, buttonstyle: primary)
       actionbutton btnCancel (caption: 'Cancel', action: cancel changes)
     }
   }
-}
+};
 ```
 
 ### Layer 3: Process (Workflows → Microflows/Workflows)
@@ -233,6 +235,7 @@ K2 Workflows translate to Mendix microflows or the Workflow module:
 
 **Example MDL (K2 Task → Mendix Microflow):**
 ```sql
+mdl 1;
 -- K2 Task "Review Order" → Mendix microflow for task handling
 create microflow CRM.ACT_Order_SubmitForReview ($Order: CRM.Order)
 begin
@@ -373,13 +376,14 @@ create page CRM.Customer_Edit (...);
 
 ### Phase 4: Security
 ```sql
+mdl 1;
 -- Module roles matching K2 roles
 create module role CRM.Manager description 'Can approve orders and manage customers';
 create module role CRM.User description 'Can create and edit own records';
 
 -- Access rules
 grant create, delete, read *, write * on entity CRM.Order to CRM.Manager;
-grant create, read *, write * on entity CRM.Order to CRM.User where [owner = '[%CurrentUser%]'];
+grant create, read *, write * on entity CRM.Order to CRM.User where [System.owner = '[%CurrentUser%]'];
 ```
 
 ## Common Challenges and Solutions
@@ -420,6 +424,7 @@ Complex calculations → microflow expressions
 
 **Solution**: Implement participant logic in microflows:
 ```sql
+mdl 1;
 -- K2 Destination Rule "Route to Manager" → Mendix microflow
 create microflow CRM.SUB_GetManager ($Employee: HR.Employee)
 returns HR.Employee as $Manager

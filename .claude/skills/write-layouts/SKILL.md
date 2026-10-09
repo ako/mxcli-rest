@@ -45,6 +45,7 @@ place and leaves everything it was not asked to touch alone.
 ### Removing a layout
 
 ```sql
+mdl 1;
 DROP LAYOUT MyModule.App_Old;
 ```
 
@@ -54,12 +55,13 @@ not refused. Left dropped, each of those pages fails the build with **CE1613**
 layout, so repoint them first:
 
 ```sql
+mdl 1;
 ALTER PAGES SET LAYOUT = MyModule.App_New WHERE LAYOUT = MyModule.App_Old;
 DROP LAYOUT MyModule.App_Old;
 ```
 
 To *correct* a layout rather than remove it, re-create it under the same name
-(`CREATE OR REPLACE LAYOUT`): the pages stay bound by qualified name and rebind
+(`CREATE OR MODIFY LAYOUT`): the pages stay bound by qualified name and rebind
 to the new document — verified end to end, the pages go back to 0 errors.
 
 ### Repointing pages
@@ -67,6 +69,7 @@ to the new document — verified end to end, the pages go back to 0 errors.
 A new layout that no page uses changes nothing:
 
 ```sql
+mdl 1;
 -- one page
 alter page MyModule.Home { set Layout = MyModule.App_Default; };
 
@@ -85,6 +88,7 @@ A page bound to a placeholder the new layout does not declare is **refused**
 before anything is written; `map (Old as New)` is how you rebind it:
 
 ```sql
+mdl 1;
 alter page MyModule.Split { set Layout = MyModule.Minimal map (HeaderLeft as Main); };
 ```
 
@@ -94,6 +98,7 @@ Edits the stored document rather than rewriting it, so widgets MDL cannot spell
 survive. Same operations as `ALTER PAGE`:
 
 ```sql
+mdl 1;
 alter layout MyModule.App_Default {
   insert into layoutContainer.top { snippetcall bar (snippet: MyModule.SNIPPET_ThemeBar) };
   set (Content: 'My App') on brandText;
@@ -105,7 +110,7 @@ A region has no name of its own — its slot *is* its identity — so it is addr
 as `<scrollContainerName>.<slot>`, reusing the dotted widget reference. Only
 `INSERT INTO` takes a region; `BEFORE`/`AFTER` position a widget among siblings,
 so name the widget instead. An empty slot has no stored region document to insert
-into: add it with `create or replace layout`.
+into: add it with `create or modify layout`.
 
 `ALTER LAYOUT` refuses a Marketplace target, and names the copy-then-repoint
 route in the error.
@@ -134,9 +139,10 @@ create [or replace] layout MyModule.App_Default (
 A page then names the layout, and its widgets land in the `Main` placeholder:
 
 ```sql
+mdl 1;
 create page MyModule.Home (title: 'Home', layout: MyModule.App_Default) {
   dynamictext welcome (content: 'Hello')
-}
+};
 ```
 
 ## The four things only a layout has
@@ -160,10 +166,11 @@ instead of its own. The fix is a phone layout of your own whose bottom bar names
 your own menu document, not an edit to Atlas's layout:
 
 ```sql
+mdl 1;
 create or modify menu MyModule.Phone_Menu {
   menu item 'Home' ( OnClick: show page MyModule.Home_Phone, Icon: Atlas_Core.Atlas.home )
 };
-create or replace layout MyModule.Phone_Bottom (
+create or modify layout MyModule.Phone_Bottom (
   layouttype: 'Phone', class: 'layout-atlas layout-atlas-phone'
 ) {
   scrollcontainer scrollContainer1 {
@@ -172,7 +179,7 @@ create or replace layout MyModule.Phone_Bottom (
     }
     region center (class: 'region-content') { placeholder Main }
   }
-}
+};
 ```
 
 Region properties: `size` (integer), `sizemode` (`Fixed` / `Pixels` / `Auto`),
@@ -254,7 +261,7 @@ section.
 - **Authoring is modelsdk-only.** The legacy writer cannot produce the `Content`
   wrapper the widget tree hangs off; it refuses rather than writing a layout with
   no tree.
-- **`create or replace layout` rewrites the whole document; `alter layout` does
+- **`create or modify layout` rewrites the whole document; `alter layout` does
   not.** Prefer ALTER for an edit to a layout you did not author from MDL — a
   rewrite is only ever as complete as the describe it came from.
 

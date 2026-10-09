@@ -1,10 +1,8 @@
 mdl 1;
-/**
- * RestLab security
- *
- * Two module roles. Developer runs demos and reads every call log;
- * Administrator adds delete, so stored demo data can be cleared.
- */
+-- RestLab security
+--
+-- Two module roles. Developer runs demos and reads every call log;
+-- Administrator adds delete, so stored demo data can be cleared.
 
 create or modify module role RestLab."Developer"
   description 'Runs any demo, sees all call logs';

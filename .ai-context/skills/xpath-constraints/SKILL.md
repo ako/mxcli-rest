@@ -32,8 +32,8 @@ This skill provides reference for writing XPath constraint expressions in MDL RE
 > is a parse error (Mendix XPath has no arithmetic on the value side). Compute the
 > value first, then compare against the variable:
 > ```mdl
-> $Next = $Game/MoveSeq + 1;
-> retrieve $M from Mod.Move where [Seq = $Next] limit 1;
+> declare $Next integer = $Game/MoveSeq + 1;
+> retrieve $M from Mod.Move where [Seq = $Next] first;
 > ```
 > `mxcli check` explains this and shows the workaround when it sees `+`/`*`/`div`/
 > `mod` inside a constraint.
@@ -51,7 +51,7 @@ This skill provides reference for writing XPath constraint expressions in MDL RE
 > date tokens (`[%CurrentDateTime%]`, `[%BeginOfCurrentDay%]`, …), or compute the
 > cut-off in a variable first and compare against that:
 > ```mdl
-> $Cutoff = addDays([%CurrentDateTime%], -7);
+> declare $Cutoff datetime = addDays([%CurrentDateTime%], -7);
 > retrieve $L from Mod.T where [DueDate > $Cutoff];
 > ```
 
@@ -167,11 +167,12 @@ where [not(Module.Order_Customer/Module.Customer)]
 > bare name is not an attribute of the constrained entity **and** is a known
 > association, so attributes stay bare and XPath functions are never touched.
 
-> **`= empty` does not work on associations (CE0161 / MDL047).** `= empty` tests
-> *attribute* nullability only. To test whether an object *has no* associated
-> object, use negated existence: `[not(Module.Order_Customer/Module.Customer)]` —
-> **not** `[Module.Order_Customer = empty]`. `mxcli check` flags the association
-> `= empty` form as **MDL047** before the build does.
+> **`= empty` / `!= empty` do not work on associations (CE0161 / MDL047).**
+> `empty` tests *attribute* nullability only. To test whether an object *has no*
+> associated object, use negated existence: `[not(Module.Order_Customer/Module.Customer)]`
+> — **not** `[Module.Order_Customer = empty]`; to test that it *has* one, the path
+> itself: `[Module.Order_Customer/Module.Customer]` — **not** `!= empty`.
+> `mxcli check` flags both forms as **MDL047** before the build does.
 
 ### Variable Paths
 
@@ -212,6 +213,15 @@ where [Displayed = false()]
 ```
 
 Supported functions: `contains()`, `starts-with()`, `not()`, `true()`, `false()`
+
+The expression functions `startsWith()` / `endsWith()` are not XPath: in a
+constraint they are CE0161, and `check` reports them as **MDL091**. So is an
+operator inside a function argument — `starts-with(Name, 'MS-' + $Key)` is
+CE0161 although `Name = 'X-' + $Key` is fine: compute the value into a variable
+first (`declare $P String = 'MS-' + $Key;`, then `starts-with(Name, $P)`). A member the
+entity does not have is a reference error in `check -p`, and so is a system
+member written the way `describe` prints the attribute: XPath spells it
+`createdDate`, `changedDate`, `owner`, `changedBy` — `[CreatedDate > …]` is CE0161.
 
 ### Tokens
 
@@ -290,6 +300,7 @@ Security rules take the XPath in brackets, like every other XPath, so quotes
 inside it are written once:
 
 ```mdl
+mdl 1;
 grant read *, write * on entity Module.Entity to Module.Role
   where [System.owner = '[%CurrentUser%]'];
 ```
@@ -343,6 +354,7 @@ If a RETRIEVE returns empty unexpectedly when filtering by an enum attribute:
 ### Parameterized Search
 
 ```mdl
+mdl 1;
 create microflow Module.Search ($query: string, $ActiveOnly: boolean)
 returns boolean
 begin

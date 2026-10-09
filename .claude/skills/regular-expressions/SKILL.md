@@ -19,6 +19,7 @@ reference to it by qualified name, so one pattern is shared by every attribute
 that validates against it. That is why it gets a `create` statement of its own.
 
 ```sql
+mdl 1;
 list regular expressions;
 list regular expressions in Val;
 describe regular expression Val.EmailAddress;   -- re-executable MDL
@@ -35,7 +36,7 @@ drop regular expression Val.EmailAddress;
 |----------|---------|---------|
 | `Expression` | the pattern — **required** | — |
 | `Documentation` | free text | none |
-| `ExportLevel` | `Hidden` or `Public` | `Hidden` |
+| `ExportLevel` | `Hidden` or `API` (`Public` is a deprecated spelling of `API`, MDL-DEPR161) | `Hidden` |
 
 ## Writing the pattern
 
@@ -67,6 +68,7 @@ compile it.
 The pattern is a document; the binding is a **validation rule** on the entity:
 
 ```sql
+mdl 1;
 create regular expression Val.EmailAddress (
   Expression: '^[^@\s]+@[^@\s]+\.[^@\s]+$'
 );
@@ -84,6 +86,7 @@ Ranges use the same statement. Bounds are inclusive and either may be omitted;
 Mendix has no strict `<` or `>`, so there is no exclusive form:
 
 ```sql
+mdl 1;
 create validation rule for Val.Booking.Guests range from 1 to 100 error message '…';
 create validation rule for Val.Product.Price  range from 0        error message '…';
 create validation rule for Val.Order.Discount range to 100        error message '…';
@@ -97,6 +100,7 @@ Required and Unique are **not** written with this statement — they are attribu
 constraints:
 
 ```sql
+mdl 1;
 create entity Val.Person (
   Email: String(200) not null error message 'Email is required',
   Code:  String(20)  unique error message 'Code must be unique'
@@ -114,7 +118,7 @@ marks it with a comment rather than rendering it as something it isn't. Add or
 change one in Studio Pro.
 
 `MaxLength` and `EqualsTo` rules cannot be represented at all. mxcli **refuses**
-to rewrite an entity carrying one (`alter entity`, `create or replace entity`)
+to rewrite an entity carrying one (`alter entity`, `create or modify entity`)
 rather than silently downgrading it to a Required rule, which is what it used to
 do — the constraint would vanish and the build would still pass.
 

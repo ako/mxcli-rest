@@ -31,6 +31,7 @@ exactly the sequence below; a clause written out of place failed with
 named neither the clause nor the rule. See `ako/mxcli#586`.)
 
 ```sql
+mdl 1;
 create workflow Module.ApprovalFlow
   parameter $Context: Module.Request        -- REQUIRED: must be a $-variable + context entity
   display 'Request Approval'                 -- optional human-readable name
@@ -83,7 +84,7 @@ task due dates and XPath targeting, wait-for-timer delays, and `with (…)`
 parameter mappings. Anything else is an undefined variable and Mendix fails the
 build with `CE0117 "Error(s) in expression."`.
 
-`create or replace workflow …` and `create or modify workflow …` are supported.
+`create or modify workflow …` is supported (`create or replace` is its deprecated spelling, MDL-DEPR001).
 
 ## Activities
 
@@ -95,7 +96,8 @@ parses and warns `MDL-DEPR080`; `mxcli fmt --upgrade` rewrites it.
 Every activity statement ends with `;`. Blocks `{ … }` nest a sub-flow.
 
 ```sql
-create or replace workflow Module.ApprovalFlow
+mdl 1;
+create or modify workflow Module.ApprovalFlow
   parameter $Context: Module.Request
 begin
   -- User task: renders a page, offers named outcomes (branches)
@@ -167,6 +169,7 @@ as in a microflow; the workflow's own note is the header clause
 `event subprocess`. One note per activity; no other `@` annotation is accepted.
 
 ```sql
+mdl 1;
 create workflow Module.Approve
   parameter $WorkflowContext: Module.Request
   annotation 'Started from the request form'
@@ -185,7 +188,8 @@ end workflow;
 **Boundary events** attach a timer to a user task / call-microflow / wait:
 
 ```sql
-create or replace workflow Module.WithBoundary
+mdl 1;
+create or modify workflow Module.WithBoundary
   parameter $Context: Module.Request
 begin
   user task Review 'Review'
@@ -227,6 +231,7 @@ A notification (11.8+) or a timer (11.13+) starts one while the workflow runs;
 `interrupting` cancels every active path first, `non interrupting` runs alongside:
 
 ```sql
+mdl 1;
 create or modify workflow HR.Leave
   parameter $Context: HR.Request
 begin
@@ -256,6 +261,7 @@ end workflow;
 ## DROP WORKFLOW
 
 ```sql
+mdl 1;
 drop workflow Module.ApprovalFlow;
 ```
 
@@ -267,6 +273,7 @@ go in `{ … }`, properties are set with `set ( Key: value )`, and a fragment is
 written exactly as in `create workflow`.
 
 ```sql
+mdl 1;
 alter workflow Module.ApprovalFlow {
   set (Display: 'Updated Approval', DueDate: addDays([%CurrentDateTime%], 7));
   set (Page: Module.AltReviewPage, Description: 'Check the amount') on Review;
@@ -368,7 +375,7 @@ declares (**MDL-WF05**) and lists the valid targets when one misses.
 
 ## Rewriting an existing workflow
 
-`CREATE OR REPLACE|MODIFY WORKFLOW` **rebuilds the workflow from the statement**,
+`CREATE OR MODIFY WORKFLOW` **rebuilds the workflow from the statement**,
 so anything the script does not restate is deleted — including each boundary
 event's whole handler flow. This is the failure that costs real work: it is not
 reported by `mx check` afterwards, because the result is a perfectly valid
@@ -401,12 +408,44 @@ workflow / its tasks. They are easy to miss — there is no `complete task`:
   required**: a notify without one fails the build (CE0166, MDL-WF16). Name the
   element as `Module.Workflow.ElementName`; mxcli works out which kind it is and
   refuses one a notification cannot reach (a timer start, a user task).
-- `open user task $Task`, `lock workflow $Wf`, and
+- `open user task $Task`, `lock workflow $WfDef`, and
   `workflow operation abort|pause|restart|retry|continue $Wf` are also statements.
+  A lock or unlock names its workflow definition (`$WfDef` or `Module.Workflow`);
+  `pause all` / `unpause all` after it is Studio Pro's "Pause / Unpause instances".
+  A bare `lock workflow all` is refused (MDL-WF17) — it built as CE1825.
 
 A common shape: the task page's buttons call a microflow that does the change and
 then `set task outcome $Task '<Outcome>'`, leaving the workflow's outcome branch
 bodies empty.
+
+**The outcome is a literal, by design.** Mendix stores
+`Microflows$SetTaskOutcomeAction.Outcome` by name — a reference to one outcome of
+the user task, resolved when the app is built — so there is no expression slot to
+hold a value computed at runtime. `set task outcome $Task $Outcome;` is a parse
+error (under every language version) that says so. A **shared** claim-and-complete
+microflow, called from every button with the outcome as a parameter, therefore
+needs **one branch per outcome**, each with its own literal:
+
+```mdl
+mdl 1;
+create microflow Approvals.ACT_CompleteTask (
+  $Task: System.WorkflowUserTask,
+  $Outcome: String
+)
+begin
+  change $Task (System.WorkflowUserTask_Assignees = [%CurrentUser%]);
+  commit $Task;
+  if $Outcome = 'Approve' then
+    set task outcome $Task 'Approve';
+  else
+    set task outcome $Task 'Reject';
+  end if;
+end;
+```
+
+With more outcomes, chain `elsif` arms, or give each button its own small
+microflow that names its outcome — that keeps the outcome checked against the
+task when the app is built, which a runtime string never would be.
 
 ### Claim the task before completing it
 
@@ -426,6 +465,7 @@ task — it does not assign it.** There is no `assign task` statement; claiming 
 plain write to the Assignees association, and it must come first:
 
 ```sql
+mdl 1;
 create microflow Module.ACT_CompleteTask ( $Task: System.WorkflowUserTask )
 begin
   change $Task (System.WorkflowUserTask_Assignees = [%CurrentUser%]);

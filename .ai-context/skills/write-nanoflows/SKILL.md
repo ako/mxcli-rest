@@ -27,15 +27,28 @@ Choose the mode by who owns the nanoflow ([choose-edit-mode](../choose-edit-mode
   (targets by output variable, caption or statement pattern). `create or modify` of `describe`
   output also works as a patch: an unchanged definition writes nothing, and an inserted,
   replaced or dropped statement (at the top level or in an `if` branch) is spliced in,
-  leaving every other node, merge and curve as stored; a changed `return` value is set on
-  the stored end event, and a body without a trailing `return` means the stored end. The
+  leaving every other node, merge and curve as stored — a guard clause (`if … then return;
+  end if;`) too, its return a new end event, and so is the `return` ending a new activity's
+  error handler; a changed `return` value or `if` condition is set on
+  the stored end event or decision, and a body without a trailing `return` means the stored end. The
   header (documentation, return type, parameters added, retyped or — when unused —
   removed) is set on the stored document, and a stated `@position` or `@start` moves the
   stored node, keeping its flows. A change it cannot patch — anything inside a loop body
-  or error handler, a redrawn `@anchor`/`@curve`, a `return` added or taken away —
+  or error handler, a redrawn `@anchor`/`@curve`, any other `return` added or taken away —
   rebuilds the whole nanoflow under mdl 0
   (warning `MDL-V1-REBUILD`: element IDs renumbered, merges removed, curves reset) and
   is refused under `mdl 1;`.
+- **Rebuilding deliberately: `drop nanoflow X;` and `create nanoflow X …` in ONE script.**
+  The drop's module-role grants (and the unit's ID and folder) carry only to a create later in
+  the same script or REPL session; a drop in one run and a create in the next loses every
+  `grant execute`. `drop` prints the roles it removed and the `grant` to restore them.
+- **Changing something inside a loop body** (either owner)
+: neither `create or modify`
+  (under `mdl 1;`) nor an `alter` aimed at an activity in the loop can make it — `alter`
+  does not splice inside a loop. Replace the **whole loop**, addressed by its handle, with
+  the body as it should be (`replace loop $Item in $Items with begin loop $Item in $Items
+  begin … end loop; end;`). Everything outside the loop keeps its `$ID`s, positions and
+  curves; the loop and its body are rebuilt. For a nested loop, replace the outer one.
 
 ## When to Use a Nanoflow vs a Microflow
 
@@ -183,6 +196,7 @@ EnquiriesManagement (79), Evora-FactoryManagement (93), LatoProductInventory (51
 Validate before calling a microflow to avoid a round-trip.
 
 ```mdl
+mdl 1;
 /**
  * Validates the enquiry form fields before submission.
  * @param $Enquiry The enquiry being created or edited
@@ -211,6 +225,7 @@ END;
 Validate then navigate — keeps pages dumb.
 
 ```mdl
+mdl 1;
 /**
  * Validates the product and opens the detail page if valid.
  * @param $Product Product to open
@@ -254,6 +269,7 @@ END;
 ### Pattern 4: Confirmation Dialog Before Destructive Action
 
 ```mdl
+mdl 1;
 /**
  * Asks the user to confirm before deleting an item.
  * @param $Item The inventory item to delete
@@ -336,6 +352,7 @@ END;
 Used in enquiry and field-service apps to tag records with GPS coordinates.
 
 ```mdl
+mdl 1;
 /**
  * Captures the current GPS position and stores it on the record.
  * @param $Record The record to tag with location
@@ -361,6 +378,7 @@ END;
 ### Pattern 8: Platform-Conditional Logic
 
 ```mdl
+mdl 1;
 /**
  * Opens a map or shows coordinates depending on platform.
  * @param $Latitude Latitude coordinate
@@ -389,6 +407,7 @@ END;
 Store a frequently accessed value locally to avoid a round-trip.
 
 ```mdl
+mdl 1;
 /**
  * Loads the last-used filter value from local storage.
  * @returns The cached filter string, or empty if never set
@@ -565,19 +584,24 @@ IF $Location = empty THEN
 END IF;
 ```
 
-For per-action error handling without CONTINUE:
+For per-action error handling on a call, use a handler WITHOUT rollback — the
+only form a nanoflow call takes:
 ```mdl
-$Result = CALL NANOFLOW Sales.NAV_Risky () ON ERROR ROLLBACK;
+$Result = CALL NANOFLOW Sales.NAV_Risky () ON ERROR WITHOUT ROLLBACK BEGIN
+  LOG WARNING NODE 'Sales' 'Could not load the data.';
+END ERROR;
 ```
 
-### Most activities take NO error handling in a nanoflow
+### Which activities take which clause in a nanoflow
 
-An `ON ERROR` clause of **any** form is rejected on these six, with
-**CE6035** "Error handling type is not supported" — measured on Mendix 11.14.0:
+Measured on Mendix 11.14.0; every other form is **CE6035** "Error handling type
+is not supported", and mxcli refuses it (MDL091):
 
-| Refused in a nanoflow | Accepted |
+| Activity in a nanoflow | Accepted clauses |
 |---|---|
-| `CHANGE`, `LOG`, `SHOW PAGE`, `CLOSE PAGE`, `SHOW MESSAGE`, `VALIDATION FEEDBACK` | `DECLARE`, `SET` (the two *variable* activities) |
+| `DECLARE`, `SET`, `RETRIEVE`, `DELETE` | every form |
+| `CREATE`, `COMMIT`, `CALL NANOFLOW`, `CALL MICROFLOW` | only `ON ERROR WITHOUT ROLLBACK BEGIN … END ERROR` |
+| `CHANGE`, `LOG`, `SHOW PAGE`, `CLOSE PAGE`, `SHOW MESSAGE`, `VALIDATION FEEDBACK` | none |
 
 mxcli refuses the clause rather than writing a nanoflow mxbuild rejects. The
 split is by activity, not by "client-side vs server-side" — `SHOW MESSAGE` is as
@@ -590,6 +614,7 @@ default is also why writing `Rollback` there is an error and not a no-op.
 ## Security (GRANT/REVOKE)
 
 ```mdl
+mdl 1;
 GRANT EXECUTE ON NANOFLOW Shop.NAV_Filter TO Shop.User, Shop.Admin;
 REVOKE EXECUTE ON NANOFLOW Shop.NAV_Filter FROM Shop.User;
 ```
@@ -597,9 +622,10 @@ REVOKE EXECUTE ON NANOFLOW Shop.NAV_Filter FROM Shop.User;
 ## Management Commands
 
 ```mdl
-LIST NANOFLOWS
-LIST NANOFLOWS IN MyModule
-DESCRIBE NANOFLOW MyModule.NAV_ShowDetails
+mdl 1;
+LIST NANOFLOWS;
+LIST NANOFLOWS IN MyModule;
+DESCRIBE NANOFLOW MyModule.NAV_ShowDetails;
 DROP NANOFLOW MyModule.NAV_ShowDetails;
 RENAME NANOFLOW MyModule.NAV_OldName TO NAV_NewName;
 MOVE NANOFLOW Sales.NAV_OpenCart TO FOLDER 'UI/Navigation';
