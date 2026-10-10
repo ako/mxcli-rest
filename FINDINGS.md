@@ -2653,3 +2653,152 @@ statement reference, and a "Doc Comments" section carrying the MDL089 rule and
 
 Final state: 14 scripts, 0 errors and 0 deprecations, two clean `exec` passes,
 `mx check` 0 errors, `fix hashes` 0 mismatches, lint 268, rates lane green.
+
+## 68. The project Mendix could not merge — `canon`, and the 13 keys it still misses
+
+**Round:** `ako/mxcli` main at `ce5b66fb0` (`nightly-1483`), 52 non-merge commits
+since `28a3b1bf`. Small by count, and the most consequential round so far.
+
+### The defect: this repository's app was unmergeable, and every gate said fine
+
+`e8593686 feat(canon): give every written element Studio Pro's property set`
+names a failure mode worth quoting:
+
+> Mendix's merge and diff engine compares an element's property NAMES between
+> two revisions and throws — "Objects with ID … do not have the same
+> properties" — instead of defaulting, so a key the writer leaves out makes the
+> document unmergeable the first time Studio Pro saves it, while mx check, the
+> build and the runtime stay green.
+
+That is this project. Reproduced on the **committed** tree, with Mendix's own
+tools and no mxcli involved:
+
+```
+$ git archive HEAD | tar -x -C pre ; cp -r pre norm
+$ (cd norm && mx convert -p .)            # what Studio Pro saves
+$ mx diff pre/RestLab.mpr norm/RestLab.mpr out.json
+Exception during diffing:
+Objects with ID 79ae34f1-… of type Security$UserRole do not have the same
+properties. baseNames = Name, ModuleRoles, ManageAllRoles;
+newNames = CheckSecurity, Description, GUID, ManageableRoles, ManageAllRoles,
+           ManageUsersWithoutRoles, ModuleRoles, Name
+```
+
+Three keys written where Mendix declares eight. `mx check` on the same tree:
+**0 errors**. The build is green, the app runs, 444 units hash-match. Sixty-four
+of those 444 units differ from what `mx convert -p` writes, and all 64 are
+RestLab's own documents — 26 microflows, 3 REST clients, the pages, the
+transformers, the domain model, the module itself. Nothing mxcli did not write
+is affected.
+
+Note also that `mx diff` **exits 0 while throwing**. A CI gate that runs it and
+checks the exit status passes.
+
+So the standing theme of this file gets its sharpest instance: a defect that
+every static gate, the compiler and the runtime agree is not there, whose
+consequence is that the first colleague to open the project in Studio Pro and
+press save can no longer merge it.
+
+### The repair is real but partial
+
+Re-running the 14-script corpus under the canon-aware writer rewrote **16**
+units, and a second pass rewrote nothing (idempotent). It moved
+`Security$UserRole` from 3 keys to 7. The one it could not add is `GUID` — and
+`mx diff` still throws on the same element.
+
+That is not an oversight in the table so much as a boundary of the approach:
+`canon.CompletePropertySets` fills keys from a table of **measured constant
+defaults**, and a GUID is not a constant. The companion commit says so —
+"Security$UserRole: new roles get a GUID (= $ID), as entities do" — which fixes
+the **create** path. Confirmed both halves: dropping and re-creating the role
+closes that gap, and a role that already exists keeps it. Any project whose
+roles predate this build therefore stays unmergeable until something recreates
+them.
+
+### What is still missing, measured the way Mendix measures it
+
+`mx diff` stops at the first exception, so peeling them one at a time would take
+all day. Instead I parsed the BSON of each of the 64 differing units in both
+trees and compared, per `($Type, $ID)`, the *set of property names* — the exact
+comparison the exception reports. (First attempt used `strings`, which invented
+a `Rollback` gap that does not exist. The real parser is in
+`scratchpad/bsonkeys.py`.)
+
+62 elements across 8 types. **No structural difference at all** — not one
+element exists on one side and not the other; it is purely property names.
+
+mxcli writes a key Mendix does not declare (the direction that also makes a
+document unopenable):
+
+| count | element | key |
+| --- | --- | --- |
+| 49 | `ImportMappings$ValueMappingElement` | `IsDefaultType` |
+| 1 | `ExportMappings$ValueMappingElement` | `IsDefaultType` |
+
+mxcli omits a key Mendix writes:
+
+| count | element | key |
+| --- | --- | --- |
+| 5 | `Microflows$ChangeActionItem` | `Attribute` |
+| 4 | `Microflows$RestOperationCallAction` | `ErrorHandlingType` |
+| 6 | `Projects$ModuleSettings` | `Checksum`, `ConvertedChecksum`, `EnableDetailedTroubleshooting`, `ModuleDependencies`, `OriginalPackageId`, `PackageId` |
+| 1 | `DomainModels$AttributeRef` | `EntityRef` |
+| 1 | `Security$UserRole` | `GUID` |
+| 1 | `ImportMappings$ImportMapping` | `MessageDefinition2` |
+
+Two of these are confirmed as real `mx diff` exceptions rather than predictions:
+`Security$UserRole.GUID`, and — after re-creating the role so the traversal gets
+past it — `Microflows$RestOperationCallAction.ErrorHandlingType`. The rest are
+name-set differences computed by the same rule, so each is a throw waiting for
+its turn in the traversal.
+
+`IsDefaultType` × 50 is the one I would fix first: it is the dangerous
+direction, it is one key, and it is almost the whole count.
+
+### MPR007: right about the model, wrong about the consequence
+
+`dc4af4b8 feat(lint): MPR007 flags a user role that cannot open its home page`
+fires once here, and the model claim is correct — verified independently:
+
+```
+user role User  = Administration.User, FeedbackModule.User, System.User, MyFirstModule.User
+Home_Web allows = RestLab.Developer, RestLab.Administrator
+```
+
+No intersection, and `demo_user` exists and has exactly that role. But the
+message states two consequences, and neither reproduces:
+
+- *"mxbuild reports CE2729 for each widget on it"* — `mx check` output contains
+  **zero** occurrences of CE2729.
+- *"cannot open"* — at Prototype security it opens. Signed in as `demo_user`
+  through `playwright check --role User --fresh-login`, `/` returns 200, no
+  console errors, no banner, and the screenshot shows every lane card. What the
+  role actually loses is the eight action buttons and the call-log rows
+  (`0 to 0 of 0`): 3208 characters of page text against the Developer's 3579.
+
+So it points at something true and worth knowing — that demo user lands on a
+page it can read but not use — while naming a build error that does not happen
+and a failure mode stronger than the one observed. Left the model alone: the
+showcase scopes its lanes to Developer and Administrator deliberately, and
+`User` comes from the blank app along with the Administration and Feedback
+pages it does serve. Worth a decision, not a silent grant.
+
+### Lint 268 → 269, isolated again
+
+Same two-variable discipline as #67: the new binary reports 269, the **old**
+binary on the **new** model still reports 268, and the delta is one `[MPR007]`
+line. Rules changed; the model did not. Baseline 269.
+
+### Verification
+
+14 scripts: 0 errors, 0 deprecations. `exec` idempotent (16 units on pass 1,
+nothing on pass 2). `mx check` 0 errors. `fix hashes` 0 mismatches across 444
+units. Rates lane green at runtime (1.58s). `./mxcli` promoted to
+`nightly-1483-gce5b66fb0`; `init --sync-skills` refreshed 75 files across 74
+skills and added no new skill; `.claude/bootstrap-mxcli.sh` md5 unchanged; no
+CLAUDE.md drift this round.
+
+Also new and used here for the first time: `run --local --detach` plus `run
+status|stop`, and `playwright check --role <R> --fresh-login`, which signs in as
+that role's demo user and prints a one-line verdict. The second is what turned
+MPR007 from a claim into a measurement.
