@@ -2717,6 +2717,9 @@ them.
 
 ### What is still missing, measured the way Mendix measures it
 
+Filed upstream as **ako/mxcli#1097**, with the repro, both confirmed `mx diff`
+exceptions and the BSON comparison script.
+
 `mx diff` stops at the first exception, so peeling them one at a time would take
 all day. Instead I parsed the BSON of each of the 64 differing units in both
 trees and compared, per `($Type, $ID)`, the *set of property names* — the exact
