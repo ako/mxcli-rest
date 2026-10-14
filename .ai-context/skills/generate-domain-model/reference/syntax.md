@@ -133,12 +133,16 @@ entity one column past the furthest thing it references — so the lines mostly
 run one way. It is idempotent (a second run moves nothing) and local (adding an
 entity later moves a handful, not the model). It REPLACES positions you set by
 hand in the module it touches, which is the reason it is a separate command
-rather than something `exec` does on its own.
+rather than something `exec` does on its own. To fix only boxes that collide
+and keep every other position — a hand-arranged model — add
+`--only-overlapping`.
 
 Write `@position` when you want explicit control of a particular entity, and
-remember the coordinate is the box's **CENTRE**, not its top-left corner:
+remember the coordinate is the box's **TOP-LEFT corner**, not its centre:
 
-- 250+ apart horizontally, 250+ vertically, to clear a typical box
+- 250+ apart horizontally, to clear a typical box; vertically, leave the box's
+  height — about 35px plus 16px per attribute — plus a margin, so a
+  20-attribute entity needs ~400px before the next one below it
 - group related entities, and keep the lookups together
 - `alter entity Mod.Name set position (x, y)` moves one without restating it
 

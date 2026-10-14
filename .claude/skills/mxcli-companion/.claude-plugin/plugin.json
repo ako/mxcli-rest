@@ -1,0 +1,20 @@
+{
+  "name": "mxcli-companion",
+  "version": "0.1.0",
+  "description": "Shows the Mendix app's project structure and the MDL source of its documents in a pane, from mxcli.",
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "mprPath": {
+      "type": "string",
+      "title": "Project file",
+      "description": "Path to the app's .mpr. Empty: the single .mpr in the session folder, or one level down.",
+      "default": ""
+    },
+    "mxcliPath": {
+      "type": "string",
+      "title": "mxcli",
+      "description": "The mxcli to run. Empty: ./mxcli when present, else mxcli on PATH.",
+      "default": ""
+    }
+  }
+}

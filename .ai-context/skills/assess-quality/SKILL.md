@@ -12,14 +12,14 @@ description: "Audit a Mendix project against best practices for naming, security
 |---|---|
 | 29-36 | When to Use This Skill |
 | 37-96 | Assessment Workflow |
-| 97-351 | Quality Guidelines Reference |
-| 352-362 | Assessment Report Template |
-| 363-375 | Executive Summary |
-| 376-386 | project Metrics |
-| 387-399 | Automated Findings |
-| 400-419 | Manual Review Findings |
-| 420-435 | Recommendations |
-| 436-446 | Sources |
+| 97-352 | Quality Guidelines Reference |
+| 353-363 | Assessment Report Template |
+| 364-376 | Executive Summary |
+| 377-387 | project Metrics |
+| 388-400 | Automated Findings |
+| 401-420 | Manual Review Findings |
+| 421-436 | Recommendations |
+| 437-447 | Sources |
 
 <!-- /skill-index -->
 # Assess Mendix Project Quality
@@ -152,13 +152,14 @@ After reviewing automated results, assess the following areas manually. The guid
 
 ### C. Security
 
-**Enforced by rules:** SEC001-SEC009, CONV006, CONV007, CONV008, MPR007
+**Enforced by rules:** SEC001-SEC010, CONV006, CONV007, CONV008, MPR007
 
 #### C.1 Entity Access
 
 | Guideline | Rule | Priority |
 |-----------|------|----------|
 | All persistent entities must have access rules | SEC001 | Critical |
+| Every role that opens a page can read the entities its grids, galleries and combo boxes list (else it renders empty at Production) | SEC010 | High |
 | Do not grant Create or Delete rights on entity access rules | CONV006 | High |
 | All entity access rules should have XPath constraints | CONV007 | High |
 | Set default access rights to None | Manual check | High |
@@ -171,7 +172,7 @@ After reviewing automated results, assess the following areas manually. The guid
 |-----------|------|----------|
 | 1:1 mapping between module roles and user roles | CONV008 | High |
 | Pages in navigation must have allowed roles | MPR007 | High |
-| Every user role can open its home page (else CE2729) | MPR007 | High |
+| Every user role can open its home page (else CE2729 at Production security) | MPR007 | High |
 | No guest/anonymous access to sensitive data | SEC004 | Critical |
 | Strict security mode enabled | SEC005 | High |
 | No demo users in production | SEC003 | Critical |
@@ -438,7 +439,7 @@ Overall Score: [X]/100 (from `mxcli report`)
 This skill incorporates guidelines from:
 - **Conventions.pdf** — Squad Apps internal best practices (14 categories, 80+ guidelines)
 - **CONV001-CONV017 lint rules** — Automated checks derived from Conventions.pdf
-- **MPR001-MPR007, SEC001-SEC009** — Built-in linter rules
+- **MPR001-MPR007, SEC001-SEC010** — Built-in linter rules
 - **ARCH, DESIGN, QUAL series** — Starlark architecture/quality rules
 - **Mendix Performance Best Practices** — Official Mendix documentation on performance optimization
 - **Mendix Security Best Practices** — Official Mendix documentation on security configuration

@@ -277,20 +277,36 @@ the same CE0117, and mxcli refuses the statement rather than writing it.
 
 ### 11. Changing Something Inside a Loop Body
 
-**Refusal**: `create or modify` under `mdl 1;` — "the Loop at (x, y) changes inside
-its body; the splice does not edit inside a loop"; `alter` aimed at an activity in
-the loop — "… is inside the body of loop $Car in $Cars; alter does not splice inside
-a loop body". Both refusals spell out the statement below.
+**What is spliced** (both modes, ako/mxcli#1106): an activity in the body replaced by
+one activity **of the same kind**, in place — a new expression in a `set`, a new
+message in a `log`, `commit $Car` → `commit $Car without events`. Re-running a
+`create or modify` whose loop body has the same statements in the same order, each
+as stored or with new values, writes just those activities; the loop and everything
+else keep their `$ID`s and positions. The loop's iterator is in scope.
 
-Neither editing mode splices **inside** a loop, so do not try one after the other.
-Replace the **whole loop**, addressed by its handle from `describe microflow X with
-handles`, with the body as it should be:
+**Refusal** for anything else inside the body — a statement added, removed,
+reordered or moved, one kind swapped for another, an `if` or `return` changed, a
+custom error handler, a note or connector redrawn: `create or modify` under
+`mdl 1;` — "the Loop at (x, y) changes inside its body; the splice does not edit
+inside a loop"; `alter` aimed at an activity in the loop — "… is inside the body of
+loop $Car in $Cars; alter does not splice inside a loop body but to replace one
+activity by one of the same kind". A body node's coordinates are relative to the
+loop box, so those changes would need the body laid out again. Both refusals spell
+out the statement below.
 
-❌ **REFUSED** (either way):
+✅ **SPLICED** in place:
 ```mdl
 mdl 1;
 alter microflow MyModule.ACT_SaveAll {
   replace commit $Car with begin commit $Car without events; end;
+};
+```
+
+❌ **REFUSED** (either way) — the body changes shape:
+```mdl
+mdl 1;
+alter microflow MyModule.ACT_SaveAll {
+  insert after commit $Car begin log info node 'App' 'saved'; end;
 };
 ```
 
@@ -301,7 +317,8 @@ alter microflow MyModule.ACT_SaveAll {
   replace loop $Car in $Cars with begin
     loop $Car in $Cars
     begin
-      commit $Car without events;
+      commit $Car;
+      log info node 'App' 'saved';
     end loop;
   end;
 };
@@ -310,7 +327,7 @@ alter microflow MyModule.ACT_SaveAll {
 Everything outside the loop keeps its `$ID`s, positions and flows; the loop and its
 body are rebuilt (new IDs, drawn by mxcli). A `while` loop is the same:
 `replace while $N < 3 with begin while $N < 3 begin … end while; end;`. For a loop
-nested in another loop, replace the outer one — alter addresses nothing inside a loop.
+nested in another loop, replace the outer one.
 
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 

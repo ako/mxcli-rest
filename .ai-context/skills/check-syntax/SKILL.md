@@ -11,15 +11,15 @@ description: "Validate MDL with `mxcli check` before presenting or executing it,
 | lines | section |
 |---|---|
 | 29-35 | When to Use This Skill |
-| 36-287 | `exec` refuses what `check` rejects |
-| 288-422 | Pre-Flight Validation Checklist |
+| 36-286 | `exec` refuses what `check` rejects |
+| 287-422 | Pre-Flight Validation Checklist |
 | 423-473 | Two rules that only real validation used to catch |
 | 474-520 | Validation Workflow |
-| 521-541 | Script Execution Behavior |
-| 542-602 | Script Organization |
-| 603-655 | Troubleshooting Parse Errors |
-| 656-713 | Studio Pro MCP — Verification Only |
-| 714-719 | Related Skills |
+| 521-542 | Script Execution Behavior |
+| 543-603 | Script Organization |
+| 604-656 | Troubleshooting Parse Errors |
+| 657-714 | Studio Pro MCP — Verification Only |
+| 715-720 | Related Skills |
 
 <!-- /skill-index -->
 # MDL Syntax Validation Skill
@@ -36,10 +36,9 @@ This skill ensures MDL scripts are validated before presenting them to users or 
 ## `exec` refuses what `check` rejects
 
 `mxcli exec` runs the same semantic checks before writing anything. A script whose
-checks report an **error** is not executed at all — nothing is written — because
-`exec` applies statements one at a time and cannot roll back, so a known-bad
-script would leave the model partly updated. Warnings are printed and do not stop
-the run.
+checks report an **error** is not executed at all — nothing is written. Warnings
+are printed and do not stop the run. A statement that still fails while it is
+written is rolled back with the rest (see Script Execution Behavior).
 
 ```bash
 mxcli exec script.mdl -p app.mpr              # checked, then applied
@@ -295,6 +294,7 @@ A script without the header is checked and executed as `mdl 0`, the alpha langua
 where some statements mean something else. Write `mdl 1;` as the first line of every
 new script. To edit a headerless one, upgrade it first (`mxcli fmt --upgrade --header
 -p app.mpr -w script.mdl`) — never mix the two in one file; see `choose-edit-mode`.
+Readiness gate for the header: `check --deprecations=error --v1=error` (either alone lets the other's codes through).
 
 ### 1. Check Supported Syntax
 
@@ -520,17 +520,18 @@ not close it.
 
 ## Script Execution Behavior
 
-**IMPORTANT: Script execution is atomic per statement, NOT per script.**
-
-When a script fails on statement N, statements 1 through N-1 have already been committed:
+**`mxcli exec` is atomic per script.** When a script fails on statement N,
+statements 1 through N-1 are rolled back and the model is left as it was:
 
 ```
-Statement 1: create module ✓ (committed)
-Statement 2: create entity ✓ (committed)
-Statement 3: create association ✓ (committed)
+Statement 1: create module ✓ (rolled back)
+Statement 2: create entity ✓ (rolled back)
+Statement 3: create association ✓ (rolled back)
 Statement 4: create view entity ✗ (failed - execution stops here)
 Statement 5: create page (never executed)
 ```
+
+Not restored: generated `.java`/`.js`. Not atomic: `--continue-on-error`, REPL, `-c`.
 
 **Recommendations:**
 1. Split scripts into phases when experimenting with uncertain syntax

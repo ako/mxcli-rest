@@ -308,7 +308,7 @@ select QualifiedName, RepeatDescription, Microflow
 from CATALOG.SCHEDULED_EVENTS
 where Enabled = 1 and IntervalSeconds < 60;
 
-select QualifiedName, Parallelism, ClusterWide from CATALOG.QUEUES;
+select QualifiedName, Parallelism, ClusterWide from CATALOG.TASK_QUEUES;
 ```
 
 A scheduled event counts as a caller of the microflow it runs, so
@@ -328,7 +328,7 @@ Starlark lint rules can iterate both: `scheduled_events()` yields
 
 ## Scheduled events — Mendix's cron (LIST/DESCRIBE/CREATE [OR MODIFY]/DROP). `Repeat:` names one of the eight `ScheduledEvents$*Schedule` variants and only that variant's fields are accepted; a field from another repeat is refused by `mxcli check` (MDL-SCHED01) and by exec, which call the same function. The document shape is pinned by re-serializing three whole Studio Pro-authored events (Workflow Commons 4.11.0, OIDC SSO 4.6.0, SAML 4.2.1) element by element — `modelsdk/gen` is **wrong** about two properties here
 
-the integers are stored as int64 (gen says int32, the #585 mismatch) and `StartDateTime` is a BSON datetime (gen says string), so both engines share one raw-BSON codec in `mdl/scheduledevents`. `Interval`/`IntervalType` are legacy siblings of `Schedule` that Studio Pro writes and does not keep in sync — derived on CREATE, carried through untouched on MODIFY. Only the Day and Hour variants have a Studio Pro reference; the other six are metamodel-derived and verified to load. Both are in the catalog (`CATALOG.SCHEDULED_EVENTS`, `CATALOG.QUEUES`) and a scheduled event emits a `schedule` edge into `CATALOG.REFS` — without it a microflow run only by a scheduled event was reported as dead by `list callers`, `GRAPH_DEAD_ASSETS` and lint rule QUAL004.
+the integers are stored as int64 (gen says int32, the #585 mismatch) and `StartDateTime` is a BSON datetime (gen says string), so both engines share one raw-BSON codec in `mdl/scheduledevents`. `Interval`/`IntervalType` are legacy siblings of `Schedule` that Studio Pro writes and does not keep in sync — derived on CREATE, carried through untouched on MODIFY. Only the Day and Hour variants have a Studio Pro reference; the other six are metamodel-derived and verified to load. Both are in the catalog (`CATALOG.SCHEDULED_EVENTS`, `CATALOG.TASK_QUEUES`) and a scheduled event emits a `schedule` edge into `CATALOG.REFS` — without it a microflow run only by a scheduled event was reported as dead by `list callers`, `GRAPH_DEAD_ASSETS` and lint rule QUAL004.
 
 ## Task queues (LIST/DESCRIBE/CREATE [OR MODIFY]/DROP TASK QUEUE). `Config.ParallelismExpression` is a **string** and the sibling int32 `Parallelism` is not written — matching all four Studio Pro queues in Business Events 3.12.1. Binding a *call* to a queue is not yet authorable, so `CREATE OR REPLACE|MODIFY MICROFLOW` is **refused** when the stored microflow has a queued call (guard-don't-drop, ADR-0005)
 

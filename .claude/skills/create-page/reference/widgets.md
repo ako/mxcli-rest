@@ -49,7 +49,7 @@ dynamictext day  (content: '{1}', contentparams: ({1} = DueOn format (dateFormat
 
 | Format key | Applies to | Values |
 |------------|-----------|--------|
-| `decimalPrecision` | Decimal / Float | a non-negative integer |
+| `decimalPrecision` | Decimal / Float | a non-negative integer, or `-1` for no fixed precision (what Studio Pro stores for it) |
 | `groupDigits` | Decimal / Float | `true` \| `false` |
 | `dateFormat` | DateTime | `Date` \| `DateTime` \| `Time` \| `Custom` |
 | `customDateFormat` | DateTime | a pattern string, requires `dateFormat: Custom` |
@@ -142,15 +142,18 @@ describe icon collection Atlas_Core.Atlas_Filled;   -- every icon + its referenc
   that widget is bound to (`datasource: $Customer` → `(Customer = $Customer)` is
   fine). Naming any other variable is refused as **MDL-PAGEARG01** — it used to be
   accepted and silently opened the page with the context object anyway.
-- **Outside a data widget the same rule leaves nothing at all**, so a button sitting
-  on the page itself (or in a plain `container`/`layoutgrid`) may pass **no**
-  argument — not a page parameter, not `$currentObject`, not a literal. There is no
-  context object there for Mendix to infer, and the page opens with nothing:
-  mxbuild reports **CE1571** per parameter of the target page, and a page whose
-  parameters are optional would simply show the wrong data. MDL-PAGEARG01 refuses
-  that too (mendixlabs/mxcli#1029). To open a parameterised page from such a
-  button, call a microflow that does `show page Module.Page(Param = $value)` —
-  that path wires the arguments properly.
+- **The exception is a parameter of the page or snippet itself.** `(Item = $Item)`
+  where `$Item` is the document's own entity parameter is bound BY NAME — Studio
+  Pro stores an explicit mapping for it — so it works anywhere, including on a
+  button outside every data widget (mendixlabs/mxcli#1403).
+- **Outside a data widget nothing else is left**, so a button sitting on the page
+  itself (or in a plain `container`/`layoutgrid`) may pass no other argument — not
+  `$currentObject`, not a literal, not a variable that is no parameter of the
+  document. There is no context object there for Mendix to infer, and the page
+  opens with nothing: mxbuild reports **CE1571** per parameter of the target page.
+  MDL-PAGEARG01 refuses that too (mendixlabs/mxcli#1029). To open a parameterised
+  page with anything else from such a button, call a microflow that does
+  `show page Module.Page(Param = $value)`.
 - **The list above is the whole vocabulary, and a keyword without its argument is
   not in it.** `action: open link` with no URL, `action: show page` with no page,
   `action: call microflow` with no name — each is **MDL-WIDGET28**. Until
@@ -383,6 +386,7 @@ column (caption: 'Actions') {
 | `datasource: selection widgetName` | Listen to selection from another widget |
 | `datasource: association path` | Retrieve by association from context (ByAssociation) |
 | `datasource: $currentObject/Module.Assoc` | Sugar for `association` — same semantics, reads more naturally |
+| `datasource: $Param/Module.A1/Module.E1/Module.A2/Module.E2` | Over several associations: one hop each, its destination entity optional (`$Param/Module.A1/Module.A2` derives it). `describe` prints every destination for more than one hop, since Studio Pro may store a specialization of an end |
 | `datasource: database from $Ctx/Module.Assoc/Module.Entity [where …] [sort by …] [search by …]` | **List view only.** A *database* retrieve of what the association reaches — keeps XPath, sort and search, which the association source above does not have. Name the entity after each association (it may be a specialization of the association's end) |
 
 > **A list widget needs an association that yields a list.** A list view, data grid or gallery over `$currentObject/M.Assoc` is CE8812 ("A grid association path must result in a list") when the association is a Reference followed from its FROM entity, or a Reference with owner Both from either end (one-to-one). Use a data view for the single object, or a ReferenceSet. `check` reports it as MDL-ASSOCDS01. The reverse of a default Reference (from the TO entity) is a list and fine.
@@ -479,6 +483,22 @@ checkbox cbActive (label: 'Active', attribute: IsActive)
 ```sql
 radiobuttons rbStatus (label: 'Status', attribute: status)
 ```
+
+**FILEMANAGER** - Upload or download a file (the classic `Forms$FileManager`):
+```sql
+-- The data view's object must be a System.FileDocument specialization — the
+-- widget binds no attribute. Outside a data container `check` refuses it
+-- (MDL-WIDGET45); on another entity `exec` does. Both are mxbuild's CE6810.
+dataview dvUpload (DataSource: $Upload) {
+  filemanager fileManager1 (label: 'Excel file', Type: Upload, MaxFileSize: 10, AllowedExtensions: '.xlsx')
+}
+```
+`Type` is `Upload`, `Download` or `Both` (default); `MaxFileSize` is in megabytes (default 5);
+`AllowedExtensions` is empty (any file) by default; `ShowFileInBrowser: true` opens a downloaded
+file in the browser rather than saving it. Omitted properties take Studio Pro's defaults.
+Change an existing one with `alter page … { set (MaxFileSize: 20, AllowedExtensions: '.xlsx') on fileManager1; }`.
+For the pluggable File Uploader (`fileuploader`, attachments to an association) see the
+custom-widgets skill.
 
 **DATEPICKER** - Date/time selection:
 ```sql
@@ -756,6 +776,17 @@ say it at all, so `describe page` marked every stored static image
 staticimage imgAllSelected (Image: 'MyFirstModule.Images.gallery')
 ```
 
+To repoint a stored one, `set` it in place — no REPLACE, so the widget keeps its
+id. `DefaultImage:` on a `dynamicimage` works the same way, and `check
+--references` resolves the name as it does for CREATE:
+
+```sql
+mdl 1;
+alter page MyFirstModule.Portal {
+  set (Image: 'MyFirstModule.Images.gear') on imgAllSelected;
+};
+```
+
 `WidthUnit:`, `HeightUnit:` (`pixels` | `percentage` | `auto`) and
 `Responsive: false` are written too. Leave them out for Studio Pro's defaults —
 auto units and a responsive image — which `describe page` also omits, so a
@@ -770,6 +801,22 @@ model that already contains one is the point — and `mxcli lint` reports it as
 **MPR012** so a new page does not reach for it by accident. A page on a **native**
 layout (e.g. `Atlas_Core.NativePhone_Default`) is not rendered by the React client:
 mxbuild builds a `staticimage` there clean, and MPR012 stays silent on it.
+
+#### `Image: $currentObject` — an uploaded image on the pluggable IMAGE
+
+The pluggable `image` widget shows an uploaded image (an entity that extends
+`System.Image`) by binding to the enclosing data container's object. Prefer it
+to `dynamicimage`, which is CE0582 under the React client (mendixlabs/mxcli#1476):
+
+```sql
+dataview dvPhoto (DataSource: $Photo) {
+  image imgPhoto (Image: $currentObject, DefaultImage: 'MyModule.Images.placeholder')
+}
+```
+
+Outside a data container, or over an entity that is not an image, it is refused
+(mxbuild: CE7247 "Widget expects entity of type System.Image."). `DefaultImage:`
+is only valid together with `$currentObject`.
 
 #### `DataSource:` — which object a DYNAMICIMAGE shows
 

@@ -12,21 +12,21 @@ description: "Microflow syntax reference in MDL — every activity type, control
 |---|---|
 | 34-51 | Reference files |
 | 52-61 | When to Use This Skill |
-| 62-75 | Changing an Existing Microflow |
-| 76-94 | When to Use a Microflow vs a Nanoflow |
-| 95-111 | Key Differences from Nanoflows |
-| 112-265 | Microflow Structure |
-| 266-343 | Variable Declarations |
-| 344-401 | Operators |
-| 402-418 | Logging |
-| 419-444 | Special Values |
-| 445-491 | Complete Example |
-| 492-548 | Calling Microflows |
-| 549-575 | Page Navigation |
-| 576-592 | Validation Checklist |
-| 593-604 | Tips for Success |
-| 605-611 | Related Documentation |
-| 612-726 | Quick Reference |
+| 62-76 | Changing an Existing Microflow |
+| 77-95 | When to Use a Microflow vs a Nanoflow |
+| 96-112 | Key Differences from Nanoflows |
+| 113-266 | Microflow Structure |
+| 267-344 | Variable Declarations |
+| 345-402 | Operators |
+| 403-419 | Logging |
+| 420-445 | Special Values |
+| 446-492 | Complete Example |
+| 493-549 | Calling Microflows |
+| 550-576 | Page Navigation |
+| 577-593 | Validation Checklist |
+| 594-605 | Tips for Success |
+| 606-612 | Related Documentation |
+| 613-727 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Microflow Skill
@@ -69,9 +69,10 @@ Choose the mode by who owns the microflow ([choose-edit-mode](../choose-edit-mod
   (targets from `describe microflow X with handles`). `create or modify` of `describe`
   output patches too: unchanged writes nothing; a statement (even one whose handler returns), guard
   clause, `return` value, `if` condition, header clause, parameter (added/retyped; removed only if unused) or stated `@position`/`@start` change is
-  patched in place (a move keeps the node's flows). A redrawn `@anchor`/`@curve`, loop body,
-  error handler or other `return` added/taken away rebuilds under mdl 0 (`MDL-V1-REBUILD`: IDs
-  renumbered, merges and curves lost) and is refused under `mdl 1;`. **To change a loop body, `alter … replace` the whole loop** — neither mode edits inside one ([pitfalls](reference/pitfalls.md#11-changing-something-inside-a-loop-body)). **To rebuild deliberately, `drop` and `create` in ONE script** — the grants carry only within it ([pitfalls](reference/pitfalls.md#drop--create-is-still-a-new-document)).
+  patched in place (a move keeps the node's flows), as is a loop-body activity with new values. A redrawn
+  `@anchor`/`@curve`, other loop-body change, error handler or other `return` added/taken away rebuilds under
+  mdl 0 (`MDL-V1-REBUILD`: IDs renumbered, merges and curves lost) and is refused under `mdl 1;`. **To add,
+  remove or reorder in a loop body, `alter … replace` the whole loop** ([pitfalls](reference/pitfalls.md#11-changing-something-inside-a-loop-body)). **To rebuild deliberately, `drop` and `create` in ONE script** — the grants carry only within it ([pitfalls](reference/pitfalls.md#drop--create-is-still-a-new-document)).
 
 ## When to Use a Microflow vs a Nanoflow
 
@@ -459,9 +460,9 @@ returns boolean as $success
 begin
   declare $success boolean = false;
 
-  -- Find the order (the retrieve establishes $Order — objects are never declared)
+  -- Find the order: `first` binds one object (without it $Order is a list — MDL-RETRIEVE03)
   retrieve $Order from Shop.Order
-    where OrderNumber = $OrderNumber;
+    where OrderNumber = $OrderNumber first;
 
   -- Validate order exists
   if $Order = empty then
@@ -711,8 +712,8 @@ close page on error begin return; end error;
   of them; `continue` is fine on `declare`, `set`, `retrieve`, `delete` and
   `call microflow`. Measured on 11.14.0 — note that create-*variable* and
   change-*variable* accept `continue` while change-*object* does not.
-- **List operations and aggregates** (`$x = head $l;`, `$n = count $l;`)
-  have no error handling in Mendix at all — **MDL077**.
+- **List/aggregate activities, `create list`, `add`/`remove`, `cast`, `show home
+  page`**: no `continue` (MDL076, 11.12.3, #1252); `rollback` takes every form.
 
 **In a nanoflow, almost none of them take a clause at all.** `change`, `log`,
 `show page`, `close page`, `show message` and `validation feedback` are CE6035

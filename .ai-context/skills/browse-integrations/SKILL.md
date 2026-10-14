@@ -130,13 +130,13 @@ where ee.Id IS null;
 
 -- All REST operations across all consumed services
 select ServiceQualifiedName, HttpMethod, path, Name
-from CATALOG.REST_OPERATIONS
+from CATALOG.CONSUMED_REST_OPERATIONS
 ORDER by ServiceQualifiedName, path;
 
 -- Cross-cutting: all integration services in a module
 select ObjectType, QualifiedName
 from CATALOG.OBJECTS
-where ObjectType in ('ODATA_CLIENT', 'REST_CLIENT', 'ODATA_SERVICE',
+where ObjectType in ('CONSUMED_ODATA_SERVICE', 'CONSUMED_REST_SERVICE', 'PUBLISHED_ODATA_SERVICE',
   'PUBLISHED_REST_SERVICE', 'BUSINESS_EVENT_SERVICE', 'DATABASE_CONNECTION')
 and ModuleName = 'Integration';
 ```

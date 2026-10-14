@@ -15,11 +15,11 @@ description: "Build, run and validate a Mendix app in Docker from inside a devco
 | 53-68 | Architecture |
 | 69-85 | Quick Start: One Command |
 | 86-113 | Creating an Empty Mendix App |
-| 114-272 | Step-by-Step Workflow |
-| 273-303 | Common Workflow: Edit, Rebuild, Test |
-| 304-415 | Hot Reload |
-| 416-434 | Environment Variables |
-| 435-454 | Troubleshooting |
+| 114-274 | Step-by-Step Workflow |
+| 275-305 | Common Workflow: Edit, Rebuild, Test |
+| 306-417 | Hot Reload |
+| 418-436 | Environment Variables |
+| 437-457 | Troubleshooting |
 
 <!-- /skill-index -->
 # Docker Build & Run Skill
@@ -166,6 +166,8 @@ mxcli docker init -p app.mpr
 ```
 
 This creates a `.docker/` directory with Docker Compose configuration for the Mendix app + PostgreSQL.
+
+**Stack name:** `docker init` writes a Compose project name into `.docker/docker-compose.yml` (`name: "mxcli-<app folder>"`), so containers and volumes of different apps are separate (`mxcli-myapp-db-1`, `mxcli-myapp_postgres-data`). Never change `name:` on a stack that holds data you need: Compose then starts new containers with an empty database and leaves the old volume behind. Projects initialised by older mxcli have no `name:`, so Compose calls them `docker` (`docker-db-1`, `docker_postgres-data`), shared with every other such project; `docker init --force` keeps that name rather than stranding the data.
 
 **Port conflicts:** If default ports (8080/8090/5432) are already in use, check with `ss -tlnp | grep -E '808|809|543'` and use `--port-offset N` to shift all ports:
 
@@ -450,5 +452,6 @@ All defaults can be overridden in `.docker/.env`.
 | `password should not be empty (debugger)` | Add `RUNTIME_DEBUGGER_PASSWORD` — re-run `mxcli docker init --force` |
 | `security level should be set to CHECKEVERYTHING` | App in Production mode without security — set to Development mode or configure security |
 | Port 8080 not accessible | Check `forwardPorts` in devcontainer.json includes 8080 |
+| Two projects overwrite each other's containers or share one database (both show as project `docker`) | Old compose file without `name:`. Back up the data, set a unique `name:` at the top of `.docker/docker-compose.yml` (e.g. `mxcli-myapp`), then `docker compose up`; the new stack starts with an empty database |
 | Database errors on startup | Try `mxcli docker up -p app.mpr --fresh` to reset volumes |
 | OQL: "Action not found: preview_execute_oql" | Runtime needs `-Dmendix.live-preview=enabled` JVM flag — re-run `mxcli docker init --force` to get the updated docker-compose.yml |

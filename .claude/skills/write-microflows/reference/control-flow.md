@@ -116,6 +116,25 @@ end case;
 > verified on Mendix 11.6.6. If several values share a path, put them in one
 > branch (`when Open, Pending then`) rather than reaching for `else`.
 
+**A rule that returns an enumeration** is a `case` source too — call it exactly
+as an `if` calls a rule:
+
+```mdl
+case OpenAIConnector.Rule_Configuration_KeyTypeToUse(Configuration = $Configuration)
+  when Bearer_Token then
+    return 'Authorization';
+  when API_key then
+    return 'api-key';
+  when (empty) then
+    return empty;
+end case;
+```
+
+It is stored as a rule decision (`Microflows$RuleSplitCondition`), not an
+expression. With `-p`, `check` and `exec` read the rule's return enumeration and
+refuse a value it lacks or a value left without a branch (CE0079). A rule
+returning Boolean stays an `if` (mendixlabs/mxcli#1414).
+
 ### Type Split And Cast Statements
 
 Use `split type` when a microflow branches on an object's runtime specialization.

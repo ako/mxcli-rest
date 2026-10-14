@@ -22,10 +22,10 @@ description: "The CRUD overview page pattern in MDL — a navigation snippet, a 
 | 501-510 | Button Styles |
 | 511-526 | Folder Organization |
 | 527-559 | Parameterized Snippets |
-| 560-611 | Entity Menu Snippets with NavigationList |
-| 612-681 | Handling Circular Dependencies |
-| 682-688 | Related Skills |
-| 689-699 | Snippet Commands Reference |
+| 560-614 | Entity Menu Snippets with NavigationList |
+| 615-684 | Handling Circular Dependencies |
+| 685-691 | Related Skills |
+| 692-702 | Snippet Commands Reference |
 
 <!-- /skill-index -->
 # Overview Pages - CRUD Page Pattern
@@ -599,15 +599,18 @@ navigationlist widgetName {
   that widget is bound to (`datasource: $Customer` → `(Customer = $Customer)` is
   fine). Naming any other variable is refused as **MDL-PAGEARG01** — it used to be
   accepted and silently opened the page with the context object anyway.
-- **Outside a data widget the same rule leaves nothing at all**, so a button sitting
-  on the page itself (or in a plain `container`/`layoutgrid`) may pass **no**
-  argument — not a page parameter, not `$currentObject`, not a literal. There is no
-  context object there for Mendix to infer, and the page opens with nothing:
-  mxbuild reports **CE1571** per parameter of the target page, and a page whose
-  parameters are optional would simply show the wrong data. MDL-PAGEARG01 refuses
-  that too (mendixlabs/mxcli#1029). To open a parameterised page from such a
-  button, call a microflow that does `show page Module.Page(Param = $value)` —
-  that path wires the arguments properly.
+- **The exception is a parameter of the page or snippet itself.** `(Item = $Item)`
+  where `$Item` is the document's own entity parameter is bound BY NAME — Studio
+  Pro stores an explicit mapping for it — so it works anywhere, including on a
+  button outside every data widget (mendixlabs/mxcli#1403).
+- **Outside a data widget nothing else is left**, so a button sitting on the page
+  itself (or in a plain `container`/`layoutgrid`) may pass no other argument — not
+  `$currentObject`, not a literal, not a variable that is no parameter of the
+  document. There is no context object there for Mendix to infer, and the page
+  opens with nothing: mxbuild reports **CE1571** per parameter of the target page.
+  MDL-PAGEARG01 refuses that too (mendixlabs/mxcli#1029). To open a parameterised
+  page with anything else from such a button, call a microflow that does
+  `show page Module.Page(Param = $value)`.
 
 ## Handling Circular Dependencies
 

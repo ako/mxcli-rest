@@ -81,7 +81,7 @@ Returned by `strings(language = None)`.
 | `qualified_name` | string | The document the text belongs to: `"Sales.Order_Overview"` |
 | `object_type` | string | Catalog object type, upper-case: `"PAGE"`, `"SNIPPET"`, `"LAYOUT"`, `"MICROFLOW"`, `"NANOFLOW"`, `"WORKFLOW"`, `"ENUMERATION"`, `"MENU_DOCUMENT"`, … |
 | `value` | string | The text itself |
-| `context` | string | What the text is. Translatable text names its stored type and property: `"Forms$Page.Title"`, `"Forms$TabPage.Caption"`, `"Enumerations$EnumerationValue.Caption"`; the rest a lower-case label: `"documentation"`, `"page_url"`, `"log_node"`, … |
+| `context` | string | What the text is. Translatable text names its stored type and property: `"Forms$Page.Title"`, `"Forms$TabPage.Caption"`, `"Enumerations$EnumerationValue.Caption"`; the rest a lower-case label: `"documentation"` (of an entity, attribute, constant, page, … — `object_type` says which; a module's domain model documentation is `"domain_model_documentation"`), `"page_url"`, `"log_node"`, `"log_message"`, … |
 | `language` | string | `"en_US"`; `""` for text that is not translatable (documentation, URLs) |
 | `element_id` | string | UUID of the element carrying the text |
 | `module_name` | string | `"Sales"` |

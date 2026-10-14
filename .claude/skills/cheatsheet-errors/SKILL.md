@@ -14,9 +14,9 @@ description: "Quick fixes for the MDL syntax errors that come up most: undeclare
 | 79-130 | Expression Errors |
 | 131-178 | Control Flow Errors |
 | 179-216 | Syntax Errors |
-| 217-275 | Reference Errors |
-| 276-291 | Studio Pro Error Code Reference |
-| 292-303 | Quick Validation Checklist |
+| 217-281 | Reference Errors |
+| 282-297 | Studio Pro Error Code Reference |
+| 298-309 | Quick Validation Checklist |
 
 <!-- /skill-index -->
 # MDL Common Errors Cheatsheet
@@ -255,9 +255,8 @@ transactional — the statements before the failure are already written.
 
 **Problem**: Same shape as MDL-PAGE01, for the other references the executor
 resolves when it writes the referring document — a flow's parameter or return
-type, an entity attribute's enumeration, an association endpoint, a
-`call microflow`/`call nanoflow` target, or a `grant` subject. `check` used to
-pass these and `exec` then failed partway through.
+type, an entity attribute's enumeration, an association endpoint, or a `grant`
+subject. `check` used to pass these and `exec` then failed partway through.
 
 **Fix**: Move the `create` for the named document above the statement that uses
 it. Statements have no dependency order beyond this, so grouping entities and
@@ -267,6 +266,13 @@ enumerations at the top of a script avoids it entirely.
 definition afterwards, and are deliberately not flagged: an entity's `extends`
 generalization, `call java action`, `retrieve ... from`, and `create <entity>`
 inside a microflow body.
+
+**A `call microflow`/`call nanoflow` target created further down** is resolved
+by plain `mxcli exec`, which rolls the whole run back if a statement fails, so
+mutually recursive flows can be written in either order (mendixlabs/mxcli#1405).
+`exec --continue-on-error`, the REPL and `-c` cannot roll back and refuse it
+("this run cannot be rolled back"): create the callee first, or a stub of it
+first and `create or modify` it after the caller.
 
 **One case `check` cannot predict**: if the document is created later by
 `create or modify`, `exec` still fails when the project does not already have

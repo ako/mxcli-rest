@@ -12,15 +12,15 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 |---|---|
 | 28-43 | Reference files |
 | 44-46 | Overview |
-| 47-193 | Syntax |
-| 194-264 | Basic Examples |
-| 265-286 | Modifying Existing Pages |
-| 287-374 | Conditional Visibility and Editability |
-| 375-516 | Known Limitations |
-| 517-525 | Tips |
-| 526-552 | Related Commands |
-| 553-577 | PLUGGABLEWIDGET Escape Hatch |
-| 578-581 | See Also |
+| 47-196 | Syntax |
+| 197-267 | Basic Examples |
+| 268-289 | Modifying Existing Pages |
+| 290-377 | Conditional Visibility and Editability |
+| 378-541 | Known Limitations |
+| 542-550 | Tips |
+| 551-577 | Related Commands |
+| 578-602 | PLUGGABLEWIDGET Escape Hatch |
+| 603-606 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -90,10 +90,13 @@ Both are optional and can be changed later with `alter page … { set (Class: '�
 | Attribute binding | `attribute: AttrName` | `textbox txt (label: 'Name', attribute: Name)` |
 | Attribute over an association | `attribute: Assoc/Attr` (bare association name, multi-hop OK) | `textbox txt (label: 'Rule', attribute: RuleAction_BusinessRule/Name)` |
 | Password field | `Password: true` | `textbox tbPw (attribute: Secret, Password: true)` |
+| Submit while typing | `SubmitBehaviour: WhileEditing` (+ `SubmitOnInputDelay: <ms>`) on textbox / textarea | `textbox tbSearch (attribute: Query, SubmitBehaviour: WhileEditing, SubmitOnInputDelay: 500)` — default `OnEndEditing` / `300` |
+| Layout grid width | `Width: FullWidth \| FixedWidth` on layoutgrid | `layoutgrid lg (Width: FixedWidth) { ... }` — default `FullWidth` |
 | Widget validation | `Validation: '<expr>'` + `ValidationMessage: '<text>'` | `Validation: 'length(toString($value)) > 0'` — quoted, not `[bracketed]` |
 | Variable binding | `datasource: $Var` | `dataview dv (datasource: $Product) { ... }` |
 | Action binding | `action: type` | `actionbutton btn (caption: 'Save', action: save changes)` |
 | Database source | `datasource: database entity` | `datagrid dg (datasource: database Module.Entity)` |
+| Database source over an association | `datasource: database from $Ctx/Assoc/Entity` — list view; on **Mendix 9** also a pluggable widget (repeater, gallery, grid), whose `where` must then be simple rows (`Attr op value` joined by `and`) | `repeater r (datasource: database from $Form/M.Item_Form/M.Item sort by Seq asc)` |
 | Selection binding | `datasource: selection widget` | `dataview dv (datasource: selection galleryList)` |
 | CSS class | `class: 'classes'` | `container c (class: 'card mx-spacing-top-large')` |
 | Inline style | `style: 'css'` | `container c (style: 'padding: 16px;')` |
@@ -426,6 +429,20 @@ image imgRemote (ImageType: imageUrl, ImageUrl: 'https://example.com/logo.svg')
 image imgIcon   (ImageType: icon)
 ```
 
+**An uploaded image** — an object of an entity that extends `System.Image` — is
+shown by binding the widget to the data view's object. It is not an `ImageType`
+(`ImageType: dynamicImage` is not a source; check warns), and not `dynamicimage`,
+which is CE0582 in a React app:
+
+```sql
+dataview dvPhoto (DataSource: $Photo) {
+  image imgPhoto (Image: $currentObject, DefaultImage: 'Atlas_Web_Content.Content.user')
+}
+```
+
+`DefaultImage:` is shown while the object holds no image. It is only valid with
+`$currentObject` — Studio Pro hides it otherwise, and a stored value is CE0463.
+
 ### A button's icon is one of three elements
 
 Mendix stores **three different icon elements**, and the keyword picks which:
@@ -482,6 +499,14 @@ A text box that holds a secret needs `Password: true`. It is not cosmetic: witho
 it the field renders the value in plaintext, and before ako/mxcli#550 a
 `describe page` → `exec` round trip silently turned every stored password field
 into an ordinary one — so copying a login or change-password page lost it.
+
+`SubmitBehaviour: WhileEditing` makes a text box or text area submit as the
+user types (after `SubmitOnInputDelay` milliseconds, default 300) instead of on
+leaving the field — the setting behind live search boxes and "on change while
+typing" handlers. `Width: FixedWidth` on a layout grid is Studio Pro's "Fixed
+width" container. Both are printed by `describe page` only when not the default,
+and before ako/mxcli-ledger FINDINGS #170 a describe → exec round trip reset
+them to the defaults. An unknown value is refused (MDL-WIDGET18).
 
 An input widget can also *traverse* an association to show a value from the
 other side: `attribute: Assoc/Attr` binds the far attribute and stores the hops,

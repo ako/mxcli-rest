@@ -2805,3 +2805,121 @@ Also new and used here for the first time: `run --local --detach` plus `run
 status|stop`, and `playwright check --role <R> --fresh-login`, which signs in as
 that role's demo user and prints a one-line verdict. The second is what turned
 MPR007 from a claim into a measurement.
+
+## 69. #1097 closed end to end — and the first look at the model's own shape
+
+**Round:** `ako/mxcli` main at `020f4572b`, 165 non-merge commits since
+`ce5b66fb0`. Tested rather than surveyed: #68 left a measurement, so this round
+re-runs it.
+
+### The property-name gap is gone. All thirteen keys.
+
+Five commits answer ako/mxcli#1097, and between them they cover every line of
+the inventory in #68 — including the two points I raised as judgement calls
+rather than bugs:
+
+| commit | what it answers |
+| --- | --- |
+| `0aea1d98` | `fix(rest): omit IsDefaultType on inline REST value mapping elements (#1097)` — the ×50 |
+| `a1cc50fd` | `fix(canon): fill a missing Security$UserRole GUID with the role's $ID` — the "boundary of the completion approach" |
+| `cddd38bb` | `fix(canon): complete AttributeRef.EntityRef and mapping MessageDefinition2` |
+| `d0ffdef8` | `fix(canon): strip a key Mendix removed before the project's version` |
+| `f4bc0e0c` | `feat(fix): mxcli fix property-sets completes units no write reaches` — the repair path for existing projects |
+
+`fix property-sets` is the piece that mattered here, because the canon pass only
+reaches a document something writes, and #68 measured that a full corpus re-run
+touched 16 of the 64 affected units. It names every unit it repairs:
+
+```
+Checked 444 unit(s) in RestLab.mpr against the Mendix 11.13.0 property sets.
+  FIXED  a41b4caa… [Projects$ModuleSettings]:                 +6 key(s), -0
+  FIXED  bd6f65bd… [Security$ProjectSecurity]:                +1 key(s), -0
+  FIXED  f4e5efe2… [ImportMappings$ImportMapping IMM_Rates]:  +1 key(s), -0
+  …
+Completed 9 unit(s): 18 key(s) added, 0 stripped.
+```
+
+`0 stripped` is the tell: `IsDefaultType` is a key mxcli *wrote* and Mendix does
+not declare, and the fix for it is on the write path, so those 50 elements only
+clear once the corpus is re-executed. Doing both — `fix property-sets`, then the
+14 scripts — and re-measuring with the same BSON comparison as #68:
+
+```
+=== elements whose property NAMES differ, by $Type ===
+=== key Studio Pro writes, mxcli does not ===
+=== key mxcli writes, Studio Pro does not ===
+```
+
+Empty, all three. 62 elements → 0, 13 keys → 0. And the measurement that
+actually matters, Mendix's own engine on the same pair of projects:
+
+| | before (#68) | now |
+| --- | --- | --- |
+| `mx diff` | `Exception during diffing: Objects with ID 79ae34f1… do not have the same properties` | writes a 12,876-byte diff |
+| units reported | — | 64 `Modified`, **0 changeDetails** |
+
+The project is mergeable again, and Mendix finds nothing in it to report beyond
+the units having been touched. A second `fix property-sets` says *"Every unit
+already has the property names Studio Pro writes."*
+
+Worth keeping in mind for any project built this way: **the two halves are
+separate**. `fix property-sets` adds what is missing from stored units; only a
+re-write removes a key mxcli should not have written. A project that runs one
+without the other is still unmergeable, and nothing says so.
+
+### The SVG domain model shows what nobody had looked at
+
+`e148e6e3 feat(describe): draw a module's domain model as SVG` renders RestLab
+in one call — 17 KB, 16 entity boxes, 31 connectors. It also makes visible a
+property of this app that six months of `mx check`, `lint` and `report` never
+mentioned: **the domain model has no curated layout.** Not one `@Position` in
+`01-domain-model.mdl`, so mxcli placed the entities as the script created them —
+a 350px pitch marching left to right, 3250px wide against 388 tall, in two or
+three rows:
+
+```
+(100,100) (450,100) (450,300) (800,100) (800,300) (1150,100) (1150,300) …
+```
+
+Legible only by scrolling sideways. This is the diagram a Studio Pro user opens
+the module to, and until this build there was no way to see it from here. It is
+not a defect in the renderer — the renderer is faithful — it is a defect in the
+model that only a renderer could reveal. Left alone pending a decision: laying
+16 entities out by lane is a model change, not a verification.
+
+### `--v1=error`, a gate this repo can use
+
+`f974e735 feat(check): --v1=error fails the run on MDL-V1-* warnings` turns the
+language-version warnings into a non-zero exit. The whole corpus passes it, so
+it can go straight into CI as the regression guard for the migration in #65:
+nothing can drift back to an unspliceable flow or a bare commit without the
+build saying so.
+
+### `make build` needs rsync, and this container has none
+
+New in this round: `sync-mods` (for the Claude Code companion mod) is an
+`rsync -a --delete --exclude=…`, and `make build` now dies with
+`make: rsync: No such file or directory` on a machine without it —
+`.claude/bootstrap-mxcli.sh`'s whole premise is building from source, so this
+is the first round where the documented build path failed. Worked around by
+mirroring `mods/` with `tar` honouring the same excludes, then running the
+sibling targets and the two `go build` lines by hand. A `cp -r` with a
+`find -delete`, or a `tar` pipe, would carry no dependency.
+
+### Housekeeping and verification
+
+`./mxcli` promoted to `g020f4572b`. `init --sync-skills` refreshed 24 skill
+files and one lint rule, and installed something new: `.claude/skills/
+mxcli-companion/` — a Claude Code mod (5 files, 60 KB) that shows the project
+tree and a document's MDL in a pane. Committed with the rest of the tooling.
+`.claude/bootstrap-mxcli.sh` md5 unchanged; no CLAUDE.md drift.
+
+14 scripts: 0 errors, 0 deprecations, and all 14 pass `--v1=error`. `exec`
+idempotent. `mx check` 0 errors. `fix hashes` 0 mismatches over 444 units.
+Lint **269** on both the old and the new binary — rules and model both steady,
+the first round since #66 where neither moved. Rates lane green (1.51s).
+
+One loose end, twice seen and not reproducible on demand: `mx convert -p`'s
+embedded check has twice reported `1 errors` on a copy of this project where
+`mx check` reports 0, and reported 0 on the next run of the same input. It is
+Mendix's tool, not mxcli's, and I could not pin it down.

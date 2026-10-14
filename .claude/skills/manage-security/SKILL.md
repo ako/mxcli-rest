@@ -12,12 +12,12 @@ description: "Configure Mendix security in MDL — module and user roles, access
 |---|---|
 | 27-35 | When to Use This Skill |
 | 36-43 | Security Concepts |
-| 44-110 | The System-module ceiling — decide the role model around this FIRST |
-| 111-540 | Syntax Reference |
-| 541-555 | Starlark Lint Rule APIs |
-| 556-608 | Common Workflow: Setting Up Module Security |
-| 609-618 | Common Mistakes |
-| 619-628 | Validation |
+| 44-120 | The System-module ceiling — decide the role model around this FIRST |
+| 121-546 | Syntax Reference |
+| 547-561 | Starlark Lint Rule APIs |
+| 562-614 | Common Workflow: Setting Up Module Security |
+| 615-624 | Common Mistakes |
+| 625-634 | Validation |
 
 <!-- /skill-index -->
 # Security Management Skill
@@ -55,7 +55,7 @@ Every consequence is **silent** — the page renders, the data is simply missing
 
 | What you build | What a non-Administrator sees |
 |---|---|
-| A combo box over `System.User` (e.g. "pick a technician") | **The current user only** |
+| A combo box or grid over `System.User` (e.g. "pick a technician") | **Every user, name blank** — except their own, and those whose roles their user role may manage |
 | A grid over `System.Workflow` / `System.WorkflowUserTask` | **Empty** |
 | Either of those, re-sourced from a **microflow** | **Every row present, every field blank** |
 
@@ -79,8 +79,18 @@ the *same* `System.User` retrieve, opened by two users:
 
 Both lists hold two rows for both users, so the microflow really did carry the rows
 past entity access. Only A loses the values, and it loses them **per object**:
-`System.User`'s own rule grants read where `[id = '[%CurrentUser%]']`, which is why
-a user picker shows you yourself and nobody else rather than showing nothing.
+`System.User`'s own rule grants read where `[id = '[%CurrentUser%]']` — or where the
+user's roles are ones your user role may manage — which is why a user picker shows
+your own name and blanks rather than nothing.
+
+The same happens **without** a microflow. A database list over `System.User` gets its
+rows from `Administration.Account`'s rule (unconstrained for `Administration.User`),
+but that rule grants only Account's own members (`FullName`, `Email`), not
+`System.User.Name`. Measured on 11.15 (ChipCoV9): a ServiceManager saw
+`["", "", "demo_manager", ""]`; given `ManageableRoles: (FieldEngineer)` it also
+saw `demo_engineer`; an Administrator (Manage All Roles) saw every name.
+`mxcli lint` reports this as SEC010. Bind the list to `Administration.Account` and
+show `FullName` instead.
 
 `System.WorkflowUserTask` has no such escape hatch for an ordinary role, so a
 workflow inbox built this way comes out *entirely* blank — the reported case
@@ -242,24 +252,20 @@ revoke view on page MyModule.Customer_Overview from MyModule.User;
 ### What a New Document Starts With — and Why GRANT Does Not Narrow It
 
 Document grants (page, microflow, nanoflow) are **additive**, like entity
-grants: GRANT adds roles, REVOKE removes them, nothing replaces the list. What a
-newly **created** document starts with depends on its module:
-
-| Module has… | New page / microflow / nanoflow gets |
-|---|---|
-| no module roles | an auto-created `<Module>.User` role (created on first use), granted to every new document while it is the module's only role. `exec` prints `access: granted to auto-created role <Module>.User (…)` under the create |
-| module roles of its own | **no** allowed roles — grant them in the same script |
+grants: GRANT adds roles, REVOKE removes them, nothing replaces the list. A newly
+**created** document starts with **no** allowed roles, in every module — mxcli
+never creates a module role on its own (mendixlabs/mxcli#1474). In a module with
+no roles yet, create one, map it into a user role, and grant in the same script.
 
 Consequences:
 
-- A stub page created early (module still role-less) is open to `<Module>.User`.
-  A later `grant view on page M.Stub to M.Admin;` **adds** Admin; every user role
-  mapped to `M.User` can still open it. Narrow it explicitly:
-  `revoke view on page M.Stub from M.User;`
+- A project written by an earlier mxcli may hold a `<Module>.User` role with the
+  description "Auto-created default role for mxcli document access", granted to
+  every document created while it was the module's only role. It is left as is:
+  revoke or drop it if it was not intended.
 - **Drop + create in separate runs loses access.** `create or modify`, and drop
   + create of the same name within one run, keep the stored roles. A `create` in
-  a later run than the `drop` is a new document; in a module with its own roles
-  it has none, and if a page, snippet, nanoflow or navigation item uses the flow
+  a later run than the `drop` is a new document; it has no allowed roles, and if a page, snippet, nanoflow or navigation item uses the flow
   MxBuild fails with **CE0106** at security level Prototype/Production.
   `mxcli check -p` reports it as **MDL-SEC21** before exec. Prefer
   `create or modify` to rebuild a flow; otherwise grant in the same script.
@@ -613,7 +619,7 @@ rule's default cover it, or change the default.
 3. **Forgetting qualified names** — roles use `Module.Role` format in GRANT/REVOKE
 4. **User roles without System module roles** — in Production security, user roles need at least one System module role (CE0156)
 5. **Entity access without proper member rights** — use `read *` for all members or `read (Attr1, Attr2)` for specific ones
-6. **Expecting a GRANT to replace a default** — a new document in a role-less module is granted to the auto-created `<Module>.User`; a later grant adds to it. `revoke … from <Module>.User` to narrow
+6. **Expecting a new document to be reachable** — it starts with no allowed roles; grant it, or MxBuild reports CE0106 wherever a page, nanoflow or navigation uses a flow (MDL-SEC21)
 7. **Rebuilding a flow with drop + create across runs** — the later create starts with no access in a module that has roles (CE0106 when the flow is used from a page/nanoflow/navigation). Use `create or modify`, or grant in the same script
 
 ## Validation

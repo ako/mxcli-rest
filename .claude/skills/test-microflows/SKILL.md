@@ -12,18 +12,18 @@ description: "Write and run MDL-based microflow tests with `mxcli test` — anno
 |---|---|
 | 33-39 | Reference files |
 | 40-50 | When to Use This Skill |
-| 51-178 | Prerequisites |
-| 179-221 | Test File Formats |
-| 222-237 | string Operations |
-| 238-261 | Running Tests |
-| 262-433 | How It Works |
-| 434-460 | Check a test file before you run it |
-| 461-567 | Writing Good Tests |
-| 568-582 | Test File Organization |
-| 583-593 | Interpreting Failures |
-| 594-615 | CI Integration |
-| 616-622 | Related Skills |
-| 623-625 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
+| 51-179 | Prerequisites |
+| 180-222 | Test File Formats |
+| 223-238 | string Operations |
+| 239-262 | Running Tests |
+| 263-450 | How It Works |
+| 451-477 | Check a test file before you run it |
+| 478-584 | Writing Good Tests |
+| 585-599 | Test File Organization |
+| 600-612 | Interpreting Failures |
+| 613-634 | CI Integration |
+| 635-641 | Related Skills |
+| 642-644 | Warm test loop (`mxcli test --local [--watch]`, `--attach`, `run --local --test-endpoint`) |
 
 <!-- /skill-index -->
 # Test Microflows Skill
@@ -63,7 +63,8 @@ mxcli test tests/ -p app.mpr --local     # no daemon needed
 mxcli test tests/ -p app.mpr             # Docker
 ```
 
-`--local` uses its own ports (app 8081, admin 8091) and its own `<project>_test`
+`--local` uses its own ports (app 8081, admin 8091, serve 6544 — move them with
+`--app-port`/`--admin-port`/`--serve-port`) and its own `<project>_test`
 database, so a `mxcli run --local` dev loop can keep serving the same project
 while the tests run — the tests never write into the database you are looking at
 in the browser. The database is created on first use.
@@ -384,6 +385,22 @@ Three things to know before reaching for it:
 | `--local --watch` | ~30s once, then ~2s | `<project>_test` | yes |
 | `--attach` | none | the running app's | no |
 
+#### Tests run as the system, with no current user
+
+Every test runs in a **system context** — there is no user session behind it:
+
+- An XPath token `[%CurrentUser%]` (e.g. `retrieve … where [id = '[%CurrentUser%]']`)
+  **throws**: the runtime cannot resolve it, and the test fails with
+  `exception during execution: <the runtime's message>`.
+- `$currentUser` is **empty**. `[id = $currentUser]` does not throw, it just matches
+  nothing — a test that "passes" with it has tested nothing user-specific.
+- Entity access rules and XPath constraints for user roles do not apply.
+
+To test user-scoped logic, take the user (or the account) as a **parameter** of the
+microflow that does the work, and keep `[%CurrentUser%]`/`$currentUser` in a thin
+wrapper that only passes it on. The test creates or retrieves a user and calls the
+parameterised microflow directly.
+
 #### Security of the endpoint
 
 It executes microflows under a system context, so it is gated four ways:
@@ -584,10 +601,12 @@ tests/
 
 | Failure | Cause | Fix |
 |---------|-------|-----|
-| `Exception during execution` | Microflow threw a runtime error | Check BSON structure, entity references, attribute types |
+| `exception during execution: <message>` | Microflow threw a runtime error; the runtime's message follows the colon | Read the message. Check entity references, attribute types |
+| `exception during execution: …` from a retrieve using `[%CurrentUser%]` | Tests run in a system context with no current user, so the token cannot resolve (and `$currentUser` is empty) | Pass the user/account to the microflow as a parameter and test that microflow |
 | `Expected $result = 'X' but got 'Y'` | Wrong return value | Fix microflow logic |
 | `Test was not executed` | Runtime crashed before reaching it | Check earlier test failures or runtime logs |
 | `after startup microflow should return a boolean` | Generated runner has wrong return type | Report as bug in mxcli |
+| `port 8081 (app) is already in use — pass --app-port <port>` | Something else (often an editor helper) holds a `--local` port; probed before the project is touched | Re-run with `--app-port 9081` (or `--admin-port`/`--serve-port` for the port named); kill the holder only if the message says it is a leftover mxcli run |
 
 ---
 

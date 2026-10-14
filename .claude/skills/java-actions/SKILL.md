@@ -13,12 +13,12 @@ description: "Create and call custom Java actions — extending Mendix with serv
 | 28-39 | Reference files |
 | 40-48 | When to Use This Skill |
 | 49-55 | Overview |
-| 56-330 | Part 2.5: Creating Java Actions in MDL |
-| 331-524 | Part 3: Calling Java Actions from MDL |
-| 525-538 | Validation Checklist |
-| 539-549 | Common Errors |
-| 550-557 | Related Documentation |
-| 558-639 | Quick Reference |
+| 56-332 | Part 2.5: Creating Java Actions in MDL |
+| 333-526 | Part 3: Calling Java Actions from MDL |
+| 527-540 | Validation Checklist |
+| 541-551 | Common Errors |
+| 552-559 | Related Documentation |
+| 560-641 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Java Actions Skill
@@ -61,7 +61,7 @@ MDL supports defining Java actions with inline Java code using `create java acti
 
 ```mdl
 mdl 1;
-create java action Module.ActionName(param1: type, param2: type) returns ReturnType
+create java action Module.ActionName(param1: string, param2: integer) returns boolean
 as $$
 // java code here
 return result;
@@ -110,6 +110,8 @@ $$;
 ```
 
 A list of type-parameter instances is `list of pEntity` (Studio Pro's "List of <type parameter>").
+
+**A type parameter with no entity selector** — the object the caller passes binds it — is declared in a header after the action name: `create java action Module.JA_Describe<pEntity>(InputObject: pEntity not null) returns String as $$ … $$;`. Without the header, a bare `pEntity` is neither an entity nor a type parameter, and check refuses it (MDL-JA01); before, exec wrote it as the entity `.pEntity` (CE1613, mendixlabs/mxcli#1404).
 
 **A type parameter named after a primitive** (`String`, `Integer`, … — Studio Pro allows it): declare it with `entity <String>`, and refer to it **quoted** — `"String"`, `list of "String"`. Unquoted `String` is always the primitive. DESCRIBE quotes such names for you, so its output re-creates the action.
 
