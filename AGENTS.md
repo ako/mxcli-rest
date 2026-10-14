@@ -389,6 +389,11 @@ The report scores 6 categories (Naming, Security, Quality, Architecture, Perform
 | `./mxcli playwright check -p RestLab.mpr` | One text verdict per page: renders? error banner? console errors? rows? |
 | `./mxcli rename <type> Mod.Old Mod.New -p RestLab.mpr` | Rename a document and every reference to it |
 | `./mxcli widget docs -p RestLab.mpr` | Regenerate the project-specific `widgets` skill |
+| `./mxcli layout -p RestLab.mpr --module RestLab` | Arrange the domain model from its association graph (`--dry-run` first; positions only) |
+| `./mxcli layout flows -p RestLab.mpr` | Re-arrange microflows and nanoflows |
+| `./mxcli describe domain model RestLab --format svg` | Draw the domain model as SVG |
+| `./mxcli fix property-sets -p RestLab.mpr` | Complete stored units' property names so Mendix can merge them |
+| `./mxcli check <script> --v1=error` | Fail the run on MDL-V1-* warnings (CI gate) |
 
 **Before any git commit here**, read the `teamserver-git` skill: `mxcli fix hashes`
 should exit 0, and a Mendix repo wants an `mx_metadata` note per commit.

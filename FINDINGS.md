@@ -2884,8 +2884,29 @@ three rows:
 Legible only by scrolling sideways. This is the diagram a Studio Pro user opens
 the module to, and until this build there was no way to see it from here. It is
 not a defect in the renderer — the renderer is faithful — it is a defect in the
-model that only a renderer could reveal. Left alone pending a decision: laying
-16 entities out by lane is a model change, not a verification.
+model that only a renderer could reveal.
+
+**Correction, same day.** I wrote above that fixing this was a decision to be
+taken rather than a thing to run. Wrong: `mxcli layout` has existed since
+`54c4a314` (2026-09-04), *"feat(domain model): lay entities out instead of
+stacking them in one row"* — with `mxcli layout flows` as its microflow
+counterpart. I had missed it in three rounds of surveying `feat` subjects,
+which is the cost of reading commit subjects instead of `--help`. It does
+exactly what the gap needed and nothing else: it rewrites `@Position` and
+touches no entity, attribute or association.
+
+Run on RestLab it moved all 16 entities and took the diagram from
+**3354 × 388 to 638 × 1228** — from a sideways strip to something that fits a
+screen. Positions are a pure function of the association graph, so it is
+idempotent (`already laid out (16 entities)` on the second run) and a later
+entity moves only what its relationships require. `mx check` 0 errors,
+`fix hashes` clean, `fix property-sets` still clean, one unit changed.
+
+Honest about the result: it is a large improvement, not a beautiful diagram.
+`CallLog` is a hub with eight incoming associations, so the algorithm layers
+every lane entity into one tall column and a dozen long connectors fan across
+it. A graph with one hub has no clean layered drawing; what the command
+removes is the 3250px of dead horizontal space, which was the actual defect.
 
 ### `--v1=error`, a gate this repo can use
 
