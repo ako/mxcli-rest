@@ -431,9 +431,9 @@ toString($value)           -- Convert to string
 > `round(random() * 8)`. Because `random()` is a Decimal, assigning it (or `div`,
 > `secondsBetween()`, and the other duration `*Between` functions) directly to an
 > `integer` variable fails the build with CE0117 — wrap it in `round()`/`floor()`/`ceil()`.
-> `mxcli check` now flags an unknown expression function like `randomInt` as
-> **MDL044** (with a "did you mean random()?" hint), and a Decimal assigned to an
-> integer target as **MDL041** — before the build does.
+> `mxcli check` flags an unknown function like `randomInt` as **MDL044**, a Decimal
+> assigned to an integer target as **MDL041**, and a built-in given the wrong number
+> or kind of arguments (`formatDecimal($d, 2)`: the pattern is a String) as **E006**/**E005**.
 >
 > **MDL044 also blocks `mxcli exec`**, not just `check`: a call to a name Mendix
 > has no built-in for is CE0117 at build time, so exec refuses to write the

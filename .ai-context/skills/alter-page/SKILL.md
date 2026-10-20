@@ -13,14 +13,14 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | 28-31 | Overview |
 | 32-56 | When to Use |
 | 57-107 | Syntax |
-| 108-460 | Operations |
-| 461-539 | Examples |
-| 540-630 | DataGrid 2 columns: how to address them, and what you can set |
-| 631-642 | Common Mistakes |
-| 643-664 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 665-672 | Validation Checklist |
-| 673-682 | Related Commands |
-| 683-687 | Related Skills |
+| 108-473 | Operations |
+| 474-552 | Examples |
+| 553-643 | DataGrid 2 columns: how to address them, and what you can set |
+| 644-655 | Common Mistakes |
+| 656-684 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 685-692 | Validation Checklist |
+| 693-702 | Related Commands |
+| 703-707 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -208,6 +208,7 @@ so a silent write would build cleanly and then fail to open.
 | `'<slotKey>'` | Pluggable widgets — any **action-typed** property (File Uploader `createFileAction`, DataGrid 2 `onSelectionChange`, …) | Any `create page` action expression | `set ('createFileAction': call microflow M.ACT_Create) on fileUploader1` — refused, naming the widget's action slots, if the key is not action-typed |
 | `caption` | ACTIONBUTTON, LINKBUTTON | String | `set (caption: 'Submit') on btnSave` |
 | `content` | DYNAMICTEXT | String | `set (content: 'New Heading') on txtTitle` |
+| `RenderMode` | DYNAMICTEXT | Text, Paragraph, H1–H6 (any case; another value is refused, naming the set) | `set (RenderMode: H2) on txtTitle` |
 | `label` | TEXTBOX, TEXTAREA, DATEPICKER, COMBOBOX, CHECKBOX, RADIOBUTTONS | String | `set (label: 'full Name') on txtName` |
 | `buttonstyle` | ACTIONBUTTON, LINKBUTTON | Primary, Default, Success, Danger, Warning, Info | `set (buttonstyle: danger) on btnDelete` |
 | `class` | Any widget | CSS class string | `set (class: 'card mx-2') on container1` |
@@ -400,6 +401,18 @@ drop dgProducts column(Name)@2
 ```
 
 The older dotted form `gridName.columnName` still works; it matches a name mxcli derives (the short attribute name, else the sanitized caption, else `colN`).
+
+A **legacy (Dojo) data grid** (`Forms$DataGrid`, from an upgraded app) cannot be created in MDL, so `describe page` prints it as comments — but it lists every column, search field and control-bar button by its *stored* name. Those are addressed by that bare name, like any widget:
+
+```sql
+mdl 1;
+alter page MyMod.Order_Overview {
+  drop column14, searchField3;                 -- one column and its search field
+  set (caption: 'Note') on column2
+};
+```
+
+Only that item is removed or changed; the rest of the grid is left as stored. To restructure the grid itself, replace it with a DataGrid 2.
 
 ### ADD Variables - Add a Page Variable
 
@@ -656,6 +669,13 @@ page and bind the buttons at creation time instead of rewiring afterwards:
    (MDL-DEPR005) and `describe` prints `footer { … }`. Address it by its data
    view: `replace dvMain.footer with { footer { … } }`, `insert into
    dvMain.footer { … }`, `drop dvMain.footer`.
+
+**A pluggable widget's slot has no name either.** A Data grid 2's control bar
+   (`controlbar { … }` in describe) is a property of the grid, so address it by
+   the grid: `insert into dataGrid1.controlbar { actionbutton … }`, `replace
+   dataGrid1.controlbar with { … }`, `drop dataGrid1.controlbar`. This is the
+   way back in after the bar's last button was dropped — describe then prints
+   no `controlbar` block, but the slot is still there.
 
 **Recommended pattern**: put save/reset microflows in a file that runs *before* the
 page definition, and bind the popup/footer buttons to them at creation. The

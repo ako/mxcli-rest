@@ -13,12 +13,12 @@ description: "XPath constraint syntax for MDL — retrieve WHERE clauses, page d
 | 28-34 | When to Use This Skill |
 | 35-75 | XPath vs Mendix Expressions |
 | 76-119 | Syntax Reference |
-| 120-278 | How a Constraint Is Laid Out on Disk |
-| 279-329 | Usage Contexts |
-| 330-369 | Enumeration Attributes |
-| 370-411 | Common Patterns |
-| 412-423 | Validation |
-| 424-433 | Troubleshooting |
+| 120-292 | How a Constraint Is Laid Out on Disk |
+| 293-343 | Usage Contexts |
+| 344-383 | Enumeration Attributes |
+| 384-425 | Common Patterns |
+| 426-437 | Validation |
+| 438-447 | Troubleshooting |
 
 <!-- /skill-index -->
 # XPath Constraints in MDL
@@ -200,7 +200,21 @@ where [Module.Assoc/Module.Entity/Name = $Variable/Name]
 
 -- Variable on right side
 where [Name = $currentObject/SearchString]
+
+-- An association compared with ONE hop off a variable — the hop must land on
+-- the same entity as the left side (or a generalization/specialization of it)
+where [Module.District_Region = $currentObject/Module.AreaPicker_Region]
 ```
+
+> **What a variable comparand may be (CE0161, measured on 11.13.0 and 11.14.0).**
+> At most one hop off the variable (`$currentObject/Mod.Assoc/Name` is **MDL055**).
+> That one hop compares like with like: an association path with an association
+> landing on the **same entity** — `[Mod.District_Region = $currentObject/Mod.AreaPicker_City]`
+> (Region vs City) is CE0161 and **MDL-XPATH02**, as is comparing an association
+> with an attribute (`[Mod.District_Region = $currentObject/Label]`). The hop is
+> written **qualified**: `$currentObject/AreaPicker_Region` reads as an attribute
+> and is CE0161 / **MDL-XPATH01**. In a widget data source `$currentObject` is the
+> enclosing data container's object; a page parameter (`$Picker/…`) works the same.
 
 ### Nested Predicates
 

@@ -2944,3 +2944,94 @@ One loose end, twice seen and not reproducible on demand: `mx convert -p`'s
 embedded check has twice reported `1 errors` on a copy of this project where
 `mx check` reports 0, and reported 0 on the next run of the same input. It is
 Mendix's tool, not mxcli's, and I could not pin it down.
+
+## 70. PR 1497 tested as a write-path change: byte-identical, and v1 gone from the binary
+
+**Round:** `ako/mxcli` main at `4c0e494e8` (159 non-merge commits since
+`020f4572b`), plus **PR #1497** at `36f8cc426` — *"move off the deprecated v1
+BSON driver entirely"*, 309 files, +1381/−1100.
+
+Asked to test rather than survey, and this PR is the rare one where this
+project is the right instrument. Its own description names the failure mode:
+the two drivers decode nested documents into different Go types, a failed type
+assertion is not an error, so a dropped value *"emits a document with a property
+missing — which Studio Pro refuses to merge (the `canon.CompletePropertySets`
+class)"*. That is finding #68's defect, and #69 left this repo measuring exactly
+zero of it.
+
+### The A/B: same corpus, two binaries, byte-for-byte
+
+Built main and the PR branch separately, seeded two copies of the committed
+project from `git archive HEAD`, and ran all 14 scripts under each:
+
+| | result |
+| --- | --- |
+| `.mxunit` files differing between the two builds | **0 of 444** |
+| `Unit` table rows (incl. every ContentsHash) | identical |
+| `_MetaData` | identical |
+| `_Transaction` | one row, different GUID |
+
+The `_Transaction` row is the only difference in the entire project, and it is
+not the PR: the same binary writing twice produces a fresh GUID each time
+(`c14a6cbb…` then `5e683f04…`), so it is per-write noise. Everything the model
+consists of is bit-identical.
+
+Then the property-name measurement from #68/#69 against the PR's output:
+
+```
+=== elements whose property NAMES differ, by $Type ===
+=== key Studio Pro writes, mxcli does not ===
+=== key mxcli writes, Studio Pro does not ===
+```
+
+Empty. And `mx diff` against a `mx convert -p` copy completes, reporting 64
+units `Modified` with **0 changeDetails** — the same clean result as #69. The
+regression the PR was most at risk of causing does not occur on a project of
+444 units, 40 microflows, 8 REST clients, 3 transformers and a message
+definition.
+
+### The claim about the binary, checked from the binary
+
+The PR exists because a dependency scanner flags v1 for CVE-2026-107325, which
+will never be fixed on that line. A scanner reads the artifact, so that is where
+I checked:
+
+```
+$ go version -m ./mxcli-base          # main
+dep  go.mongodb.org/mongo-driver      v1.17.10
+dep  go.mongodb.org/mongo-driver/v2   v2.9.2
+$ go version -m ./mxcli-pr            # PR 1497
+dep  go.mongodb.org/mongo-driver/v2   v2.9.2
+```
+
+Gone, single line, nothing else linked in its place.
+
+### Two units main rewrites, and why they are not the PR's
+
+Re-running the corpus changed 2 of 444 units against the committed state — the
+domain model (+9 bytes) and `Home_Web` (−8). Worth attributing before assuming:
+**the main build rewrites exactly the same two**, and A and B agree on their
+bytes, so they come from main's 159 commits and not from the driver change. No
+property names move in either; they are value changes, most likely
+`20fe6267 fix: keep a layout's stored canvas size on rewrite` landing on the
+layout this repo applied in #69.
+
+This is the control that matters when testing a branch against a moving base:
+*diff the PR against main's output, not against the committed tree.* Against the
+tree, PR 1497 looks like it changes two units. Against main, it changes nothing.
+
+### Standing regression, under the PR build
+
+14 scripts: 0 errors, 0 deprecations, all pass `--v1=error`. `exec` idempotent
+over two passes. `mx check` 0 errors. `fix hashes` 0 mismatches over 444 units.
+`fix property-sets` reports every unit already complete. Rates lane green
+(1.17s). Lint **269** under all three binaries — the PR, main, and the previous
+build — so neither the rules nor the model moved.
+
+### Verdict
+
+Nothing to report against PR #1497 from here. The change it was most likely to
+break is the one this project measures continuously, and the measurement is
+unchanged; the thing it set out to remove is verifiably absent from the built
+binary. The `make build` rsync dependency from #69 is still there and still
+worked around with `tar`.

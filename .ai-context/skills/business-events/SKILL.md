@@ -11,12 +11,12 @@ description: "Define event-driven APIs over Kafka with Mendix business event ser
 | lines | section |
 |---|---|
 | 24-31 | When to Use This Skill |
-| 32-97 | Commands |
-| 98-113 | Message Definition Syntax |
-| 114-121 | Service Properties |
-| 122-128 | Operations |
-| 129-165 | Publishing Events from Microflows |
-| 166-177 | Checklist |
+| 32-101 | Commands |
+| 102-117 | Message Definition Syntax |
+| 118-125 | Service Properties |
+| 126-132 | Operations |
+| 133-169 | Publishing Events from Microflows |
+| 170-182 | Checklist |
 
 <!-- /skill-index -->
 # Business Events
@@ -73,7 +73,11 @@ create business event service Module.CustomerEventsApi
 ### Create or Modify (Idempotent Update — Preferred)
 
 Preserves the existing UUID so other documents that reference this service remain valid.
-`OR REPLACE` is accepted as a synonym.
+`OR REPLACE` is accepted as a synonym. Each message keeps its stored channel — the
+channel name is the Kafka topic subscribers listen on — matched by message name, so a
+re-run of an unchanged script reports `Unchanged`; only a new message gets a new
+(random) channel name. Renaming a message is a new channel. There is no MDL property to
+state a channel name, so two apps defining "the same" service get different topics.
 
 ```sql
 mdl 1;
@@ -168,6 +172,7 @@ end;
 - [ ] Linked entities must exist before creating the service
 - [ ] **Entities must extend `BusinessEvents.PublishedBusinessEvent`** (for published events)
 - [ ] **Entity attributes must exactly match the message attributes** (no extra/missing attributes)
+- [ ] **No message attribute may reuse a name the entity inherits** from `BusinessEvents.PublishedBusinessEvent` (e.g. `EventId`) — an inherited attribute does not count, so mxbuild reports it "not present on the entity". `check -p … --references` reports it
 - [ ] Entity names use qualified format: `Module.EntityName`
 - [ ] Entities for published events are conventionally prefixed with `PBE_`
 - [ ] Attribute types must be valid (String, Integer, Long, Decimal, Boolean, DateTime)

@@ -19,8 +19,8 @@ description: "Share data between Mendix apps over OData — published services, 
 | 192-224 | API Versioning |
 | 225-270 | Folder Organization |
 | 271-282 | Module Organization Conventions |
-| 283-303 | Checklist |
-| 304-331 | Exploration Commands |
+| 283-304 | Checklist |
+| 305-332 | Exploration Commands |
 
 <!-- /skill-index -->
 # OData Data Sharing Between Mendix Apps
@@ -284,7 +284,8 @@ This keeps the API contract separate from the domain logic, and the consumer sep
 
 Before publishing:
 - [ ] View entities expose only the fields consumers need (no internal IDs unless needed for writes)
-- [ ] View entity has at least one `key` field for OData identity
+- [ ] Every published entity has at least one `KEY` member — none is CE6585 (`check`: MDL-ODATA08)
+- [ ] A single `KEY` on a **persistent** entity is an attribute declared `unique` — a unique validation rule; `not null` or an index does not count, on OData3 or OData4 (CE6624, MDL-ODATA09). A composite key (OData4 only) and a key on a view or non-persistent entity need no rule
 - [ ] Module role created and granted on view entities (READ, optionally WRITE)
 - [ ] OData service has AUTHENTICATION set (Basic, Session, or Microflow)
 - [ ] GRANT ACCESS ON PUBLISHED ODATA SERVICE to the API module role

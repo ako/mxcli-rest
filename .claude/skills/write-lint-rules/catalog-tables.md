@@ -127,7 +127,7 @@ Returned by `widgets()` (full catalog — auto-detected).
 | `module_name` | string | `"Sales"` |
 | `entity_ref` | string | Referenced entity qualified name |
 | `attribute_ref` | string | Referenced attribute path |
-| `microflow_ref` | string | Action/datasource microflow qualified name (e.g. a microflow-datasource ListView), else `""` |
+| `microflow_ref` | string | Action/datasource microflow qualified name (e.g. a microflow-datasource ListView), else `""`. **One name only**: a widget that names several — a data grid 2 with a microflow datasource *and* an on-click microflow — shows the alphabetically smallest. Every one is in `refs` (kind `action`), so ask `refs_to(name)` whether a microflow is used, never this column. The same holds for `entity_ref`, `nanoflow_ref` and `page_ref` |
 | `nanoflow_ref` | string | Action/datasource nanoflow qualified name, else `""` |
 | `page_ref` | string | The page the widget's action opens (show page, create object then open page), else `""` |
 | `parent_widget_id` | string | `id` of the nearest catalogued ancestor widget; `""` at the page or snippet root. Wrappers the catalog skips (the synthetic `conditionalVisibilityWidget…` container) and non-widget holders (layout grid rows and columns, tab pages, a pluggable widget's properties and object-list items) are transparent: a widget in a layout grid column or a data grid 2 column has the grid as its parent |

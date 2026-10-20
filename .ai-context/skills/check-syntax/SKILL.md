@@ -13,13 +13,13 @@ description: "Validate MDL with `mxcli check` before presenting or executing it,
 | 29-35 | When to Use This Skill |
 | 36-286 | `exec` refuses what `check` rejects |
 | 287-422 | Pre-Flight Validation Checklist |
-| 423-473 | Two rules that only real validation used to catch |
-| 474-520 | Validation Workflow |
-| 521-542 | Script Execution Behavior |
-| 543-603 | Script Organization |
-| 604-656 | Troubleshooting Parse Errors |
-| 657-714 | Studio Pro MCP — Verification Only |
-| 715-720 | Related Skills |
+| 423-458 | Two rules that only real validation used to catch |
+| 459-505 | Validation Workflow |
+| 506-527 | Script Execution Behavior |
+| 528-588 | Script Organization |
+| 589-641 | Troubleshooting Parse Errors |
+| 642-699 | Studio Pro MCP — Verification Only |
+| 700-705 | Related Skills |
 
 <!-- /skill-index -->
 # MDL Syntax Validation Skill
@@ -62,7 +62,7 @@ pages, microflows and icons — against that project. It reaches inside stored
 documents where a name can only be answered there: an `ALTER PAGE … SET` is
 dry-run against the page it edits, so a widget the page does not have, or a
 property the stored widget does not declare, is reported here rather than
-stopping the script partway through `exec`.
+stopping the script partway through `exec`. What else it resolves (including the project version's gates, MDL-VERSION01), and what a pass still does not prove: [reference/references-resolved.md](reference/references-resolved.md).
 
 ```bash
 mxcli check script.mdl                 # syntax + model-free rules
@@ -443,32 +443,17 @@ are in.
 which is the usual shape — it matches the segment's leading name, not the whole
 segment.
 
-### A used flow left without access — `MDL-SEC21` (CE0106)
+### Cross-document flow rules — `MDL-SEC21` (CE0106), `MDL-SEC22` (CE0114)
 
-With a project (`check -p`), `check` simulates the script's creates, drops,
-grants and revokes and reports a microflow or nanoflow the script leaves with
-**no allowed role** while something that needs one names it. MxBuild's error:
-
-> CE0106 "At least one allowed role must be selected if the microflow is used
-> from navigation, a page, a nanoflow or a published service."
-
-Measured on Mendix 11.14: a page button or data source, a snippet, a navigation
-or menu-document item, or a nanoflow call needs a role (even from an unused
-snippet, menu document or nanoflow). A **published REST operation does not**,
-nor a microflow called only from another microflow, nor an excluded page. It is
-an **error at security level Prototype or Production** and a warning at Off,
-where MxBuild does not check it.
-
-The usual cause is **drop + create in separate runs**: a create in a later run
-is a *new* flow, and a new flow in a module that has its own module roles gets no
-access. Within one run, and with `create or modify`, the stored roles are kept.
-Fix: `grant execute on microflow M.Flow to M.Role;` in the same script, or rebuild
-with `create or modify microflow` instead of dropping. Only what the script
-*changes* is reported — a project that already has CE0106 does not fail an
-unrelated script; `mxcli docker check` shows those.
+With a project, `check` also reports a microflow or nanoflow the script leaves
+with **no allowed role** while a page, snippet, nanoflow, menu or navigation uses
+it (MDL-SEC21 — usually drop + create in separate runs), and a microflow that does
+**not** apply entity access calling a microflow or rule that **does** (MDL-SEC22;
+the reverse direction is fine). What triggers each, as measured, and the fixes:
+[reference/cross-document-flow-rules.md](reference/cross-document-flow-rules.md).
 
 **`check` is still necessary, not sufficient.** Run `mx check` (or
-`mxcli docker check`) after every `exec`; these two rules narrow the gap, they do
+`mxcli docker check`) after every `exec`; these rules narrow the gap, they do
 not close it.
 
 ## Validation Workflow

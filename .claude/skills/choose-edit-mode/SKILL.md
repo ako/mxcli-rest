@@ -12,8 +12,8 @@ description: "Decide how to change a document that already exists: ALTER, descri
 |---|---|
 | 30-49 | The rule |
 | 50-78 | Scripts are `mdl 1` — upgrade a headerless file before you edit it |
-| 79-94 | Which document types have `alter` |
-| 95-112 | Types with no `alter`: microflows, nanoflows, menus, Java actions |
+| 79-95 | Which document types have `alter` |
+| 96-113 | Types with no `alter`: microflows, nanoflows, menus, Java actions |
 
 <!-- /skill-index -->
 # Choose the Edit Mode by Who Owns the Document
@@ -90,7 +90,8 @@ change over.
 | Settings, security | `alter settings`, `alter app security`, `grant` / `revoke` |
 | Many pages at once | `update widgets … where …` (see `bulk-widget-updates`) |
 | **Microflow, nanoflow** | **none yet** |
-| Menu, navigation profile, Java action | none (`alter navigation` replaces the whole profile) |
+| Navigation profile | `create or modify navigation` with only the clauses to change — an omitted clause keeps its stored value; a `{ }` menu block replaces the whole menu |
+| Menu, Java action | none |
 
 ## Types with no `alter`: microflows, nanoflows, menus, Java actions
 

@@ -10,16 +10,16 @@ description: "MDL syntax for pluggable widgets in CREATE PAGE / ALTER PAGE — a
 
 | lines | section |
 |---|---|
-| 27-148 | Any installed widget is named by its own name |
-| 149-250 | Built-in Pluggable Widgets |
-| 251-339 | Charts (Mendix Charts.mpk) |
-| 340-487 | Adding a Third-Party Widget |
-| 488-513 | Authoring over MCP (live Studio Pro) |
-| 514-616 | .def.json Reference |
-| 617-677 | Engine Internals |
-| 678-693 | Verify & Debug |
-| 694-705 | Common Mistakes |
-| 706-717 | Key Source Files |
+| 27-151 | Any installed widget is named by its own name |
+| 152-253 | Built-in Pluggable Widgets |
+| 254-342 | Charts (Mendix Charts.mpk) |
+| 343-490 | Adding a Third-Party Widget |
+| 491-516 | Authoring over MCP (live Studio Pro) |
+| 517-619 | .def.json Reference |
+| 620-680 | Engine Internals |
+| 681-696 | Verify & Debug |
+| 697-708 | Common Mistakes |
+| 709-720 | Key Source Files |
 
 <!-- /skill-index -->
 # Custom & Pluggable Widgets in MDL
@@ -145,6 +145,9 @@ If a widget you have installed is not found, extract its definition:
 ```bash
 mxcli widget init -p app.mpr
 ```
+
+The keyword is the widget id's last segment; a **native** widget (`com.mendix.widget.native.*`) is prefixed `native` (`nativeimage`, `nativebadge`).
+A project definition never takes a built-in keyword (`image`, `radiobuttons`, …) for another widget id: it warns and stays `pluggablewidget '<id>'`; delete a stale native `image.def.json` / `radiobuttons.def.json` and re-run `widget init` (mendixlabs/mxcli#1463).
 
 ## Built-in Pluggable Widgets
 

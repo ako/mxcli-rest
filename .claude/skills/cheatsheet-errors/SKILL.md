@@ -12,11 +12,11 @@ description: "Quick fixes for the MDL syntax errors that come up most: undeclare
 |---|---|
 | 26-78 | Variable Errors |
 | 79-130 | Expression Errors |
-| 131-178 | Control Flow Errors |
-| 179-216 | Syntax Errors |
-| 217-281 | Reference Errors |
-| 282-297 | Studio Pro Error Code Reference |
-| 298-309 | Quick Validation Checklist |
+| 131-184 | Control Flow Errors |
+| 185-222 | Syntax Errors |
+| 223-287 | Reference Errors |
+| 288-303 | Studio Pro Error Code Reference |
+| 304-315 | Quick Validation Checklist |
 
 <!-- /skill-index -->
 # MDL Common Errors Cheatsheet
@@ -154,9 +154,15 @@ begin
 end;
 ```
 
-### "Action activity is unreachable" (CE0104)
+### "Action activity is unreachable" (CE0104), or CE0709 / CE0105
 
-**Problem**: Code after RETURN statement.
+**Problem**: A statement that can never run — after `return`, `raise error`,
+`break`, `continue` or `join` in the same block, after an `if`/`else` that
+returns on both sides, or after a `while true` with no `break`. The code
+depends on where the dead statement hangs: right after a `return` inside an
+`if` it is **CE0709** "Sequence flow is not accepted by origin or destination",
+after a loop or an `if`/`else` it is CE0104 (plus CE0105 if it is the last
+statement). `mxcli check` refuses all of them as **MDL-FLOW05**.
 
 ```mdl
 -- WRONG: Code after RETURN
@@ -284,7 +290,7 @@ Run with `-p` for the fullest coverage.
 | Code | Message | Common Cause |
 |------|---------|--------------|
 | CE0053 | Selected type is not allowed | Declared an object/list variable — get it from a parameter/retrieve/create/loop (MDL043 objects, MDL040 lists) |
-| CE0104 | Action activity is unreachable | Code after RETURN |
+| CE0104 / CE0709 | Activity is unreachable / Sequence flow is not accepted | Code after RETURN, BREAK, CONTINUE, JOIN, or a `while true` with no BREAK — `check` flags MDL-FLOW05 |
 | CE0105 | Must end with end event | Missing RETURN |
 | CE0117 | Error in expression | Unqualified association path |
 | CE0117 | …on a button inside a data container | The button passes the container it sits in by its widget name (`$dvGate` inside `dvGate`). That name is a variable only for containers nested below it; use `$currentObject` there. Same for data-source arguments, `Visible:`, `Editable:`, `DynamicClasses:`, and (as CE0161) a nested list's XPath `where`. MDL-BUTTON02 |

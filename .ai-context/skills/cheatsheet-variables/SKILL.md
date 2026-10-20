@@ -12,10 +12,10 @@ description: "One-page reference for declaring and assigning variables in MDL mi
 |---|---|
 | 25-37 | Declaration Syntax |
 | 38-45 | Key Rules |
-| 46-88 | Common Mistakes |
-| 89-97 | Special Values |
-| 98-117 | Parameter vs Variable |
-| 118-131 | Variable Scope |
+| 46-110 | Common Mistakes |
+| 111-119 | Special Values |
+| 120-139 | Parameter vs Variable |
+| 140-153 | Variable Scope |
 
 <!-- /skill-index -->
 # MDL Variable Cheatsheet
@@ -57,6 +57,28 @@ declare $Product as Module.Product;         -- the AS keyword is also a parse er
 $Product = create Module.Product (Name = $n);     -- create
 retrieve $Product from Module.Product where Code = $c first;  -- retrieve
 -- or accept it as a parameter, or use a loop iterator: loop $Product in $Products ...
+```
+
+An enumeration is a primitive and may be declared — write it `enum`, as `describe`
+prints it: `declare $S enum Module.Status = empty;`. A bare `Module.Status` reads as
+an object type, so without `-p` check refuses it as MDL043 (with `-p` it warns).
+
+### Conditional create — no "declare then create in a branch"
+
+```mdl
+-- WRONG: declare + create (MDL043, then MDL063 / CE0111), or the same name
+-- created in both branches (CE0111 — names are unique flow-wide, measured 11.15)
+if $Big then
+  $Line = create Module.Line (Qty = 10);
+else
+  $Line = create Module.Line (Qty = 1);
+end if;
+
+-- CORRECT: one create, the condition in the values
+$Line = create Module.Line (Qty = if $Big then 10 else 1);
+-- CORRECT for different shapes: a sub-microflow that creates and returns the
+-- object on each branch; the caller binds it once:
+$Line = call microflow Module.SUB_MakeLine(Big = $Big);
 ```
 
 ### SET Without DECLARE

@@ -11,18 +11,18 @@ description: "Author Mendix workflows in MDL — user tasks, decisions, parallel
 | lines | section |
 |---|---|
 | 35-46 | When to Use This Skill |
-| 47-110 | Syntax — CREATE WORKFLOW |
-| 111-282 | Activities |
-| 283-289 | DROP WORKFLOW |
-| 290-355 | ALTER WORKFLOW |
-| 356-376 | DESCRIBE round-trip |
-| 377-397 | Activity names, and why `jump to` depends on them |
-| 398-418 | Rewriting an existing workflow |
-| 419-506 | Microflow statements for workflow tasks |
-| 507-527 | System-module enumerations are synthesized, not stored |
-| 528-644 | Platform rules |
-| 645-675 | Observing a running workflow |
-| 676-685 | Validate before presenting |
+| 47-117 | Syntax — CREATE WORKFLOW |
+| 118-293 | Activities |
+| 294-300 | DROP WORKFLOW |
+| 301-366 | ALTER WORKFLOW |
+| 367-387 | DESCRIBE round-trip |
+| 388-408 | Activity names, and why `jump to` depends on them |
+| 409-429 | Rewriting an existing workflow |
+| 430-517 | Microflow statements for workflow tasks |
+| 518-538 | System-module enumerations are synthesized, not stored |
+| 539-663 | Platform rules |
+| 664-694 | Observing a running workflow |
+| 695-704 | Validate before presenting |
 
 <!-- /skill-index -->
 # Mendix Workflows Skill
@@ -101,10 +101,17 @@ written **last** silently winning.
 variable in the header, mxcli writes the parameter as `WorkflowContext`, so
 `$WorkflowContext/Attribute` is the canonical way to reach it in an expression.
 The name you declared (`$Context` above) and any casing of the canonical name
-(`$workflowContext`) are rewritten to it on write — in decision conditions, user
-task due dates and XPath targeting, wait-for-timer delays, and `with (…)`
-parameter mappings. Anything else is an undefined variable and Mendix fails the
-build with `CE0117 "Error(s) in expression."`.
+(`$workflowContext`) are rewritten to it on write, in every workflow expression.
+
+**The only other variable is `$WorkflowInstance`** — the running workflow
+(`System.Workflow`), what a microflow's `Workflow: System.Workflow` parameter
+takes: `call microflow M.ACT_Log(Workflow = $WorkflowInstance, Item =
+$WorkflowContext)`. **Not `$Workflow`** (the microflow's parameter name), and
+not `$currentUser`, `$currentSession` or `$WorkflowUserTask` — each is `CE0117
+"Error(s) in expression."`, and `check` refuses them as `MDL-WF19`. One place
+sees only the context: the workflow's own header `due date`. Measured on 11.6.6
+and 11.15.0. A call with no argument list binds a `System.Workflow` parameter to
+`$WorkflowInstance` and every other one to the context.
 
 `create or modify workflow …` is supported (`create or replace` is its deprecated spelling, MDL-DEPR001).
 
@@ -184,6 +191,10 @@ begin
   call workflow Module.SubProcess as callWorkflow1 caption 'delegate';
 end workflow;
 ```
+
+A `call workflow` mapping is always keyed `WorkflowContext` — the one parameter a
+workflow has, whatever its header calls it: `(WorkflowContext = $WorkflowContext/M.A_B/M.B)`.
+Any other key is CE1613 (`MDL-WF18`); a path must name the target entity (else CE0117).
 
 **Notes** attach to an activity with `@annotation '…'` on the line before it,
 as in a microflow; the workflow's own note is the header clause
@@ -554,6 +565,13 @@ values. The full list and the System **entities** are in `system-module`.
   An outcome left **empty** does not stop anything — it rejoins the main flow.
   `caption '…'` sets the End's caption, as on every workflow activity (`comment '…'` is its deprecated alias, MDL-DEPR104).
 
+- **`auto assign single user` assigns a task when its targeting yields exactly one user**
+  (Studio Pro's "Auto-assign when targeting results in one user"), on either task kind.
+  Without it that user cannot complete the task from a microflow (`set task outcome`)
+  until it is assigned — the runtime refuses with "it is not assigned to you". Omitted
+  it is off, as Studio Pro creates a task; `describe` prints it when set, and a
+  `create or modify` that drops a stored one is refused.
+
 - **A multi-user task says who must respond and how their outcomes decide**:
   `participants all | <n> | <n> percent`, `decide by …` and `await all users`,
   in any order (see the clause-order note below). The rules (`decide by`):
@@ -638,9 +656,10 @@ values. The full list and the System **entities** are in `system-module`.
   string, still parses with the same meaning but is deprecated (MDL-DEPR008);
   `mxcli fmt --upgrade` rewrites it.
 - The context **Parameter entity must be persistent**.
-- Write the context variable as **`$WorkflowContext`**, matching the parameter
-  name exactly. Mendix expressions are case-sensitive on 11.9+, so a lowercase
-  `$workflowContext` is an undefined variable and yields `CE0117`.
+- Write the context variable as **`$WorkflowContext`** and the workflow as
+  **`$WorkflowInstance`**, spelled exactly. Mendix expressions are
+  case-sensitive, so a lowercase `$workflowInstance` is `CE0117` as stored;
+  mxcli rewrites the casing of both on write.
 
 ## Observing a running workflow
 

@@ -13,11 +13,11 @@ description: "Configure Mendix security in MDL — module and user roles, access
 | 27-35 | When to Use This Skill |
 | 36-43 | Security Concepts |
 | 44-120 | The System-module ceiling — decide the role model around this FIRST |
-| 121-546 | Syntax Reference |
-| 547-561 | Starlark Lint Rule APIs |
-| 562-614 | Common Workflow: Setting Up Module Security |
-| 615-624 | Common Mistakes |
-| 625-634 | Validation |
+| 121-553 | Syntax Reference |
+| 554-568 | Starlark Lint Rule APIs |
+| 569-621 | Common Workflow: Setting Up Module Security |
+| 622-631 | Common Mistakes |
+| 632-641 | Validation |
 
 <!-- /skill-index -->
 # Security Management Skill
@@ -191,6 +191,7 @@ describe CATALOG.ROLE_MAPPINGS;
 | Table | Contents | Build mode |
 |-------|----------|------------|
 | `CATALOG.PERMISSIONS` | Entity CRUD, microflow EXECUTE, page VIEW, OData ACCESS | `refresh catalog full` |
+| `CATALOG.USER_ROLES` | User roles with their `Description`, `IsAnonymous` and `ModuleRoleCount` | `refresh catalog` |
 | `CATALOG.ROLE_MAPPINGS` | User role → module role assignments | `refresh catalog` |
 
 ### Module Roles
@@ -330,6 +331,12 @@ revoke write (Email) on entity MyModule.Customer from MyModule.User;
 -- Partial revoke: remove structural permission
 revoke delete on entity MyModule.Customer from MyModule.User;
 ```
+
+A partial revoke naming several roles narrows **every rule all of whose roles it
+names** — one rule per role granted separately, or one rule granted to them
+together. A rule that also grants a role the revoke does **not** name is refused
+(narrowing it would revoke that role's right too): revoke from all of its roles, or
+grant the roles in separate rules first.
 
 #### Members added later
 
@@ -552,7 +559,7 @@ Security data is available in Starlark lint rules (`.star` files):
 |----------|---------|-------------|
 | `permissions()` | list of permission | All permissions across all element types |
 | `permissions_for(qn)` | list of permission | Permissions for a specific entity |
-| `user_roles()` | list of user_role | User roles with module role assignments |
+| `user_roles()` | list of user_role | User roles with their description and module role assignments |
 | `module_roles()` | list of module_role | Distinct module roles |
 | `role_mappings()` | list of role_mapping | User role → module role mappings |
 | `project_security()` | struct or None | Security level, guest access, password policy |

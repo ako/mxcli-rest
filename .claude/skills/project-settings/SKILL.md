@@ -11,10 +11,10 @@ description: "Read and change project settings in MDL — database configuration
 | lines | section |
 |---|---|
 | 22-31 | When to Use This Skill |
-| 32-304 | Commands |
-| 305-332 | Common Patterns |
-| 333-341 | Checklist |
-| 342-346 | AfterStartupMicroflow Must Return Boolean |
+| 32-308 | Commands |
+| 309-336 | Common Patterns |
+| 337-345 | Checklist |
+| 346-350 | AfterStartupMicroflow Must Return Boolean |
 
 <!-- /skill-index -->
 # Project Settings
@@ -101,6 +101,10 @@ parses the bare major and rejects the project outright with
 `ArgumentOutOfRangeException: majorVersion is an unsupported value: Java21`.
 `describe settings` always emits the project's own spelling, so its output replays
 cleanly.
+
+**The project ID is read-only.** `describe settings` prints it as a `-- Project ID:`
+comment and `show settings` as a `Project` row: the `Projects$Project` unit `$ID`, which
+Business Events uses as the app id. A copied `.mpr` shares it; no MDL statement changes it.
 
 **`describe settings` never prints `DatabasePassword`.** Describe output is what gets
 committed and reviewed, so the password is omitted and a comment says it is set.

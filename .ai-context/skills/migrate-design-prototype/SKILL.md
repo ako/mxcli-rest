@@ -16,14 +16,14 @@ description: "Reproduce a Claude Design prototype or design handoff (HTML/CSS, .
 | 123-213 | ① Build the Theme — `mxcli theme create --from` |
 | 214-281 | ② Rebuild Components — Atlas block/class first, custom class only for identity |
 | 282-389 | Component → Mendix widget map |
-| 390-485 | The App Shell: Navigation & Layout (built once, not per page) |
-| 486-572 | ③ Apply Classes in Pages (MDL) |
-| 573-586 | ④ Build & Preview |
-| 587-594 | ⑤ Verify Against the Prototype |
-| 595-631 | Never put a grid on a Mendix widget's own class |
-| 632-652 | Gotchas (learned building this app) |
-| 653-704 | MDL gotchas that block a faithful build |
-| 705-723 | Checklist |
+| 390-486 | The App Shell: Navigation & Layout (built once, not per page) |
+| 487-573 | ③ Apply Classes in Pages (MDL) |
+| 574-587 | ④ Build & Preview |
+| 588-595 | ⑤ Verify Against the Prototype |
+| 596-632 | Never put a grid on a Mendix widget's own class |
+| 633-653 | Gotchas (learned building this app) |
+| 654-705 | MDL gotchas that block a faithful build |
+| 706-724 | Checklist |
 
 <!-- /skill-index -->
 # Migrate a Claude Design Prototype into a Mendix App (Theme + Pages)
@@ -410,8 +410,9 @@ mxcli -p baedemo.mpr -c "LIST NAVIGATION"              # profiles, home page, it
 mxcli -p baedemo.mpr -c "LIST NAVIGATION MENU Responsive"   # the menu tree
 ```
 
-Add or reorder items with `CREATE OR MODIFY NAVIGATION <Profile> …` (full-replacement — dump
-the current profile first with `DESCRIBE NAVIGATION <Profile>`, edit, re-apply). See
+Add or reorder items with `CREATE OR MODIFY NAVIGATION <Profile> { … }` (the `{ }` block replaces
+the whole menu, so dump the current profile first with `DESCRIBE NAVIGATION <Profile>`, edit,
+re-apply; omitted clauses such as the home page keep their stored value). See
 `manage-navigation` for the item syntax, home/login pages, and role-based homes.
 
 ### Style the shell to match the design

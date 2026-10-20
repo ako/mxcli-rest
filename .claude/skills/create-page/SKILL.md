@@ -15,12 +15,12 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 | 47-196 | Syntax |
 | 197-267 | Basic Examples |
 | 268-289 | Modifying Existing Pages |
-| 290-377 | Conditional Visibility and Editability |
-| 378-541 | Known Limitations |
-| 542-550 | Tips |
-| 551-577 | Related Commands |
-| 578-602 | PLUGGABLEWIDGET Escape Hatch |
-| 603-606 | See Also |
+| 290-393 | Conditional Visibility and Editability |
+| 394-558 | Known Limitations |
+| 559-567 | Tips |
+| 568-594 | Related Commands |
+| 595-619 | PLUGGABLEWIDGET Escape Hatch |
+| 620-623 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -335,6 +335,22 @@ container cntRunning (visible: Status in (Running, empty)) { ... }
 textbox txtPassword (label: 'Password', attribute: Password, visible: IsLocalUser in (true))
 ```
 
+**Visible for module roles** (Studio Pro's role-based visibility) is a separate
+setting — a second `visible:` line that combines with either condition above. It
+works on widgets, tab pages and navigation-list items; `check --references`
+refuses a role that does not exist:
+
+```sql
+mdl 1;
+create page MyModule.Request_Review (title: 'Review', layout: Atlas_Core.Atlas_Default) {
+  container cntAdmin (visible: roles (MyModule.Administrator)) {
+    dynamictext txtAdmin (content: 'Administrators only')
+  }
+  actionbutton btnClose (caption: 'Close', action: close page,
+    visible: false, visible: roles (MyModule.Manager))
+};
+```
+
 
 > **`visible:`/`editable:` is a Mendix *expression*, not XPath** — a different
 > function set from a datasource `where [ ... ]` clause:
@@ -473,7 +489,8 @@ lists them and `describe icon collection Atlas_Core.Atlas_Filled` lists the name
 A glyph has a code and no name. The codes are **sparse**, and an undefined one
 fails only at `mxbuild --target=deploy` — with *"An exception occurred while
 exporting page '<name>'"*, naming the page and never the icon — so `mxcli check`
-reports it as **MDL078** first. Browse them with `list glyphs`.
+refuses it as **MDL078**, an error (`exec` writes nothing), naming the defined
+glyphs either side of the code. Browse them with `list glyphs`.
 
 `describe page` emits all three forms, so describe → exec round-trips a button's
 icon whichever kind it is.

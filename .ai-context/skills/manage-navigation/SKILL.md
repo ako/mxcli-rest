@@ -10,18 +10,19 @@ description: "Inspect and change navigation profiles in MDL — home pages, menu
 
 | lines | section |
 |---|---|
-| 31-40 | When to Use This Skill |
-| 41-59 | Navigation Concepts |
-| 60-77 | Show Commands (Read-Only) |
-| 78-358 | CREATE OR MODIFY NAVIGATION (Full Replacement) |
-| 359-380 | Round-Trip Workflow |
-| 381-402 | Catalog Queries |
-| 403-452 | Common Patterns |
-| 453-504 | Menu Documents (standalone, reusable) |
-| 505-555 | Offline Profiles |
-| 556-569 | Checklist |
-| 570-573 | Offline synchronization (`CREATE NAVIGATION … SYNC (…)`) |
-| 574-576 | Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU) |
+| 32-41 | When to Use This Skill |
+| 42-60 | Navigation Concepts |
+| 61-78 | Show Commands (Read-Only) |
+| 79-360 | CREATE OR MODIFY NAVIGATION |
+| 361-399 | Change One Item: ALTER NAVIGATION |
+| 400-410 | Round-Trip Workflow |
+| 411-432 | Catalog Queries |
+| 433-471 | Common Patterns |
+| 472-524 | Menu Documents (standalone, reusable) |
+| 525-595 | Offline Profiles |
+| 596-611 | Checklist |
+| 612-615 | Offline synchronization (`CREATE NAVIGATION … SYNC (…)`) |
+| 616-618 | Menu documents (CREATE OR MODIFY/DESCRIBE/DROP MENU) |
 
 <!-- /skill-index -->
 # Navigation Management Skill
@@ -75,9 +76,9 @@ list navigation menu;             -- all profiles
 list navigation homes;
 ```
 
-## CREATE OR MODIFY NAVIGATION (Full Replacement)
+## CREATE OR MODIFY NAVIGATION
 
-This command fully replaces a navigation profile's configuration. All clauses are optional — omitted clauses clear that section. The output from `describe navigation` can be pasted back directly.
+All clauses are optional, and **an omitted clause keeps the stored value** — a statement with only a `{ … }` menu keeps the home page, role home pages, login page and not-found page (mendixlabs/mxcli#1522; before that fix they were cleared, and the missing home page failed the build with CE0527). A stated clause replaces what it names: `{ … }` the whole menu, `sync ( … )` the whole list, `home page X for R` role R's home page only. To change **one** item, or to clear a role's home page, the login page or the not-found page, use [`alter navigation`](#change-one-item-alter-navigation) instead — it edits the stored profile and touches nothing else. The output from `describe navigation` can be pasted back directly.
 
 ### Basic: Set Home and Login Page
 
@@ -179,13 +180,14 @@ The **bare** form is the icon-collection icon and is what you normally want. Use
 navigation` emits it for you — and `image` for a picture from an image
 collection, which is a different document from an icon collection.
 
-**Do not invent a glyph code.** It is a bare integer that nothing resolves, so a
-code the Mendix font does not define passes `mxcli check` AND `mx check` at 0
-errors and then breaks `mxbuild --target=deploy` with *"An exception occurred
-while exporting layout '<some layout>'"* — a message naming a document that is
-not the cause. `mxcli check` now warns (**MDL078**) against the 247 codes the
-shipped font defines, but a glyph is still an unchecked number where an icon
-collection reference is a resolved model reference. Browse the codes with `list glyphs`
+**Do not invent a glyph code.** It is a bare integer that `mx check` does not
+resolve: a code the Mendix font does not define passes `mx check` at 0 errors and
+then crashes `mxbuild --target=deploy` (exit 1, *"Sequence contains no matching
+element"*, naming a layout that is not the cause, and no error file).
+`mxcli check` refuses it as **MDL078**, an error, against the 247 codes the font
+defines, and `exec` writes nothing (mendixlabs/mxcli#1522); the message names the
+defined glyphs either side of the code. An icon collection reference is still the
+better choice: it names the icon. Browse the codes with `list glyphs`
 (`list glyphs like 'star'` searches by name, `describe glyph 57350` goes the
 other way), or use `Icon: Atlas_Core.Atlas.<name>` and list the names with
 `describe icon collection Atlas_Core.Atlas`.
@@ -356,26 +358,54 @@ home pages and the `sync ( … )` block only — a `{ }` menu block (the bottom 
 `login page`, `not found page` and `on sync error` are refused, and describe lists
 the bottom bar as comments.
 
-## Round-Trip Workflow
+## Change One Item: ALTER NAVIGATION
 
-The DESCRIBE output is directly executable. Use this pattern to inspect, modify, and re-apply:
+**Default to `alter navigation` for any edit to an existing menu.** It splices the
+operations into the stored profile: items it does not name keep their stored
+bytes, an item someone added in Studio Pro meanwhile survives, and a stored item
+it does not name is not re-validated (a `create or modify` rewrite re-checks — and
+can be refused over — every item it restates). Adding one item no longer means
+restating the menu (mendixlabs/mxcli#1522).
 
 ```sql
 mdl 1;
--- Step 1: Inspect current state
-describe navigation Responsive;
+list navigation menu Responsive;      -- the Address column is what alter takes
 
--- Step 2: Copy the output, modify as needed, paste back
-create or modify navigation Responsive
-  home page MyModule.Home_Web
-  login page Administration.Login
-  {
-    menu item 'Home' ( OnClick: show page MyModule.Home_Web )
-    menu item 'New Feature' ( OnClick: show page MyModule.NewFeature )
-  };
+alter navigation Responsive {
+  insert after 'Home' { menu item 'Customers' ( OnClick: show page MyModule.Customer_Overview, Icon: Atlas_Core.Atlas.user ) }
+  insert into 'Admin' { menu item 'Audit log' ( OnClick: show page MyModule.AuditLog ) }
+  set ( Caption: 'User accounts' ) on 'Admin' > 'Users';
+  move 'Log out' after 'Help';
+  drop 'Old import';
+  drop not found page;
+  drop home page for Administrator;
+};
+```
 
--- Step 3: Verify
+- **Address** = the caption `describe` prints, as a path outer → inner:
+  `'Users'` (anywhere), `'Admin' > 'Users'` (direct child), `'Users'@2` (2nd of
+  several). An ambiguous or missing address is refused and the error lists the
+  address to write — copy it; never guess an `@n`.
+- Fragments in `{ }` are written exactly as in `create navigation`.
+- `insert into` / `move … into` needs a target with no action, and only
+  `OnClick: nothing` is allowed on an item with sub-items (CE0548).
+- No bare `drop home page` (CE0527): `set home page M.P` changes it.
+- A refusal anywhere writes nothing. `mxcli check -p … --references` runs the
+  same resolution against the stored menu.
+- Native profiles are refused (their bottom bar is not written by mxcli).
+
+Every operation, the address rules and the refusals: [reference/alter-navigation.md](reference/alter-navigation.md),
+or `mxcli syntax navigation.alter`.
+
+## Round-Trip Workflow
+
+Restating the whole profile is for a menu you are designing from scratch. The
+DESCRIBE output is directly executable:
+
+```sql
+mdl 1;
 describe navigation Responsive;
+-- copy, edit, and run the output as `create or modify navigation …`
 ```
 
 ## Catalog Queries
@@ -430,24 +460,13 @@ create or modify navigation Responsive
 
 ### Adding a New Page to Navigation
 
-After creating a new page, add it to the menu:
+After creating a new page, add it to the menu — one statement, nothing else restated:
 
 ```sql
 mdl 1;
--- First inspect current menu
-describe navigation Responsive;
-
--- Then re-apply with the new item added (copy existing + add new)
-create or modify navigation Responsive
-  home page MyModule.Home_Web
-  login page Administration.Login
-  {
-    menu item 'Home' ( OnClick: show page MyModule.Home_Web )
-    menu item 'Customers' ( OnClick: show page MyModule.Customer_Overview )  -- new
-    menu 'Admin' {
-      menu item 'Users' ( OnClick: show page Administration.Account_Overview )
-    }
-  };
+alter navigation Responsive {
+  insert after 'Home' { menu item 'Customers' ( OnClick: show page MyModule.Customer_Overview ) }
+};
 ```
 
 ## Menu Documents (standalone, reusable)
@@ -489,7 +508,9 @@ keep the edit to the items you mean to change, then `describe` it again after
 
 **`or modify` replaces the whole item list.** An omitted item is a removed item,
 exactly as with `create or modify navigation`. The document's identity and
-export level are preserved, so menu widgets pointing at it keep working.
+export level are preserved, so menu widgets pointing at it keep working. To
+change one item, use `alter menu Module.Menu { insert … / move … / drop … / set ( … ) on … };`
+— the item operations of `alter navigation`, no page clauses.
 
 ### Gotchas
 
@@ -497,10 +518,9 @@ export level are preserved, so menu widgets pointing at it keep working.
   nowhere to supply the argument, and Mendix reports **CE1571** ("No argument has
   been selected for parameter …") against `Menu item`. Point the item at a
   parameterless page, or call a microflow that opens the page.
-- **Only icon-collection icons round-trip.** A glyph icon (numeric code) or an
-  image icon cannot be written by MDL; `describe` flags those on their own
-  comment line rather than dropping them silently, so re-running the output
-  loses that icon visibly.
+- **All three icon kinds round-trip** (`Icon: M.Coll.name`, `glyph n`,
+  `image M.Images.name`). Only an icon `describe` cannot rebuild (a glyph with no
+  code, an unknown icon type) is flagged on its own comment line.
 
 ## Offline Profiles
 
@@ -548,6 +568,26 @@ the profile takes the whole page graph, which mxcli does not walk. The fix is
 either to keep the page off the offline profile, or to bring the value one hop
 closer — add an attribute to the intermediate entity and keep it in step.
 
+**It needs Progressive web app settings, or nothing works offline.** A profile
+stores none until "Progressive web app" is ticked, and then Mendix registers no
+service worker for it: the built `index.js` carries `"registerServiceWorker": false`
+and the first page opened without a network fails to load, while `check`, `exec`
+and `mx check` all pass (mendixlabs/mxcli#1377). Set them in the statement:
+
+```sql
+mdl 1;
+create or modify navigation PhoneOffline
+  home page Field.WorkOrder_List
+  progressive web app ( Precaching: true )
+  sync ( sync Field.WorkOrder all; );
+```
+
+`Precaching` pre-loads the app's pages and resources (default `false`),
+`InstallPrompt` allows "Add to home screen" (default `true`). A key the clause
+leaves out takes its default, so a bare `progressive web app` writes both, `progressive web app off` stores none
+again, and leaving the clause out keeps what is stored. Exec warns about an
+offline profile left without them.
+
 **The synchronization config is derived, not authored.** `offlineEntityConfigs`
 starts empty and Studio Pro fills it from the entities the reachable pages use;
 only rows that differ from the defaults (`syncMode: Online`, no constraint) are
@@ -557,12 +597,14 @@ stored. MDL does not author per-entity sync modes — set those in Studio Pro.
 
 - [ ] Profile name is one of Mendix's web kinds (`Responsive`/`Phone`/`Tablet`, or their `*Offline` twins) — an invented name is an error, not a new profile
 - [ ] For an **offline** profile, no page it can reach binds an attribute across more than one association (CE6206)
+- [ ] For an **offline** profile, `progressive web app ( Precaching: true )` is set — without it no page opens offline
 - [ ] All PAGE/MICROFLOW targets are fully qualified (`Module.Name`)
 - [ ] Role references in `for` clauses are fully qualified (`Module.Role`)
 - [ ] Menu items are in `{ }` with no `;` between them; sub-menu items in `menu 'caption' { ... }`
 - [ ] A menu item's action is `( OnClick: … )` with show page, call microflow, call nanoflow, open link, create object, sign out or nothing — not save / delete / close page
 - [ ] `Icon:` is a qualified name (not a string); hyphenated segments are double-quoted
 - [ ] The icon exists — check with `describe icon collection Module.Name`, do not guess
+- [ ] Editing an existing menu? Use `alter navigation` / `alter menu`, addressing items by the Address `list navigation menu` prints
 - [ ] Use `describe navigation` to verify changes after applying
 - [ ] For a **menu document**, confirm you want `create menu` and not a profile menu — `list navigation menu` vs `describe menu` tells them apart
 - [ ] No menu item targets a page with required parameters (CE1571)

@@ -15,14 +15,14 @@ description: "The full lifecycle of Mendix Marketplace modules and widgets from 
 | 60-93 | Step 1 — Discover |
 | 94-103 | Step 2 — Download a `.mpk` to disk (optional) |
 | 104-223 | Step 3 — Install into a project |
-| 224-283 | Step 4 — Repair the model after the install (required, headless) |
-| 284-340 | Step 5 — Before updating: has the module been edited? |
-| 341-399 | Step 6 — Update an installed module |
-| 400-445 | Worked example: the agent-editor stack on a vanilla app |
-| 446-453 | Notes |
-| 454-457 | Platform authentication (`mxcli auth login/logout/status/list`) with PAT scheme for marketplace-api |
-| 458-461 | Marketplace download/install (`mxcli marketplace download/install`) — the content API now exposes a per-version downloadUrl (303→public CDN); install is type-aware (widget→widgets/, new module→`mx module-import`); existing-module updates are reported, not applied (entity-ID/local-edit safety — see PROPOSAL_marketplace_modules |
-| 462-466 | Marketplace drift detection (`mxcli marketplace diff <content-id> -p app.mpr [--to VERSION] [--json]`) |
+| 224-288 | Step 4 — Repair the model after the install (required, headless) |
+| 289-345 | Step 5 — Before updating: has the module been edited? |
+| 346-404 | Step 6 — Update an installed module |
+| 405-450 | Worked example: the agent-editor stack on a vanilla app |
+| 451-458 | Notes |
+| 459-462 | Platform authentication (`mxcli auth login/logout/status/list`) with PAT scheme for marketplace-api |
+| 463-466 | Marketplace download/install (`mxcli marketplace download/install`) — the content API now exposes a per-version downloadUrl (303→public CDN); install is type-aware (widget→widgets/, new module→`mx module-import`); existing-module updates are reported, not applied (entity-ID/local-edit safety — see PROPOSAL_marketplace_modules |
+| 467-471 | Marketplace drift detection (`mxcli marketplace diff <content-id> -p app.mpr [--to VERSION] [--json]`) |
 
 <!-- /skill-index -->
 # Download, Install and Update Marketplace Content
@@ -222,6 +222,11 @@ version "6.0.0" not found; run 'mxcli marketplace versions <id>' to list availab
 Commit first: local edits to that module go without being named.
 
 ## Step 4 — Repair the model after the install (required, headless)
+
+`marketplace install` runs these repairs itself (widgets: the widget resync only) when
+it can resolve `mx` for the project's version, and prints a per-repair result line.
+Without `mx` it prints a warning and the commands below — run them yourself, and
+always after `marketplace update`, which still only prints them:
 
 ```bash
 mxcli fix widgets -p app.mpr             # clears CE0463

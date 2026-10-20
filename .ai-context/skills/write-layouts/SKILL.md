@@ -10,15 +10,15 @@ description: "CREATE LAYOUT syntax — the frame a page is built on: scroll-cont
 
 | lines | section |
 |---|---|
-| 30-135 | Do not edit Atlas_Core |
-| 136-195 | Syntax |
-| 196-235 | The four things only a layout has |
-| 236-247 | Layout type, and why there is no `native:` flag |
-| 248-269 | The layout class is load-bearing |
-| 270-316 | Gotchas |
-| 317-329 | Validate |
-| 330-342 | What `mxcli new` scaffolds |
-| 343-345 | Layouts (SHOW/DESCRIBE/CREATE [OR REPLACE] LAYOUT) |
+| 30-134 | Do not edit Atlas_Core |
+| 135-194 | Syntax |
+| 195-234 | The four things only a layout has |
+| 235-246 | Layout type, and why there is no `native:` flag |
+| 247-268 | The layout class is load-bearing |
+| 269-328 | Gotchas |
+| 329-341 | Validate |
+| 342-354 | What `mxcli new` scaffolds |
+| 355-357 | Layouts (SHOW/DESCRIBE/CREATE [OR REPLACE] LAYOUT) |
 
 <!-- /skill-index -->
 # CREATE LAYOUT — the frame a page is built on
@@ -52,8 +52,7 @@ copy operation. There is no `COPY DOCUMENT` verb and none is needed.
 
 **A copy is only as good as what MDL can spell.** A widget describe cannot render
 comes out as a comment ending `-- NOT re-executable`, and re-running the script
-drops it. Measured on `Atlas_Core.Atlas_SideBar`: its two
-`Forms$SidebarToggleButton` widgets do not survive the round trip, and an
+drops it. Measured: an
 `image` widget copied this way loses its image reference (CE0463 until
 `mxcli fix widgets`, then "No image selected"). **Read the describe output
 before running it** — the comments name exactly what will be lost. To change a
@@ -303,10 +302,23 @@ section.
   one, where a top-level block fills the outer layout (see above).
 - **A layout that declares no placeholder is refused at write time** as well as
   at check time — no page could use it.
-- **The sidebar toggle, the menu bar's logo and Atlas's `Forms$Header` are not
-  authorable.** A topbar layout that needs a collapsible sidebar therefore has to
-  keep Atlas's, or do without the toggle — which is why `mxcli new` scaffolds a
-  topbar-navigation layout with no sidebar rather than an always-open one.
+- **The sidebar toggle is `sidebartoggle`** (mendixlabs/mxcli#1220) — an action
+  button's `Caption`, `Tooltip`, `ButtonStyle`, `Icon` and `RenderMode: Link`,
+  with no `Action`: it opens and closes the layout's sidebar, which is how
+  Atlas's responsive layouts navigate on phones and tablets. A copy of
+  `Atlas_Core.Atlas_Default` keeps it.
+- **A phone/tablet header bar is `layoutheader`** — Atlas's Phone_ and Tablet_
+  layouts keep their `HeaderLeft` / `HeaderRight` placeholders (and, on the
+  Sidebar ones, the sidebar toggle) in a `Forms$Header`:
+  `layoutheader header1 { region left { … } region right { placeholder HeaderRight } }`.
+  Before it was authorable, a copy dropped the header, so pages bound to those
+  placeholders failed CE1613 and a Sidebar copy failed CE0611 ("A sidebar
+  toggle button is required if a region can toggle").
+- **A native layout's header placeholder, bottom bar and sidebar** are
+  `region header { placeholder Header }`, `showbottombar: true` in the header,
+  and `region sidebar { … }` (present = the layout has a sidebar). A copy used
+  to drop all three without a word.
+- **The menu bar's logo is not authorable.**
 - **Authoring is modelsdk-only.** The legacy writer cannot produce the `Content`
   wrapper the widget tree hangs off; it refuses rather than writing a layout with
   no tree.
@@ -334,8 +346,8 @@ owns — and its pages moved onto it, so the documented practice is the default
 rather than something to discover. `mxcli new --layout none` keeps Atlas's.
 
 It is **not** a copy of Atlas_TopBar, and could not be: that layout carries a
-`Forms$MenuBar` (now authorable), a `Forms$SidebarToggleButton` and a pluggable
-image, so a describe → exec copy renders with no navigation and no logo. The
+`Forms$MenuBar` and a `Forms$SidebarToggleButton` (both authorable now) and a
+pluggable image, so a describe → exec copy renders with no logo. The
 scaffold reproduces the *result* instead — same layout class, same region
 classes, navigation in the topbar, `Main` for page content — and omits the
 toggle button and the stock logo.

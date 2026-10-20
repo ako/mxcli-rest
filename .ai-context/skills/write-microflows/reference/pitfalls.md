@@ -329,6 +329,30 @@ body are rebuilt (new IDs, drawn by mxcli). A `while` loop is the same:
 `replace while $N < 3 with begin while $N < 3 begin … end while; end;`. For a loop
 nested in another loop, replace the outer one.
 
+The replaced loop's body is scope-checked like any fragment: a variable it reads must
+be the iterator, declared in the body, or declared before the loop.
+
+### 12. One Alter Block Is One Change
+
+Every operation of an `alter microflow` block is aimed at the flow **as stored**, but
+the scope checks judge the flow the **whole block** writes:
+
+- a fragment may read a variable an earlier operation of the block declares, when that
+  declaration lands upstream of it (an `insert after`/`replace` of a node before it, or
+  an `insert before` the node it replaces or inserts after);
+- an activity whose output is taken away is still "used" only by readers the block
+  leaves in place — so a rename (the producer, every reader and the `return`) goes in
+  **one** block:
+
+```mdl
+mdl 1;
+alter microflow MyModule.GetCode {
+  replace $Code = call microflow MyModule.Lookup() with begin $Code2 = call microflow MyModule.Lookup(); end;
+  replace log node 'App' * with begin log info node 'App' $Code2; end;
+  replace return $Code with begin return $Code2; end;
+};
+```
+
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 
 These statements **implicitly create a new variable** with the name on the left side:
@@ -613,6 +637,11 @@ It is a **security** setting and it only ever narrows, so the rules mirror
   perfectly happy. Measured across 342 microflows in 4 projects: every microflow
   storing the flag came back without it, and nothing anywhere reported it.
 - **Turning it off is explicit**: `@applyentityaccess(false)`.
+- **A flow without it cannot call a flow with it.** A microflow that does not apply
+  entity access may only call microflows — and decide on rules — that do not apply
+  it either: mxbuild CE0114, `check -p` MDL-SEC22. The reverse (on calling off) is
+  fine. Fix the caller, not the callee: turning it off on a shared sub-flow widens
+  it for everyone.
 - **Not available on a nanoflow.** A nanoflow runs in the client and Mendix stores
   no such property. Writing it there is **MDL059**, not a silent no-op —
   the same rule that catches `@applyentityacces` and any other annotation the
@@ -637,7 +666,16 @@ end;
   parameters (...)` names the parameters passed as query arguments; `drop url`
   removes both.
 - **`export level api | hidden`** decides whether the microflow is part of the
-  module's public surface when the module is exported.
+  module's public surface when the module is exported. It bites in a
+  **Protected (add-on) module** — `describe module` prints
+  `-- export level: Protected …` and `show modules` says `Protected AddOn`:
+  another module or the navigation referencing a Hidden microflow, entity or
+  any page there is **CE1406**, and an `api` microflow whose parameter or return
+  type is a Hidden entity of that module is **CE5400**. `check -p --references`
+  reports both (mendixlabs/mxcli#1498). A page there cannot be made usable
+  (mxbuild refuses it even when stored as API) — reach it through an `api`
+  microflow in the module that shows it. An entity's export level has no MDL
+  syntax (`describe entity` prints it as a comment); set it in Studio Pro.
 - **`disallow concurrent execution`** takes `error message 'text'` or
   `error microflow Mod.Name`; `allow concurrent execution` is the default.
 

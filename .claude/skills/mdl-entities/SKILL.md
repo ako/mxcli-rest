@@ -14,15 +14,15 @@ description: "Complete syntax reference for entities, attributes and association
 | 40-77 | Persistent Entity |
 | 78-94 | Non-Persistent Entity |
 | 95-109 | Attribute Types |
-| 110-127 | Attribute Modifiers |
-| 128-173 | Generalization (Inheritance) |
-| 174-222 | Associations |
-| 223-239 | Enumerations |
-| 240-281 | View Entity (OQL) |
-| 282-305 | Entity with Index |
-| 306-367 | Complete Domain Model Example |
-| 368-385 | Changing an Existing Domain Model |
-| 386-428 | Quick Reference |
+| 110-129 | Attribute Modifiers |
+| 130-175 | Generalization (Inheritance) |
+| 176-224 | Associations |
+| 225-241 | Enumerations |
+| 242-283 | View Entity (OQL) |
+| 284-307 | Entity with Index |
+| 308-369 | Complete Domain Model Example |
+| 370-387 | Changing an Existing Domain Model |
+| 388-430 | Quick Reference |
 
 <!-- /skill-index -->
 # MDL Entity Syntax Reference
@@ -120,6 +120,8 @@ create non-persistent entity Module.CustomerSearchParams (
 **DateTime localization on a rewrite:** `create or modify` / `modify attribute` that
 does not state `localized` / `not localized` keeps what is stored (so restating a
 Studio Pro-authored non-localized date does not localize it); a stated clause wins.
+When that keeps a stored `not localized`, exec prints a `Note:` naming the attribute —
+write `D: DateTime localized` to switch it on.
 `describe` prints `not localized` only when it applies. Using either clause on a
 non-DateTime attribute is a `check` error.
 
