@@ -3097,6 +3097,33 @@ A DataGrid 2's sort bar. One occurrence, because this project has one such grid.
 It was invisible while 78 others were wrong in the opposite direction; it is the
 only marker in the project that still disagrees.
 
+**Corrected after bisecting, before filing.** My first reading — that the writer
+emits the wrong marker for a sorted DataGrid 2 — is wrong, and a minimal repro
+said so: three fresh pages with a sorted grid (plain, with `selection: Single`,
+with two columns, nested in a container) all write **2**, matching Studio Pro.
+The decisive test is dropping `Home_Web` and re-running the *same*
+`create or replace page` statement that produces it: the marker comes out **2**.
+Same source, same binary; the only variable is whether the document already
+existed.
+
+So the writer is right and the stored value is stale: `create or replace page`
+**carries an existing marker forward instead of recomputing it**, so a page
+written by an older mxcli keeps its wrong marker through every later rewrite.
+Note the asymmetry — the same corpus run *did* recompute the 78 REST markers on
+eight existing documents, so the REST path normalises on rewrite and the page
+path does not.
+
+That also explains why `fix property-sets`, which exists for precisely this
+"written by an older build and never normalised" case, does not help: it
+completes property *names* only. Filed as **ako/mxcli#1640**, with the
+drop-and-recreate control and the suggestion that either the page rewrite
+recompute markers or `fix property-sets` grow a sibling for them.
+
+The lesson for this file: a one-line difference against Studio Pro says *what*
+disagrees, never *why*. Three variants and a drop-and-recreate turned "the
+writer has a bug" into "an old document is carrying one", which is a different
+fix in a different place.
+
 What it does **not** do is break merge: property names are identical, so
 `mx diff` completes — 64 units `Modified`, 0 `changeDetails`, the same clean
 result as #69 and #70. The marker is a value, and the name-comparison engine
