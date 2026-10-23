@@ -410,6 +410,8 @@ column (caption: 'Actions') {
 
 > **A list widget needs an association that yields a list.** A list view, data grid or gallery over `$currentObject/M.Assoc` is CE8812 ("A grid association path must result in a list") when the association is a Reference followed from its FROM entity, or a Reference with owner Both from either end (one-to-one). Use a data view for the single object, or a ReferenceSet. `check` reports it as MDL-ASSOCDS01. The reverse of a default Reference (from the TO entity) is a list and fine.
 
+> **A view entity's association is one-way for a page.** The association a view entity derives from its OQL (`select c.ID as Stats_Customer`) can be followed from the view entity only. A data source that follows it from the entity it points at, in any widget and at any hop (`database from $currentObject/M.Stats_Customer/M.Stats`, `$currentObject/M.Stats_Customer`), is CE8812 "Entity 'M.Customer' has no association 'M.Stats_Customer'". Query the view entity instead: `datasource: database M.Stats where [M.Stats_Customer = $currentObject]`. `check` reports it as MDL-ASSOCDS02. A microflow `retrieve … from $Cust/M.Stats_Customer` is accepted.
+
 **With WHERE and SORT BY (inline in DataSource):**
 ```sql
 datagrid dgActive (
@@ -544,6 +546,9 @@ A text box binds no dates (CE2421), so `DateFormat` on it is dropped and warned 
 ```sql
 -- Enumeration mode (attribute is an enum type):
 combobox cbCountry (label: 'Country', attribute: Country)
+-- WRONG: enumeration mode on any other type — a Boolean included — is CE7247
+-- "Only attributes of type Enumeration are allowed here." (MDL-WIDGET39 with -p).
+-- For a Boolean use `checkbox` or `radiobuttons`.
 
 -- Association mode: bind a reference. Requires the option DataSource (the target
 -- entity whose objects fill the dropdown) AND a CaptionAttribute (display value).
@@ -707,6 +712,18 @@ custom attribute (Studio Pro's "Attribute config: Custom"); listing two is refus
 attribute of the Data grid 2 column it sits in ("Auto"), so in a **gallery's**
 `filter { … }` bar, which has no column, the attribute must be named.
 
+`defaultValue:` preselects an option. It is an **expression returning a String**, and a
+quoted MDL value is the expression's text, so the option goes in as a String literal
+inside the quotes, even for a Boolean column:
+
+```sql
+column (Attribute: IsActive) { dropdownfilter ddfActive (defaultValue: '''true''') }
+```
+
+`defaultValue: 'true'` stores the Boolean expression `true`, and `'1'` or a bare name
+like `'Open'` fail the same way: mxbuild reports CE0117 "Error(s) in expression." `check`
+reports it as MDL-WIDGET49. `'empty'` (no preselection) is fine.
+
 Filter by an **association** instead of an attribute — the options are the
 associated objects. Giving the filter a `datasource:` (the OPTION list) selects
 this mode; all three parts are required:
@@ -749,6 +766,20 @@ snippetcall snippetName (snippet: Module.SnippetName)
 
 -- With parameters
 snippetcall actions (snippet: Module.EntityActions, params: (entity = $Param))
+```
+
+**A snippet call renders no element of its own** — the snippet's widgets are
+inlined into the parent. So `Class`, `Style`, `DynamicClasses` and
+`DesignProperties` on a `snippetcall` never reach the page: valid, `mx check`
+clean, and silently useless (measured on Mendix 11.15). `mxcli check` warns
+**MDL-WIDGET48** (also for `alter page … { set (Class: …) on <snippetcall> }` and
+`alter styling` on one) and `mxcli lint` reports existing ones as **MPR013**.
+Style a container instead — inside the snippet, or around the call:
+
+```sql
+container cNav (class: 'sidebar') {
+  snippetcall scNav (snippet: Module.NavigationMenu)
+}
 ```
 
 **A parameter satisfied by the enclosing data context takes NO mapping.** Mendix

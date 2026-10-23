@@ -12,6 +12,14 @@
 #   - Entities with no references at all
 #
 # This rule requires REFRESH CATALOG FULL to populate the refs table.
+#
+# Options (lint-config.yaml, rules.QUAL004.options):
+#   entry_point_prefixes - microflow name prefixes that mark an entry point,
+#                          as a YAML list or comma-separated text. Replaces
+#                          the built-in list below; unset keeps it.
+#
+# Edit the option, not this file: an edited copy is kept, and no longer
+# receives mxcli's updates to the rule.
 
 RULE_ID = "QUAL004"
 RULE_NAME = "Orphaned Elements"
@@ -19,7 +27,8 @@ DESCRIPTION = "Elements should be referenced somewhere in the project or marked 
 CATEGORY = "quality"
 SEVERITY = "info"
 
-# Prefixes for microflows that are expected to be entry points
+# Prefixes for microflows that are expected to be entry points, unless the
+# entry_point_prefixes option says otherwise
 ENTRY_POINT_PREFIXES = ["ACT_", "SCH_", "WS_", "REST_", "OData_"]
 
 # Page name patterns that are likely entry points
@@ -33,9 +42,9 @@ MICROFLOW_ENTRY_KINDS = ["call", "schedule", "publish", "datasource", "action", 
 # Reference kinds that mean "something opens this page".
 PAGE_ENTRY_KINDS = ["show_page", "home_page", "login_page", "menu_item", "action"]
 
-def is_entry_point_microflow(name):
+def is_entry_point_microflow(name, prefixes):
     """Check if a microflow name suggests it's a UI/scheduled entry point."""
-    for prefix in ENTRY_POINT_PREFIXES:
+    for prefix in prefixes:
         if name.startswith(prefix):
             return True
     return False
@@ -52,11 +61,13 @@ def check():
     Check for orphaned elements that have no incoming references.
     """
     violations = []
+    entry_prefixes = get_list_option("entry_point_prefixes", ENTRY_POINT_PREFIXES)
+    rename_hint = "/".join(entry_prefixes[:2]) if entry_prefixes else "an entry-point"
 
     # Check microflows
     for mf in microflows():
         # Skip entry point microflows
-        if is_entry_point_microflow(mf.name):
+        if is_entry_point_microflow(mf.name, entry_prefixes):
             continue
 
         # Get references to this microflow
@@ -95,7 +106,7 @@ def check():
             v = violation(
                 message="{} '{}' is not called from anywhere.".format(mf.document_noun_title, mf.name),
                 location=loc,
-                suggestion="Remove if unused, or rename with ACT_/SCH_ prefix if it's an entry point."
+                suggestion="Remove if unused, rename with {} prefix if it's an entry point, or add its prefix to rules.QUAL004.options.entry_point_prefixes in lint-config.yaml.".format(rename_hint)
             )
             violations.append(v)
 

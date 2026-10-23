@@ -13,12 +13,12 @@ description: "Create and call custom Java actions — extending Mendix with serv
 | 28-39 | Reference files |
 | 40-48 | When to Use This Skill |
 | 49-55 | Overview |
-| 56-332 | Part 2.5: Creating Java Actions in MDL |
-| 333-526 | Part 3: Calling Java Actions from MDL |
-| 527-540 | Validation Checklist |
-| 541-551 | Common Errors |
-| 552-559 | Related Documentation |
-| 560-641 | Quick Reference |
+| 56-355 | Part 2.5: Creating Java Actions in MDL |
+| 356-549 | Part 3: Calling Java Actions from MDL |
+| 550-563 | Validation Checklist |
+| 564-574 | Common Errors |
+| 575-582 | Related Documentation |
+| 583-664 | Quick Reference |
 
 <!-- /skill-index -->
 # Mendix Java Actions Skill
@@ -77,6 +77,29 @@ as $$
 return false;
 $$;
 ```
+
+### Parameter Descriptions and the Return Value Name
+
+What a modeler sees when dragging the action into a microflow: each parameter's
+description, and the return value's name (the default output variable name).
+A description is a `/** … */` doc comment **before** the parameter, as on an entity
+attribute; the return value's name is `returns T as $Name`, as on a microflow:
+
+```mdl
+mdl 1;
+/** Converts text to upper case. */
+create java action Module.ToUpper(
+  /** The text to convert. */
+  Input: string not null
+) returns string as $UpperText
+as $$
+return Input.toUpperCase();
+$$;
+```
+
+A trailing `-- text` after a parameter is an ordinary comment and is **not stored**.
+On `create or modify`, leaving either out keeps what is stored; a new action gets
+no descriptions and `ReturnValueName`. The same forms apply to JavaScript actions.
 
 ### Type Parameters (Generics)
 

@@ -10,11 +10,11 @@ description: "Read and change project settings in MDL — database configuration
 
 | lines | section |
 |---|---|
-| 22-31 | When to Use This Skill |
-| 32-308 | Commands |
-| 309-336 | Common Patterns |
-| 337-345 | Checklist |
-| 346-350 | AfterStartupMicroflow Must Return Boolean |
+| 22-32 | When to Use This Skill |
+| 33-342 | Commands |
+| 343-370 | Common Patterns |
+| 371-379 | Checklist |
+| 380-384 | AfterStartupMicroflow Must Return Boolean |
 
 <!-- /skill-index -->
 # Project Settings
@@ -28,6 +28,7 @@ Use this skill when the user wants to:
 - Modify hash algorithms, Java versions, or rounding modes
 - View or modify language settings
 - Configure workflow settings (user entity, parallelism, groups)
+- Switch between the React and the classic web client (Web UI settings)
 
 ## Commands
 
@@ -131,10 +132,24 @@ alter settings configuration 'Default' (
 alter settings configuration 'Default' (
   DatabaseUrl: 'newhost:5432'
 );
+
+-- Server tab ▸ Extra JVM parameters, e.g. route the runtime through a proxy
+alter settings configuration 'Default' (
+  ExtraJvmParameters: '-Dhttps.proxyHost=127.0.0.1 -Dhttps.proxyPort=8888'
+);
 ```
 
-`HttpPortNumber`, `ServerPortNumber`, `BcryptCost`, `DefaultTaskParallelism` and
-`WorkflowEngineParallelism` and `DecimalScale` are Integer-typed;
+The configuration keys are `DatabaseType`, `DatabaseUrl`, `DatabaseName`,
+`DatabaseUserName`, `DatabasePassword`, `HttpPortNumber`, `ServerPortNumber`,
+`ApplicationRootUrl`, `ExtraJvmParameters` and `MaxJavaHeapSize` (Server ▸ Java heap
+▸ Maximum size, in MB; `0` is Studio Pro's "Default"); `create configuration` takes
+the same.
+`ExtraJvmParameters` and `MaxJavaHeapSize` are what Studio Pro passes to the runtime
+JVM when it runs the app; `mxcli run --local` and `mxcli test --local` pass them too
+(see the run-local skill).
+
+`HttpPortNumber`, `ServerPortNumber`, `MaxJavaHeapSize`, `BcryptCost`,
+`DefaultTaskParallelism`, `WorkflowEngineParallelism` and `DecimalScale` are Integer-typed;
 `AllowUserMultipleSessions`, `EnableDataStorageOptimisticLocking`,
 `UseDatabaseForeignKeyConstraints` and `UseOQLVersion2` are Boolean; `FirstDayOfWeek`
 and `SslCertificateAlgorithm` are enumerations, matched case-insensitively and
@@ -142,7 +157,9 @@ stored in Mendix's own spelling (MDL-SET03 rejects a non-member rather than writ
 it through — an unresolvable enum value is what makes Studio Pro throw
 "Sequence contains no matching element").
 An unparseable value is rejected by `mxcli check` (MDL-SET01 / MDL-SET02)
-and by the write itself — it is no longer silently ignored. Quoted numbers are
+and by the write itself — it is no longer silently ignored. A section or key that
+does not exist is rejected by `mxcli check` too (MDL-SET04), with exec's message
+and the list of valid keys. Quoted numbers are
 fine: `HttpPortNumber = '8080'` and `HttpPortNumber = 8080` are equivalent.
 
 ### Constant Overrides
@@ -305,6 +322,23 @@ Four things worth knowing:
   reference to the settings entry, so REMOVE has no dangling reference to check
   for. What it does mean is that the removed group's runtime row stops being
   maintained while the user tasks already assigned to it keep their association.
+
+### Web UI Settings (which client the app runs on)
+
+```sql
+mdl 1;
+alter settings webui (OptimizedClient: 'Yes');   -- the React client
+alter settings webui (OptimizedClient: 'No');    -- the classic (Dojo) client
+```
+
+- **Values:** `Yes`, `No`, `MigrationMode`, matched case-insensitively. Anything
+  else is refused by `mxcli check` (MDL-SET03) and by exec — measured on a blank
+  11.14.0 app, `mx check` reports **0 errors** for an out-of-range value, so the
+  refusal is the only thing that catches it.
+- Stored as `Forms$WebUIProjectSettingsPart.UseOptimizedClient` (Mendix 9.10+); a
+  project that does not store it is refused rather than told "Updated".
+- Widgets differ per client — check `list settings` → `OptimizedClient` before
+  choosing one. `describe settings` emits this statement, so it round-trips.
 
 ## Common Patterns
 

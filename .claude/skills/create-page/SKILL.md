@@ -12,15 +12,15 @@ description: "CREATE PAGE syntax reference — parameters, variables, layouts, a
 |---|---|
 | 28-43 | Reference files |
 | 44-46 | Overview |
-| 47-196 | Syntax |
-| 197-267 | Basic Examples |
-| 268-289 | Modifying Existing Pages |
-| 290-393 | Conditional Visibility and Editability |
-| 394-558 | Known Limitations |
-| 559-567 | Tips |
-| 568-594 | Related Commands |
-| 595-619 | PLUGGABLEWIDGET Escape Hatch |
-| 620-623 | See Also |
+| 47-198 | Syntax |
+| 199-269 | Basic Examples |
+| 270-291 | Modifying Existing Pages |
+| 292-395 | Conditional Visibility and Editability |
+| 396-560 | Known Limitations |
+| 561-569 | Tips |
+| 570-596 | Related Commands |
+| 597-621 | PLUGGABLEWIDGET Escape Hatch |
+| 622-625 | See Also |
 
 <!-- /skill-index -->
 # CREATE PAGE - MDL Syntax Guide
@@ -130,7 +130,9 @@ create page MyModule.OrderDetail folder 'Orders/Details'
 
 ### Styling: Class, Style, and DesignProperties
 
-Three styling mechanisms can be applied to any widget:
+Three styling mechanisms can be applied to any widget — except a `snippetcall`,
+which renders no element of its own, so its styling never reaches the page
+(MDL-WIDGET48 / lint MPR013); style a container around or inside it instead:
 
 **CSS Class** — Atlas UI utility classes or custom CSS classes:
 ```sql

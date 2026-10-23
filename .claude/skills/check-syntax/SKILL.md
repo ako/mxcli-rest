@@ -191,9 +191,9 @@ keeps the header off a file it would make refuse (ako/mxcli#876).
 
 A `/** … */` doc comment documents the statement right after it, and only a
 `create` of something with documentation stores one. Above a `drop`, `grant`,
-`revoke`, `set`, `alter` or `create module` it is ignored, so **MDL089** warns
-and names the next statement that could have taken it. In drop-then-create, put
-the comment between the `drop` and the `create` (ako/mxcli#877).
+`revoke`, `set` or `alter` it is ignored, so **MDL089** warns and names the next
+statement that could take it — in drop-then-create, put it between the two
+(ako/mxcli#877). Above a `create` that stores none, make it a `--` comment.
 
 ### It resolves MEMBER names too, where it can establish the entity
 

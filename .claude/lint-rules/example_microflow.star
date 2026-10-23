@@ -7,7 +7,15 @@
 #   VAL_ - Validation microflows
 #   SCH_ - Scheduled event microflows
 #
-# Customize the prefixes and patterns to match your project standards.
+# Customize the prefixes in lint-config.yaml rather than here (an edited copy
+# of this file is kept, and no longer receives mxcli's updates to the rule):
+#
+#   rules:
+#     CUSTOM002:
+#       options:
+#         valid_prefixes: [ACT_, SUB_, DS_, TEST_]   # or "ACT_, SUB_, DS_, TEST_"
+#
+# The option replaces VALID_PREFIXES below; unset keeps it.
 #
 # Microflow properties:
 #   .id              - Document ID
@@ -28,7 +36,7 @@ DESCRIPTION = "Microflows should have standard naming prefixes (ACT_, SUB_, DS_,
 CATEGORY = "naming"
 SEVERITY = "info"
 
-# Define valid prefixes - customize for your project
+# Built-in valid prefixes, used when the valid_prefixes option is unset
 VALID_PREFIXES = ["ACT_", "SUB_", "DS_", "VAL_", "SCH_", "IVK_", "OCH_"]
 
 def check():
@@ -36,13 +44,14 @@ def check():
     Check that microflows use standard naming prefixes.
     """
     violations = []
+    valid_prefixes = get_list_option("valid_prefixes", VALID_PREFIXES)
 
     for mf in microflows():
         name = mf.name  # Simple name
 
         # Check if name starts with any valid prefix
         has_valid_prefix = False
-        for prefix in VALID_PREFIXES:
+        for prefix in valid_prefixes:
             if name.startswith(prefix):
                 has_valid_prefix = True
                 break
@@ -57,7 +66,7 @@ def check():
                 message="{} '{}' should start with a standard prefix ({})".format(
                     mf.document_noun_title,
                     name,
-                    ", ".join(VALID_PREFIXES)
+                    ", ".join(valid_prefixes)
                 ),
                 location=loc
             )

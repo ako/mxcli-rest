@@ -60,6 +60,29 @@ set $Name = $Product/Shop.Product_Category/Name;
 
 **Explanation**: XPath navigation requires the full qualified association name in the format `Module.AssociationName`.
 
+A path that **ends** on the association is not a value at all, in either
+direction: `return $Parent/Shop.Order_Customer;` is CE0117 at the end event
+(MDL049, as for a call argument), and `loop $o in $Customer/Shop.Order_Customer`
+has no list to store, CE0099 (MDL094). Retrieve over the association — that is
+the activity both mean:
+
+```mdl
+mdl 1;
+create microflow Shop.CustomerOrders ($Customer: Shop.Customer)
+returns list of Shop.Order as $Orders
+begin
+  retrieve $Orders from $Customer/Shop.Order_Customer;
+  loop $o in $Orders begin
+    log info node 'Shop' $o/OrderNumber;
+  end loop;
+  return $Orders;
+end;
+```
+
+Naming the target entity after a reference followed from its owner,
+`$Order/Shop.Order_Customer/Shop.Customer`, is the one path form that is an
+object value (Studio Pro's own spelling).
+
 ### 3. Missing Attributes
 
 **Error**: Attribute references must exist in entity definition
@@ -352,6 +375,22 @@ alter microflow MyModule.GetCode {
   replace return $Code with begin return $Code2; end;
 };
 ```
+
+### 13. Inserting Where the Script States Every Position
+
+`describe` output states `@position` on every statement. Under `mdl 1;`, `create or
+modify` never moves a node the script draws at a stated position: a statement inserted
+**without** `@position` into a gap too small for it is refused, naming the room it needs
+and the node in the way (mendixlabs/mxcli#1598). Moving the rest of the row along would
+leave the stored flow saying something other than the script, so the next run would move
+it back. Either:
+
+- give the new statements an `@position` where there is room for them, or
+- leave the positions of what comes after them unstated (`@position`, `@merge`, a note's
+  `position:`), so the splice can move it along — the second run of that script is then
+  Unchanged.
+
+A headerless (mdl 0) script still moves the row along, as it always did.
 
 ## Implicit Variable Creation (CE0111 Duplicate Variable)
 
@@ -669,13 +708,20 @@ end;
   module's public surface when the module is exported. It bites in a
   **Protected (add-on) module** — `describe module` prints
   `-- export level: Protected …` and `show modules` says `Protected AddOn`:
-  another module or the navigation referencing a Hidden microflow, entity or
-  any page there is **CE1406**, and an `api` microflow whose parameter or return
-  type is a Hidden entity of that module is **CE5400**. `check -p --references`
-  reports both (mendixlabs/mxcli#1498). A page there cannot be made usable
-  (mxbuild refuses it even when stored as API) — reach it through an `api`
-  microflow in the module that shows it. An entity's export level has no MDL
-  syntax (`describe entity` prints it as a comment); set it in Studio Pro.
+  another module or the navigation referencing a Hidden microflow, entity,
+  attribute, association or any page there is **CE1406**, and an `api`
+  microflow whose parameter or return type is a Hidden entity or enumeration of
+  that module is **CE5400**. `check -p --references` reports both
+  (mendixlabs/mxcli#1498), including a flow's use of a Hidden attribute or
+  association — a change / create member, an association retrieve, an XPath
+  step or a `$v/…` path — with the `alter` statement that makes it usable.
+  Page widgets binding a Hidden member are not checked yet. A page there cannot
+  be made usable (mxbuild refuses it even when stored as API) — reach it through
+  an `api` microflow in the module that shows it. Entities, attributes,
+  associations and enumerations take the same clause: `alter entity M.E set
+  export level api`, `Attr: Type export level api`, `create association … export
+  level api`, `alter enumeration M.K set export level api`
+  (`mxcli syntax domain-model.export-level`).
 - **`disallow concurrent execution`** takes `error message 'text'` or
   `error microflow Mod.Name`; `allow concurrent execution` is the default.
 

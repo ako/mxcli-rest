@@ -13,13 +13,13 @@ description: "Write OQL for Mendix VIEW entities — joins, aggregates, calculat
 | 27-32 | Reference files |
 | 33-35 | Purpose |
 | 36-42 | When to Use This Skill |
-| 43-378 | Critical OQL Syntax Rules |
-| 379-515 | Step-by-Step Process |
-| 516-611 | Common Mistakes to Avoid |
-| 612-643 | Testing OQL Queries |
-| 644-662 | Integration with MDL Linter |
-| 663-670 | References |
-| 671-695 | Summary Checklist |
+| 43-387 | Critical OQL Syntax Rules |
+| 388-524 | Step-by-Step Process |
+| 525-620 | Common Mistakes to Avoid |
+| 621-652 | Testing OQL Queries |
+| 653-671 | Integration with MDL Linter |
+| 672-679 | References |
+| 680-704 | Summary Checklist |
 
 <!-- /skill-index -->
 # Skill: Write OQL Queries for Mendix VIEW Entities
@@ -375,6 +375,15 @@ left outer join Shop.CompetitorProduct as cp on p.ProductCode = cp.ProductCode
 **When to use each approach:**
 - **Association traversal** (`alias/Module.Association/entity`): When joining on a Mendix-defined association
 - **JOIN ON** (`join entity on condition`): When joining on arbitrary conditions or non-association fields
+
+### 12. Comments in a View Query Need Mendix 11.7+
+
+`--` and `/* */` comments in a view entity's query are stored as written, before,
+between or after its clauses. Mendix accepts them from **11.7.0** only. Below
+that, every comment is CE0174 ("The '-' part is incomplete or incorrect"), even
+with OQL v2 on, so `check -p` and `exec` refuse the statement (MDL-VERSION01).
+The comments in this skill's examples are annotation: leave them out of a query
+for an older project. A `--` inside a string literal is not a comment.
 
 ## Step-by-Step Process
 

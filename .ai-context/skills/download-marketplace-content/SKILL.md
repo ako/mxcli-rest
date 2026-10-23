@@ -10,19 +10,20 @@ description: "The full lifecycle of Mendix Marketplace modules and widgets from 
 
 | lines | section |
 |---|---|
-| 34-42 | When to Use This Skill |
-| 43-59 | Prerequisites: Authenticate |
-| 60-93 | Step 1 — Discover |
-| 94-103 | Step 2 — Download a `.mpk` to disk (optional) |
-| 104-223 | Step 3 — Install into a project |
-| 224-288 | Step 4 — Repair the model after the install (required, headless) |
-| 289-345 | Step 5 — Before updating: has the module been edited? |
-| 346-404 | Step 6 — Update an installed module |
-| 405-450 | Worked example: the agent-editor stack on a vanilla app |
-| 451-458 | Notes |
-| 459-462 | Platform authentication (`mxcli auth login/logout/status/list`) with PAT scheme for marketplace-api |
-| 463-466 | Marketplace download/install (`mxcli marketplace download/install`) — the content API now exposes a per-version downloadUrl (303→public CDN); install is type-aware (widget→widgets/, new module→`mx module-import`); existing-module updates are reported, not applied (entity-ID/local-edit safety — see PROPOSAL_marketplace_modules |
-| 467-471 | Marketplace drift detection (`mxcli marketplace diff <content-id> -p app.mpr [--to VERSION] [--json]`) |
+| 35-44 | When to Use This Skill |
+| 45-61 | Prerequisites: Authenticate |
+| 62-95 | Step 1 — Discover |
+| 96-105 | Step 2 — Download a `.mpk` to disk (optional) |
+| 106-225 | Step 3 — Install into a project |
+| 226-290 | Step 4 — Repair the model after the install (required, headless) |
+| 291-347 | Step 5 — Before updating: has the module been edited? |
+| 348-406 | Step 6 — Update an installed module |
+| 407-452 | Worked example: the agent-editor stack on a vanilla app |
+| 453-474 | Package a module of the project (`marketplace package`) |
+| 475-482 | Notes |
+| 483-486 | Platform authentication (`mxcli auth login/logout/status/list`) with PAT scheme for marketplace-api |
+| 487-490 | Marketplace download/install (`mxcli marketplace download/install`) — the content API now exposes a per-version downloadUrl (303→public CDN); install is type-aware (widget→widgets/, new module→`mx module-import`); existing-module updates are reported, not applied (entity-ID/local-edit safety — see PROPOSAL_marketplace_modules |
+| 491-495 | Marketplace drift detection (`mxcli marketplace diff <content-id> -p app.mpr [--to VERSION] [--json]`) |
 
 <!-- /skill-index -->
 # Download, Install and Update Marketplace Content
@@ -37,6 +38,7 @@ These are **CLI commands**, not MDL statements.
 - User wants to upgrade a module that is already installed
 - User asks whether a marketplace module has been edited locally, or what an upgrade would overwrite
 - User asks to download a specific `.mpk` (e.g. for CI, or to import in Studio Pro)
+- User asks to export a module of their own project as a `.mpk`
 - User asks which versions of a marketplace item are compatible with their Mendix version
 - User reports `CE0463` or `CE6087` right after installing or updating a module
 
@@ -447,6 +449,28 @@ Four things this run established, none of them obvious from the command list:
 
 The ids are a convenience, not an authority: confirm with `search`/`info` rather than
 trusting them from memory, and note that the listing name never matches the module name.
+
+## Package a module of the project (`marketplace package`)
+
+The reverse of `install --file`: export a module as a `.mpk`. No PAT is needed.
+
+```bash
+mxcli marketplace package MyModule -p app.mpr                 # ./MyModule.mpk
+mxcli marketplace package MyModule -p app.mpr -o ./dist --json   # {path, sizeBytes, files, foreignEntries}
+mxcli marketplace install --file ./dist/MyModule.mpk -p other.mpr   # and back in
+```
+
+- Only the module's own required `userlib/` JARs go in; `--all-libs` bundles every JAR.
+- `mx` still exports the whole `resources/` folder (another module's `resources/EventLog/` came
+  along in a measured export). mxcli warns about each such file in `resources/`, `javasource/` or
+  `themesource/` and prints the `--exclude` pattern
+  that drops it, e.g. `--exclude '^resources.EventLog.'`. `--exclude` takes **one** regex (join
+  with `|`) and the separator must be written `.`: `[/\\]` makes `mx` write nothing.
+- The `mx` used must be the project's Mendix version (read from the `mx` itself): a mismatch, or an
+  `mx` of unknown version, is refused with both versions named. Fix: `mxcli setup mxbuild --version X`
+  (an `mx` on PATH is used first). `--mxbuild-path` is the override: a mismatch then only warns on stderr.
+- `mx` writes into the project it is given, so mxcli runs it on a temporary copy; the project on
+  disk is unchanged. A Studio Pro lock file beside the project does not stop the export.
 
 ## Notes
 

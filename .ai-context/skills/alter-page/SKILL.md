@@ -11,16 +11,16 @@ description: "Modify an existing page or snippet's widget tree in place with ALT
 | lines | section |
 |---|---|
 | 28-31 | Overview |
-| 32-56 | When to Use |
-| 57-107 | Syntax |
-| 108-473 | Operations |
-| 474-552 | Examples |
-| 553-643 | DataGrid 2 columns: how to address them, and what you can set |
-| 644-655 | Common Mistakes |
-| 656-684 | Limitations — prefer binding at page creation (ledger finding #45) |
-| 685-692 | Validation Checklist |
-| 693-702 | Related Commands |
-| 703-707 | Related Skills |
+| 32-64 | When to Use |
+| 65-115 | Syntax |
+| 116-481 | Operations |
+| 482-560 | Examples |
+| 561-651 | DataGrid 2 columns: how to address them, and what you can set |
+| 652-663 | Common Mistakes |
+| 664-698 | Limitations — prefer binding at page creation (ledger finding #45) |
+| 699-706 | Validation Checklist |
+| 707-716 | Related Commands |
+| 717-721 | Related Skills |
 
 <!-- /skill-index -->
 # ALTER PAGE / ALTER SNIPPET - Modify Existing Pages and Snippets
@@ -54,6 +54,14 @@ MDL scripts created and nobody has changed in Studio Pro since: on a Studio Pro 
 round trip has dropped translations and filled an empty English caption from another
 language, and on a snippet it has dropped the snippet's type.
 
+**A page holding a widget MDL cannot author refuses the rewrite.** `describe` prints a
+classic data grid, a reference selector, a drop-down or a reference set selector as a
+`-- NOT re-executable` comment, so `create or modify page` (also `create or replace`, and
+the same for snippets and layouts) would delete it. The statement is refused, naming each
+widget; `mxcli check -p` reports the same. Use `alter page` — it leaves those widgets in
+place — or, to rebuild the page without them, drop them first on purpose:
+`alter page M.P { drop grid1, referenceSelector1; };`.
+
 ## Syntax
 
 ```sql
@@ -84,7 +92,7 @@ alter page Module.PageName {
 
 A `<target>` on a page is a widget name, a DataGrid 2 column `grid column(Attr)`
 (or `grid column('Caption')`), a navigation list item `nav item(t1)` /
-`nav item('Text')` / `nav item@n`, or a layout region `layoutContainer.top`. Properties go in parentheses with `:`, exactly as in
+`nav item('Text')` / `nav item@n`, a table cell `table1 cell(1,2)`, or a layout region `layoutContainer.top`. Properties go in parentheses with `:`, exactly as in
 `create page`. The older spellings `set Key = value on w`, `set Key: value`
 (no parentheses) and `drop widget w` still run, and warn with MDL-DEPR101,
 MDL-DEPR102 and MDL-DEPR103 — write the form above.
@@ -204,7 +212,7 @@ so a silent write would build cleanly and then fail to open.
 
 | Property | Widget Types | Value Type | Example |
 |----------|-------------|------------|---------|
-| `Action` | Widgets with an on-click action (ACTIONBUTTON, LINKBUTTON, clickable containers) | Any `create page` action expression | `set (Action: call microflow M.ACT_Go) on btnSave` |
+| `Action` | Widgets with an on-click action: ACTIONBUTTON, LINKBUTTON, CONTAINER, LISTVIEW, STATICIMAGE, DYNAMICIMAGE | Any `create page` action expression | `set (Action: call microflow M.ACT_Go) on card1` |
 | `'<slotKey>'` | Pluggable widgets — any **action-typed** property (File Uploader `createFileAction`, DataGrid 2 `onSelectionChange`, …) | Any `create page` action expression | `set ('createFileAction': call microflow M.ACT_Create) on fileUploader1` — refused, naming the widget's action slots, if the key is not action-typed |
 | `caption` | ACTIONBUTTON, LINKBUTTON | String | `set (caption: 'Submit') on btnSave` |
 | `content` | DYNAMICTEXT | String | `set (content: 'New Heading') on txtTitle` |
@@ -669,6 +677,12 @@ page and bind the buttons at creation time instead of rewiring afterwards:
    (MDL-DEPR005) and `describe` prints `footer { … }`. Address it by its data
    view: `replace dvMain.footer with { footer { … } }`, `insert into
    dvMain.footer { … }`, `drop dvMain.footer`.
+
+**An Accordion group has no name either** (`group g1` keeps no `g1`): use
+   `acc1 item@2`, `acc1 item('One')` or `acc1 item(btnIn)`; `.headercontent` is its
+   header slot, refused until `set (headerRenderMode: 'custom') on acc1 item@1`.
+
+**Nor a legacy table cell**: `insert into table1 cell(1,2) { … }` (1-based, as describe lists them) appends; `replace` swaps, `drop` empties.
 
 **A pluggable widget's slot has no name either.** A Data grid 2's control bar
    (`controlbar { … }` in describe) is a property of the grid, so address it by

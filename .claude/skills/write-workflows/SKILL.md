@@ -218,7 +218,7 @@ end workflow;
 > the resulting `.mpr` **cannot be loaded at all**. `mxcli` refuses it (MDL-WF04)
 > at check and exec time. Attach the note to an activity with `@annotation`.
 
-**Boundary events** attach a timer to a user task / call-microflow / wait:
+**Boundary events** attach a timer to a user task, call microflow, call workflow or wait:
 
 ```sql
 mdl 1;

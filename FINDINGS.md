@@ -3035,3 +3035,104 @@ break is the one this project measures continuously, and the measurement is
 unchanged; the thing it set out to remove is verifiably absent from the built
 binary. The `make build` rsync dependency from #69 is still there and still
 worked around with `tar`.
+
+## 71. 78 list markers were wrong and are now right; one still is not
+
+**Round:** `ako/mxcli` main at `a059cb3c7`, 144 non-merge commits since
+`4c0e494e8`. PR #1497 merged as `fa57680f5`, so #70's test was of the branch and
+this round confirms it in main.
+
+### Nine units changed, and the reason took finding
+
+Re-running the corpus moved **9 of 444** units — more than the 0–2 of recent
+rounds, so it needed attributing before being accepted. The A/B from #70 says
+where it comes from: previous build and new build, same starting tree, **9 units
+differ**, and each build is internally deterministic (a second corpus run under
+either changes nothing). So it is a real, stable change in what main writes, not
+nondeterminism.
+
+Eight of the nine are every `Rest$ConsumedRestService` in the project; the ninth
+is `ACT_Rates_GetLatest`. Every one is **the same size in both builds**, and the
+property-name comparison from #68 reports nothing at all. A change that
+preserves both length and property names is a value change at a fixed offset —
+five bytes per document, in this shape:
+
+```
+\x10 "0" \x00  02 00 00 00     ->     \x10 "0" \x00  03 00 00 00
+```
+
+An int32 under the key `"0"`: Mendix's **array marker**, the slot that leads
+every list document. mxcli was writing 2 where it should write 3.
+
+### Which value is right is not a matter of opinion
+
+`mx convert -p` answers it, and the answer is unambiguous once both builds are
+measured against it:
+
+| list property | previous build | **new build** | Studio Pro | count |
+| --- | --- | --- | --- | --- |
+| `Headers` | 2 | **3** | 3 | 35 |
+| `Parameters` | 2 | **3** | 3 | 35 |
+| `Operations` | 2 | **3** | 3 | 8 |
+| `SortItems` | 3 | 3 | **2** | 1 |
+
+So main fixes **78 wrong markers** across the eight REST client documents — the
+previous build disagreed with Studio Pro on every `Headers`, `Parameters` and
+`Operations` list this project has. That is the companion to
+`825f3e92 fix(pages): write marker 2 on every Widgets list, keyed on the
+property`: the markers are per-property, and the REST ones were wrong.
+
+### The one that is still wrong, now visible because the others are not
+
+`SortItems` goes the other way — mxcli writes **3**, Studio Pro writes **2** —
+and it is unchanged by this round, present in both builds:
+
+```
+unit: mprcontents/7c/ff/7cff65c8-….mxunit   (Forms$Page Home_Web)
+path: …Widgets.2.Object.Properties.2.Value.DataSource.SortBar.SortItems
+      mxcli 3 | Studio Pro 2
+```
+
+A DataGrid 2's sort bar. One occurrence, because this project has one such grid.
+It was invisible while 78 others were wrong in the opposite direction; it is the
+only marker in the project that still disagrees.
+
+What it does **not** do is break merge: property names are identical, so
+`mx diff` completes — 64 units `Modified`, 0 `changeDetails`, the same clean
+result as #69 and #70. The marker is a value, and the name-comparison engine
+never sees it. Which also means nothing in the pipeline would ever report it:
+`mx check` 0 errors, lint 269, the runtime does not care. It took diffing two
+mxcli builds against Studio Pro's own serialisation to see it at all.
+
+**Method note worth keeping.** `bsonkeys.py` compares property *names* and was
+silent on all of this. Finding it needed a second instrument —
+`scratchpad/markers.py`, which walks the same BSON and reports the `"0"` slot of
+every list, keyed by the property that holds it. Two different questions, two
+different tools; the name tool passing is not evidence about values.
+
+### `alter consumed rest service` — the editing verb this repo was missing
+
+`1ab8ef33 feat: alter consumed rest service` adds in-place editing to the one
+document type here that could only be rewritten whole:
+
+```
+alter consumed rest service RestLab."BlogApi"
+  modify operation "GetPosts" ( Timeout: 45 );
+```
+
+Checks clean, reports *"Altered consumed rest service: RestLab.BlogApi (2
+operations)"*, stores `Timeout: 45` on `GetPosts` while `GetAuthors` keeps 30,
+touches **exactly one unit**, and a second run writes nothing. `ADD OPERATION`,
+`DROP OPERATION` and `SET (BaseUrl:, Authentication:)` are in the same
+statement. The corpus still uses `create or modify` throughout — whole-document
+rewrite is the right shape for a script that rebuilds the app — but for a
+one-off change to a service Studio Pro owns, this is now the safe verb.
+
+### Standing regression
+
+14 scripts: 0 errors, 0 deprecations, all pass `--v1=error`. `exec` idempotent
+over two passes. `mx check` 0 errors. `fix hashes` 0 mismatches over 444 units.
+`fix property-sets` reports every unit complete. Rates lane green (1.16s). Lint
+**269** under both the new and the previous binary, and **CONV020**
+(*"a created object never committed or passed on"*, new this round) fires zero
+times here. `make build` still needs the `tar` workaround for `rsync`.

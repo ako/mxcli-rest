@@ -615,7 +615,7 @@ Returned by `languages()`, one per language enabled in the project settings. A p
 | `is_camel_case(s)` | Returns True if string is camelCase |
 | `matches(s, pattern)` | Returns True if string matches regex |
 | `find_all(s, pattern)` | Every match of the regex in `s`: a tuple of the capture groups per match, or the matched string when the pattern has no groups |
-| `get_option(key, default?)` | The rule's option `key` from the `options:` block under its rule ID in `.claude/lint-config.yaml`, or `default` (`None` if omitted) when unset |
+| `get_option(key, default?)` / `get_list_option(key, default?)` | The rule's option `key` from the `options:` block under its rule ID in `.claude/lint-config.yaml`, or `default` (`None` if omitted) when unset. YAML lists and maps arrive as lists and dicts. `get_list_option` returns a list of strings from a YAML list or comma-separated text (`"ACT_, SUB_"`) — use it, not a constant list a project would have to edit (`mxcli init` rewrites shipped rules). A value of the wrong shape is reported as a warning and yields `default` |
 | `struct(**kwargs)` | Build an ad-hoc struct, e.g. `struct(name="x", count=1)`, to group values inside a rule |
 
 ## Common Patterns

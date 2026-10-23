@@ -12,14 +12,14 @@ description: "Create, call and drop JavaScript actions — client-side logic cal
 |---|---|
 | 31-39 | When to Use This Skill |
 | 40-51 | Overview |
-| 52-94 | Syntax |
-| 95-156 | Examples |
-| 157-168 | Calling from a nanoflow |
-| 169-193 | The generated .js file |
-| 194-202 | Inspecting |
-| 203-211 | Validation Checklist |
-| 212-221 | Common Errors |
-| 222-226 | Related Documentation |
+| 52-97 | Syntax |
+| 98-159 | Examples |
+| 160-171 | Calling from a nanoflow |
+| 172-196 | The generated .js file |
+| 197-205 | Inspecting |
+| 206-214 | Validation Checklist |
+| 215-224 | Common Errors |
+| 225-229 | Related Documentation |
 
 <!-- /skill-index -->
 # Mendix JavaScript Actions Skill
@@ -53,7 +53,7 @@ normally returns a `Promise`.
 
 ```sql
 CREATE [OR MODIFY] JAVASCRIPT ACTION Module.Name ( parameters )
-    RETURNS type
+    RETURNS type [AS $ReturnName]
     [EXPOSED AS 'caption' IN 'category']
     [PLATFORM Web | Native | Hybrid | All]   -- default Web
 AS $$
@@ -82,6 +82,9 @@ Same type system as Java actions:
 - Type parameter (generics): declare `EntityType: ENTITY <pEntity>`, then use the
   bare `pEntity` for instance parameters
 - Append `NOT NULL` to mark a parameter required.
+- A `/** … */` doc comment **before** a parameter is its description; a trailing
+  `-- text` is an ordinary comment and is not stored. `RETURNS type AS $Name`
+  names the return value. Left out on `OR MODIFY`, both keep what is stored.
 
 ### Parameter names in the body
 
